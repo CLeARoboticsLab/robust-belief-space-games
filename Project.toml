@@ -1,0 +1,5 @@
+[deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+Infiltrator = "5903a43b-9cc3-4c30-8d17-598619ec4e9b"
+TrajectoryGamesBase = "ac1ac542-73eb-4349-ae1b-660ab3609574"
+TrajectoryGamesExamples = "ff3fa34c-8d8f-519c-b5bc-31760c52507a"
