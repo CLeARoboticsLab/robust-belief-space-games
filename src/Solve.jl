@@ -1,76 +1,63 @@
-function solve(game::MCPGame)
-    sol = MixedComplementarityProblems.solve(
+function solve(game::MCPGame; debug::Bool = false)
+    mcp_sol_raw = MixedComplementarityProblems.solve(
         MixedComplementarityProblems.InteriorPoint(),
         game.mcp,
-        [1, 1];
+        [0];
+        x₀ = fill(0.001, (game.mcp.unconstrained_dimension,)),
+        y₀ = fill(0.001, (game.mcp.constrained_dimension,)),
+        verbose = debug
     )
-    return interpret_variables(sol, game)
+    sol_interpreted = interpret_variables(mcp_sol_raw, game)
+
+    if mcp_sol_raw.status != :solved
+        @info "Solver status is $(mcp_sol_raw.status). Generating diagnostic heatmap for player 1, L_1 vs z_L[1] and z_L[x_size+1]."
+        diagnose_problem(mcp_sol_raw, game, sol_interpreted; debug=debug)
+    end
+
+    return sol_interpreted
 end
 
-function interpret_variables(sol, game::MCPGame)
-    sol.status == :solved || @warn "Solution is not optimal"
-
-    dynamics = game.game.dynamics
-    n_players = length(game.game.cost)
-    
-    state_dims = map(1:n_players) do ii
-        state_dim(game.game.dynamics.subsystems[ii])
-    end
-    x_size = sum(state_dims) * game.horizon
-    player_xs = map(1:n_players) do ii
-        mapreduce(vcat, 1:game.horizon) do t
-            [(t-1)*sum(state_dims)+sum(state_dims[1:ii-1])+1 : (t-1)*sum(state_dims)+sum(state_dims[1:ii])]
-        end
-    end
-    
-    control_dims = map(1:n_players) do ii
-        control_dim(game.game.dynamics.subsystems[ii])
-    end
-    u_size = sum(control_dims) * game.horizon
-    player_us = map(1:n_players) do ii
-        mapreduce(vcat, 1:game.horizon) do t
-            [(t-1)*sum(control_dims)+sum(control_dims[1:ii-1])+1 : (t-1)*sum(control_dims)+sum(control_dims[1:ii])]
-        end
-    end
+function interpret_variables(sol, game::MCPGame; debug::Bool = false)
+    dims = get_dimensions(game)
 
     # Extract states and controls for each player
     xs = map(1:game.horizon) do t
         BlockVector(
-            mapreduce(vcat, 1:n_players) do ii
-                sol.x[player_xs[ii][t]]
+            mapreduce(vcat, 1:dims.n_players) do ii
+                sol.x[dims.player_xs[ii][t]]
             end,
-            state_dims
+            dims.state_dims
         )
     end
     
     us = map(1:game.horizon) do t
         BlockVector(
-            mapreduce(vcat, 1:n_players) do ii
-                sol.x[x_size .+ player_us[ii][t]]
+            mapreduce(vcat, 1:dims.n_players) do ii
+                sol.x[dims.x_size .+ dims.player_us[ii][t]]
             end,
-            control_dims
+            dims.control_dims
         )
     end
 
     # Extract duals
-    player_λs = map(1:n_players) do ii
+    player_λs = map(1:dims.n_players) do ii
         sum(game.n_inequality_constraints[1:ii-1])+1:sum(game.n_inequality_constraints[1:ii])
     end
-    player_μs = map(1:n_players) do ii
+    player_μs = map(1:dims.n_players) do ii
         sum(game.n_equality_constraints[1:ii-1])+1:sum(game.n_equality_constraints[1:ii])
     end
 
     # Extract equality multipliers (μ) for each player
     μs = BlockVector(
-        mapreduce(vcat, 1:n_players) do ii
-            sol.x[x_size + u_size .+ player_μs[ii]]
+        mapreduce(vcat, 1:dims.n_players) do ii
+            sol.x[dims.x_size + dims.u_size .+ player_μs[ii]]
         end,
         game.n_equality_constraints
     )
 
     # Extract inequality multipliers (λ) for each player
     λs = BlockVector(
-        mapreduce(vcat, 1:n_players) do ii
+        mapreduce(vcat, 1:dims.n_players) do ii
             sol.y[player_λs[ii]]
         end,
         game.n_inequality_constraints
@@ -82,4 +69,9 @@ function interpret_variables(sol, game::MCPGame)
     slack = sol.s
 
     return (; xs, us, μs, λs, λ_sh, slack)
+end
+
+function diagnose_problem(sol, game::MCPGame, sol_interpreted; debug::Bool = false)
+    #TODO: something useful/human readable 
+    return
 end

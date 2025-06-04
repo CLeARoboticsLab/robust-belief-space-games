@@ -14,10 +14,10 @@ function hockey_game(;
             (x, u) -> x[1]^2 + x[2]^2 + u[1]^2 + u[2]^2,
             (x, u) -> x[1]^2 + x[2]^2 + u[1]^2 + u[2]^2,
         ],
-        environment = PolygonEnvironment(4, 8),
+        environment = PolygonEnvironment(4, 50),
         single_dynamics = planar_double_integrator(;
-            state_bounds = (; lb = [-Inf, -Inf, -0.8, -0.8], ub = [Inf, Inf, 0.8, 0.8]),
-            control_bounds = (; lb = [-10, -10], ub = [10, 10]),
+            state_bounds = (; lb = [-Inf, -Inf, -0.8, -0.8], ub = [Inf, Inf, 4, 4]),
+            control_bounds = (; lb = [-10, -10], ub = [3, 3]),
         ),
         goal_position = [
             [-1.5, 0.0],
@@ -29,6 +29,13 @@ function hockey_game(;
             (xs, us) -> defender_cost(xs, us; goal_position = goal_position, horizon = horizon),
         ],
     )
+
+    # simple cost for now:
+    cost = [
+        (xs, us) -> norm(xs[1:2]) + norm(us[1:2]),
+        (xs, us) -> norm(xs[3:4]) + norm(us[3:4]),
+    ]
+
     dynamics = ProductDynamics([single_dynamics for _ in 1:n])
     return TrajectoryGame(
         dynamics,
@@ -47,7 +54,7 @@ end
 
 function defender_cost(xs, us; goal_position, horizon)
     return mapreduce(+, 1:horizon) do t
-        -1 * shot_probability(xs[t][1:2], xs[t][3:4], goal_position) + 0.1 * norm(us[t][1:2])
+        -1 * shot_probability(xs[t][1:2], xs[t][3:4], goal_position) + 0.1 * norm(us[t][3:4])
     end
 end
 
@@ -75,18 +82,17 @@ function find_angle(p1, p2, p3)
     return acos(cos_angle)
 end
 
-
 function main()
-    horizon ::Int = 2  
+    horizon = 10
     initial_states = [
-        [2.0, 0.0, 0.0, 0.0],  # Attacker
-        [1.5, 0.0, 0.0, 0.0],
+        [0.75, 5.0, 0.0, 0.0],  # Attacker
+        [-0.75, 1.5, 0.0, 0.0],
     ]
 
     game = hockey_game(;horizon = horizon)    
-    mcp_game = MCPGame(game, horizon, vcat(initial_states...))
+    mcp_game = MCPGame(game, horizon, vcat(initial_states...);debug=true)
     
-    sol = solve(mcp_game)
+    sol = solve(mcp_game; debug=true)
     
     # Create figure
     fig = Figure(resolution=(800, 600))
@@ -136,6 +142,6 @@ function main()
     axislegend(ax, position=:lt)
     
     # Display and save
-    display(fig)
+    # display(fig)
     save("exp/hockey/outputs/hockey_solution.png", fig)
 end
