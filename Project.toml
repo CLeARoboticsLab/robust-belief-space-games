@@ -1,5 +1,22 @@
+name = "RobustBeliefGame"
+uuid = "3cbb2406-ead4-4f13-9702-1186ecfc710e"
+version = "0.1.0"
+
 [deps]
+BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+DifferentiableTrajectoryOptimization = "86fad55d-71c6-41a1-96ed-88d107dcd2ba"
 Infiltrator = "5903a43b-9cc3-4c30-8d17-598619ec4e9b"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MixedComplementarityProblems = "6c9e26cb-9263-41b8-a6c6-f4ca104ccdcd"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 TrajectoryGamesBase = "ac1ac542-73eb-4349-ae1b-660ab3609574"
 TrajectoryGamesExamples = "ff3fa34c-8d8f-519c-b5bc-31760c52507a"
+
+[compat]
+BlockArrays = "0.16.43"
+DifferentiableTrajectoryOptimization = "0.2.7"
+LinearAlgebra = "1.11.0"
+MixedComplementarityProblems = "0.1.12"
+Symbolics = "6.40.0"
