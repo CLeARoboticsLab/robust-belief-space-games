@@ -1,4 +1,4 @@
-function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{Float64}; debug::Bool = false)
+function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{Float64};debug::Bool = false)
     dynamics = game.dynamics
     costs = game.cost
     dims = get_dimensions(game, horizon)
@@ -33,7 +33,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
             return vcat(dyn_constr, init_constr)
         end
     end
-    !debug || println("[ProblemFormulation DEBUG] Equality constraints solved")
+    !debug || println("[ProblemFormulation] Equality constraints solved")
 
     # Inequality constraints
     inequality_constr_funcs = map(1:dims.n_players) do ii
@@ -62,7 +62,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
             return vcat(ec, sc, cc)
         end
     end
-    !debug || println("[ProblemFormulation DEBUG] Inequality constraints solved")
+    !debug || println("[ProblemFormulation] Inequality constraints solved")
 
     # Shared inequality constraints
     local shared_inequality_constr_eval_func::Function
@@ -81,7 +81,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
     else
         shared_inequality_constr_eval_func = (_z_arg, _λ_arg) -> Vector{Symbolics.Num}()
     end
-    !debug || println("[ProblemFormulation DEBUG] Shared inequality constraints solved")
+    !debug || println("[ProblemFormulation] Shared inequality constraints solved")
 
     all_player_lagrangians_L = Vector{Symbolics.Num}()
     lagrangian_grads = let
@@ -122,7 +122,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
                 end
                 cost_term - eq_term - ineq_term_player - ineq_term_shared 
             end
-            !debug || println("[ProblemFormulation DEBUG] Player $ii Lagrangian solved")
+            !debug || println("[ProblemFormulation] Player $ii Lagrangian solved")
             push!(all_player_lagrangians_L, L_ii)
 
             player_x_vars = reduce(vcat, map(t -> z_L[dims.player_xs[ii][t]], 1:horizon))
@@ -130,7 +130,9 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
             
             ∇x_L_ii = Symbolics.gradient(L_ii, player_x_vars)
             ∇u_L_ii = Symbolics.gradient(L_ii, player_u_vars)
-            !debug || println("[ProblemFormulation DEBUG] Player $ii gradient solved")
+            # ∇x_L_ii = Symbolics.sparsejacobian([L_ii], player_x_vars)[1]
+            # ∇u_L_ii = Symbolics.sparsejacobian([L_ii], player_u_vars)[1]
+            !debug || println("[ProblemFormulation] Player $ii gradient solved")
             
             function(_z_arg, _λ_arg) 
                 all_L_sym_vars = vcat(z_L, λ_L, λ_sh_L) 
@@ -175,7 +177,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
             end
             println(f, "\n--- END LAGRANGIANS ---")
         end
-        println("[ProblemFormulation DEBUG] Finished writing to debug_symbolic_lagrangians.txt")
+        println("[ProblemFormulation] Finished writing to debug_symbolic_lagrangians.txt")
     end
 
     G = function(_z_mcp, _λ_mcp; θ = nothing) 
@@ -187,7 +189,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
         end
         vcat(lag_grad_components, eq_constr_components)
     end
-    !debug || println("[ProblemFormulation DEBUG] G solved")
+    !debug || println("[ProblemFormulation] G solved")
     
     H = function(_z_mcp, _λ_mcp; θ = nothing) 
         ineq_player_components = mapreduce(vcat, inequality_constr_funcs) do ineq_func
@@ -201,7 +203,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
         
         vcat(ineq_player_components, shared_ineq_components)
     end
-    !debug || println("[ProblemFormulation DEBUG] H solved")
+    !debug || println("[ProblemFormulation] H solved")
     
     mcp = MixedComplementarityProblems.PrimalDualMCP(
         G,
@@ -210,7 +212,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
         constrained_dimension = sum(n_ineq_constr) + n_shared_ineq_constr,
         parameter_dimension = 0
     )
-    !debug || println("[ProblemFormulation DEBUG] MCP initialized")
+    !debug || println("[ProblemFormulation] MCP initialized")
     
     return MCPGame(game, mcp, horizon, n_eq_constr, n_ineq_constr, n_shared_ineq_constr, all_player_lagrangians_L)
 end

@@ -8,6 +8,7 @@ using LinearAlgebra
 using DifferentiableTrajectoryOptimization: get_constraints_from_box_bounds
 using BlockArrays
 using CairoMakie
+using Printf
 
 using Infiltrator
 
