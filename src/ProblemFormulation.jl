@@ -205,6 +205,8 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
     end
     !debug || println("[ProblemFormulation] H solved")
     
+    !debug || println("[ProblemFormulation] Starting MCP initialization...")
+    start_time = time()
     mcp = MixedComplementarityProblems.PrimalDualMCP(
         G,
         H;
@@ -212,8 +214,9 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
         constrained_dimension = sum(n_ineq_constr) + n_shared_ineq_constr,
         parameter_dimension = 0
     )
-    !debug || println("[ProblemFormulation] MCP initialized")
+    solve_time = time() - start_time
+    !debug || println("[ProblemFormulation] MCP initialized in $(round(solve_time, digits=2)) seconds")
     
-    return MCPGame(game, mcp, horizon, n_eq_constr, n_ineq_constr, n_shared_ineq_constr, all_player_lagrangians_L)
+    return MCPGame(game, mcp, horizon, n_eq_constr, n_ineq_constr, n_shared_ineq_constr, all_player_lagrangians_L, initial_conditions)
 end
 

@@ -1,11 +1,13 @@
-function solve(game::MCPGame; debug::Bool = false)
-    # TODO: warm start
+function solve(game::MCPGame; debug::Bool = false, warm_start::Bool = false)
+    x, y = warm_start ? warm_start(game; debug=debug) : nothing, nothing
     !debug || println("[Solve] Solving MCP...")
     start_time = time()
     mcp_sol_raw = MixedComplementarityProblems.solve(
         MixedComplementarityProblems.InteriorPoint(),
         game.mcp,
         [0];
+        x₀ = x,
+        y₀ = y,
         verbose = debug
     )
     solve_time = time() - start_time
@@ -121,4 +123,28 @@ function diagnose_problem(sol, game::MCPGame, sol_interpreted; debug::Bool = fal
         end
     end
     return
+end
+
+function warm_start(game::MCPGame; debug::Bool = false)
+    !debug || println("[Warm Start] Generating warm start...")
+    dims = get_dimensions(game)
+    # unconstrained_dimension = dims.x_size + dims.u_size + sum(game.n_equality_constraints), 
+    constrained_dimension = sum(game.n_inequality_constraints) + game.n_shared_inequality_constraints
+
+    states = Vector{BlockVector}(undef, game.horizon)
+    states[1] = BlockVector(game.initial_state, dims.state_dims)
+    for t in 2:game.horizon
+        prev_state = states[t-1]
+        zero_control = zeros(dims.u_size)
+        states[t] = BlockVector(game.game.dynamics.f(prev_state, zero_control), dims.state_dims)
+    end
+
+    controls = map(1:game.horizon) do t
+        BlockVector(zeros(dims.u_size), dims.control_dims)
+    end
+
+    x = vcat(states..., controls...)
+    y = zeros(constrained_dimension)
+    !debug || println("[Warm Start] Warm start generated:\nx = $(x)\ny = $(y)")
+    return x, y
 end

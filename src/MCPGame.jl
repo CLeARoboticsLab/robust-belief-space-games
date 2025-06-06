@@ -6,6 +6,7 @@ struct MCPGame{T1, T2}
     n_inequality_constraints::Vector{Int}
     n_shared_inequality_constraints::Int
     player_lagrangians_L::Vector{Symbolics.Num}
+    initial_state::Vector{Float64}
 end
 
 
