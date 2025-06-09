@@ -1,5 +1,5 @@
 function solve(game::MCPGame; debug::Bool = false, warm_start::Bool = false)
-    x, y = warm_start ? warm_start(game; debug=debug) : nothing, nothing
+    x, y = warm_start ? warm_start_solver(game; debug=debug) : nothing, nothing
     !debug || println("[Solve] Solving MCP...")
     start_time = time()
     mcp_sol_raw = MixedComplementarityProblems.solve(
@@ -125,7 +125,7 @@ function diagnose_problem(sol, game::MCPGame, sol_interpreted; debug::Bool = fal
     return
 end
 
-function warm_start(game::MCPGame; debug::Bool = false)
+function warm_start_solver(game::MCPGame; debug::Bool = false)
     !debug || println("[Warm Start] Generating warm start...")
     dims = get_dimensions(game)
     # unconstrained_dimension = dims.x_size + dims.u_size + sum(game.n_equality_constraints), 
@@ -133,18 +133,18 @@ function warm_start(game::MCPGame; debug::Bool = false)
 
     states = Vector{BlockVector}(undef, game.horizon)
     states[1] = BlockVector(game.initial_state, dims.state_dims)
+    zero_control = BlockVector(zeros(sum(dims.control_dims)), dims.control_dims)
     for t in 2:game.horizon
         prev_state = states[t-1]
-        zero_control = zeros(dims.u_size)
-        states[t] = BlockVector(game.game.dynamics.f(prev_state, zero_control), dims.state_dims)
+        states[t] = BlockVector(game.game.dynamics(prev_state, zero_control), dims.state_dims)
     end
 
     controls = map(1:game.horizon) do t
-        BlockVector(zeros(dims.u_size), dims.control_dims)
+        zero_control
     end
 
-    x = vcat(states..., controls...)
-    y = zeros(constrained_dimension)
+    x = vcat(states..., controls..., zeros(sum(game.n_equality_constraints))...)
+    y = ones(constrained_dimension)
     !debug || println("[Warm Start] Warm start generated:\nx = $(x)\ny = $(y)")
     return x, y
 end

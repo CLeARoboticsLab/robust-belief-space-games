@@ -6,8 +6,13 @@ using LinearAlgebra
 using GLMakie
 using BlockArrays
 using Makie
+using Symbolics
 
+struct DummyEnvironment end
 
+function TrajectoryGamesBase.get_constraints(::DummyEnvironment, player_index)
+    (state) -> Symbolics.Num[]
+end
 
 function hockey_game(;
         n=2,
@@ -22,22 +27,12 @@ function hockey_game(;
             dt = 0.3
         ),
         goal_position = nothing,
-        horizon = 20,
+        horizon = 20, # actually set in main
         cost = [
             (xs, us) -> attacker_cost(xs, us; goal_position = goal_position),
             (xs, us) -> defender_cost(xs, us; goal_position = goal_position),
         ],
     )
-
-    # simple cost for now:
-    # cost = [
-    #     (xs, us) -> mapreduce(+, eachindex(xs)) do t
-    #         norm(xs[t][1:4]) + 0.1*norm(us[t][1:2])
-    #     end,
-    #     (xs, us) -> mapreduce(+, eachindex(xs)) do t
-    #         norm(xs[t][5:8]) + 0.1*norm(us[t][3:4])
-    #     end
-    # ]
 
     dynamics = ProductDynamics([single_dynamics for _ in 1:n])
     return TrajectoryGame(
@@ -51,51 +46,31 @@ end
 
 function attacker_cost(xs, us; goal_position)
     return mapreduce(+, eachindex(xs)) do t
-        prob = shot_probability(xs[t][1:2], xs[t][5:6], goal_position[1], goal_position[2])
-        -1 * prob + 0.05 * norm(us[t][1:2])
+        -1 * shot_probability(xs[t][1:2], xs[t][5:6], goal_position[1], goal_position[2]) +
+        -2 * dot(xs[t][1:2]-xs[t][5:6],xs[t][1:2]-xs[t][5:6]) + 
+        0.05 * dot(us[t][1:2], us[t][1:2])
+        # dot(xs[t][1:4], xs[t][1:4]) + 0.1*dot(us[t][1:2], us[t][1:2])
     end
 end
 
 function defender_cost(xs, us; goal_position)
     return mapreduce(+, eachindex(xs)) do t
-        prob = shot_probability(xs[t][1:2], xs[t][5:6], goal_position[1], goal_position[2])
-        1 * prob + 0.05 * norm(us[t][3:4])
+        shot_probability(xs[t][1:2], xs[t][5:6], goal_position[1], goal_position[2]) +
+        2 * dot(xs[t][1:2]-xs[t][5:6], xs[t][1:2]-xs[t][5:6])
+        0.05 * dot(us[t][3:4], us[t][3:4])
+        # dot(xs[t][5:8], xs[t][5:8]) + 0.1*dot(us[t][3:4], us[t][3:4])
     end
 end
 
-function attacker_shooting_angle(attacker_pos, goal_p1, goal_p2)
-    return find_angle(attacker_pos, goal_p1, goal_p2)
-end
-
-function defender_blocking_angle(attacker_pos, defender_pos)
-    defender_range = 0.1
-    v_ad = defender_pos - attacker_pos
-    defender_guard = defender_range * [0.0 1.0; -1.0 0.0] * (v_ad / (norm(v_ad) + 1e-9))
-    return find_angle(attacker_pos, defender_pos + defender_guard, defender_pos - defender_guard)
-end
-
-function signed_angle(v1, v2)
-    return atan(v1[1]*v2[2] - v1[2]*v2[1], v1[1]*v2[1] + v1[2]*v2[2])
-end
-
-function soft_max(xs::AbstractArray; alpha=20)
-    return log(sum(exp.(alpha .* xs))) / alpha
-end
-
 function shot_probability(attacker_pos, defender_pos, goal_p1, goal_p2)
-    shooting_angle = attacker_shooting_angle(attacker_pos, goal_p1, goal_p2)
+    u = defender_pos - attacker_pos
+    v = (goal_p1 + goal_p2) / 2 - attacker_pos
 
-    blocking_angle = defender_blocking_angle(attacker_pos, defender_pos)
+    nu = dot(u, u)
+    nv = dot(v, v)
 
-    goal_center = (goal_p1 + goal_p2) / 2
-    separation_angle = find_angle(attacker_pos, goal_center, defender_pos)
-    alignment_factor = exp(-5 * separation_angle)
-    
-    effective_block = blocking_angle * alignment_factor
-    
-    # The final probability is the shooting angle, reduced by the effective block.
-    # soft_max ensures it's a smooth function and >= 0.
-    return soft_max([0.0, shooting_angle - effective_block]; alpha=100)
+    return -0.1 * dot(u, v) / (nv + nu + 1e-9) + -1 * nv
+    # return dot(attacker_pos,attacker_pos)
 end
 
 function find_angle(p1, p2, p3)
@@ -107,15 +82,6 @@ function find_angle(p1, p2, p3)
     return 2 * atan(norm(v1*n2 - n1*v2), norm(v1*n2 + n1*v2))
 end
 
-"""
-    test_shot_probability_viz()
-
-An interactive visualization to test the `shot_probability` function.
-You can drag the attacker (blue) and defender (red) around to see how the shooting and blocking angles change.
-The green line represents the goal.
-
-To run, simply call `test_shot_probability_viz()` from the REPL after loading the file.
-"""
 function test_shot_probability_viz()
     fig = Figure(resolution=(1000, 800))
     ax = Axis(fig[1, 1],
@@ -139,8 +105,8 @@ function test_shot_probability_viz()
     defender_plot = scatter!(ax, defender_pos, color=:red, markersize=20, label="Defender")
     
     # The angles
-    shooting_angle = @lift(attacker_shooting_angle($attacker_pos, goal_p1, goal_p2))
-    blocking_angle = @lift(defender_blocking_angle($attacker_pos, $defender_pos))
+    # shooting_angle = @lift(attacker_shooting_angle($attacker_pos, goal_p1, goal_p2))
+    # blocking_angle = @lift(defender_blocking_angle($attacker_pos, $defender_pos))
     shot_prob = @lift(shot_probability($attacker_pos, $defender_pos, goal_p1, goal_p2))
 
     # Angle visualizations
@@ -193,10 +159,10 @@ function test_shot_probability_viz()
 
     # Text display
     angle_text = @lift """
-    Attacker Angle: $(round(rad2deg($shooting_angle), digits=1))°
-    Defender Angle: $(round(rad2deg($blocking_angle), digits=1))°
     Shot Likelihood: $(round($shot_prob, digits=3))
     """
+        # Attacker Angle: $(round(rad2deg($shooting_angle), digits=1))°
+    # Defender Angle: $(round(rad2deg($blocking_angle), digits=1))°
     
     Label(fig[2, 1], angle_text, fontsize=20, tellwidth=false)
 
@@ -206,15 +172,15 @@ function test_shot_probability_viz()
 end
 
 function main()
-    horizon = 10
+    horizon = 20
     initial_states = [
         [0.75, 5.0, 0.0, 0.0],  # Attacker
         [-0.75, 1.5, 0.0, 0.0],
     ]
     # A single goal defined by its two posts.
     goal_position = [
-            [-1.5, 0.25],
-            [-1.5, -0.25],
+            [0.25, -1.5],
+            [-0.25, -1.5],
         ]
 
 
@@ -227,7 +193,7 @@ function main()
     )    
     mcp_game = MCPGame(game, horizon, vcat(initial_states...);debug=true)
     
-    sol = solve(mcp_game; debug=true)
+    sol = solve(mcp_game; debug=true, warm_start=false)
     
     # Create figure
     fig = Figure(resolution=(800, 600))
@@ -250,12 +216,6 @@ function main()
     # Plot initial positions
     init_atk = scatter!(ax, [sol.xs[1][Block(1)][1]], [sol.xs[1][Block(1)][2]], label="Attacker Start", color=:blue, markersize=15)
     init_def = scatter!(ax, [sol.xs[1][Block(2)][1]], [sol.xs[1][Block(2)][2]], label="Defender Start", color=:red, markersize=15)
-    
-    # # Plot final positions
-    # final_atk = scatter!(ax, [sol.xs[end][Block(1)][1]], [sol.xs[end][Block(1)][2]], label="Attacker End", 
-    #     color=:blue, marker=:diamond, markersize=15)
-    # final_def = scatter!(ax, [sol.xs[end][Block(2)][1]], [sol.xs[end][Block(2)][2]], label="Defender End", 
-    #     color=:red, marker=:diamond, markersize=15)
     
     # Add arrows to show direction of movement
     for i in 2:2:length(sol.xs)-1

@@ -22,6 +22,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
 
     # Equality constraints
     equality_constr_funcs = map(1:dims.n_players) do ii
+        !debug || println("[ProblemFormulation] Number of equality constraints for player $ii: $(n_eq_constr[ii])")
         function(_z, _λ)
             x = _z[1:dims.x_size]
             u = _z[dims.x_size+1:dims.x_size+dims.u_size]
@@ -43,8 +44,11 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
         control_box_constraints_gen = get_constraints_from_box_bounds(control_bounds(subdynamics))
 
         n_ineq_constr[ii] += length(environment_constraints_gen(BlockVector(zeros(dims.state_dims[ii]), [dims.state_dims[ii]]))) * horizon
+        !debug || println("[ProblemFormulation] Adding environment constraints for player $ii: $(n_ineq_constr[ii])")
         n_ineq_constr[ii] += length(state_box_constraints_gen(BlockVector(zeros(dims.state_dims[ii]), [dims.state_dims[ii]]))) * horizon
+        !debug || println("[ProblemFormulation] Adding state box constraints for player $ii: $(n_ineq_constr[ii])")
         n_ineq_constr[ii] += length(control_box_constraints_gen(BlockVector(zeros(dims.control_dims[ii]), [dims.control_dims[ii]]))) * horizon
+        !debug || println("[ProblemFormulation] Adding control box constraints for player $ii: $(n_ineq_constr[ii])")
 
         function(_z, _λ)
             x = _z[1:dims.x_size]
@@ -113,12 +117,16 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
                 eq_term = dot(μs_L[player_μ_indices[ii]], eq_constr_exprs)
 
                 ineq_constr_exprs = inequality_constr_funcs[ii](z_L, λ_L) 
-                ineq_term_player = dot(λ_L[player_λ_indices[ii]], ineq_constr_exprs)
+                ineq_term_player = if !isempty(ineq_constr_exprs)
+                    dot(λ_L[player_λ_indices[ii]], ineq_constr_exprs)
+                else
+                    0
+                end
                 
                 ineq_term_shared = 0
                 if n_shared_ineq_constr > 0
                     shared_ineq_exprs = shared_inequality_constr_eval_func(z_L, λ_L)
-                    ineq_term_shared = dot(λ_L[player_λ_indices[ii]], shared_ineq_exprs)
+                    ineq_term_shared = dot(λ_sh_L, shared_ineq_exprs)
                 end
                 cost_term - eq_term - ineq_term_player - ineq_term_shared 
             end
@@ -204,6 +212,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
         vcat(ineq_player_components, shared_ineq_components)
     end
     !debug || println("[ProblemFormulation] H solved")
+    # @infiltrate
     
     !debug || println("[ProblemFormulation] Starting MCP initialization...")
     start_time = time()
