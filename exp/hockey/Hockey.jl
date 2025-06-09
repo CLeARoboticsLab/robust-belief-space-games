@@ -56,7 +56,7 @@ end
 function defender_cost(xs, us; goal_position)
     return mapreduce(+, eachindex(xs)) do t
         shot_probability(xs[t][1:2], xs[t][5:6], goal_position[1], goal_position[2]) +
-        2 * dot(xs[t][1:2]-xs[t][5:6], xs[t][1:2]-xs[t][5:6])
+        2 * dot(xs[t][1:2]-xs[t][5:6], xs[t][1:2]-xs[t][5:6]) +
         0.05 * dot(us[t][3:4], us[t][3:4])
         # dot(xs[t][5:8], xs[t][5:8]) + 0.1*dot(us[t][3:4], us[t][3:4])
     end
@@ -182,7 +182,6 @@ function main()
             [0.25, -1.5],
             [-0.25, -1.5],
         ]
-
 
     # Visual
     goal_line_width = 5
