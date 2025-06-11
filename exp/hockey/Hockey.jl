@@ -73,15 +73,6 @@ function shot_probability(attacker_pos, defender_pos, goal_p1, goal_p2)
     # return dot(attacker_pos,attacker_pos)
 end
 
-function find_angle(p1, p2, p3)
-    v1 = p2 .- p1
-    v2 = p3 .- p1
-    n1 = norm(v1)
-    n2 = norm(v2)
-    
-    return 2 * atan(norm(v1*n2 - n1*v2), norm(v1*n2 + n1*v2))
-end
-
 function test_shot_probability_viz()
     fig = Figure(resolution=(1000, 800))
     ax = Axis(fig[1, 1],
@@ -240,4 +231,147 @@ function main()
     # Display and save
     # display(fig)
     save("exp/hockey/outputs/hockey_solution.png", fig)
+end
+
+function belief_main()
+    # Game Params
+    horizon = 20
+    dt = 0.3
+    n=2
+    goal_position = [
+        [0.25, -1.5],
+        [-0.25, -1.5],
+    ]
+
+    # Initial States/Beliefs
+    gt_initial_state = mortar([ # gt = ground truth
+        [-0.75, 1.5, 0.0, 0.0],
+        [0.75, 5.0, 0.0, 0.0],  # Attacker
+    ])
+    initial_belief_covariance = [
+        [0 0 0    0;
+         0 0 0    0;
+         0 0 0.25 0;
+         0 0 0    0.25],
+        [0 0 0    0;
+         0 0 0    0;
+         0 0 0.25 0;
+         0 0 0    0.25],
+    ]
+    initial_beliefs = Beliefs([Belief(gt_initial_state[Block(i)], initial_belief_covariance[i]) for i in 1:2])
+
+
+    # Environment
+        # Dynamics
+    function f(xs, us, ms)
+        BlockVector(
+                mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
+                [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
+                [0.5 * dt^2; 0.5 * dt^2; dt; dt] * uᵢ +
+                [0 0 0 0; 0 0 0 0; 0 0 uᵢ[1]^2 0; 0 0 0 uᵢ[2]^2] * mᵢ
+            end,
+            [4, 4]
+        )
+    end
+
+        # Sensor Models
+    function h(xs, ns)
+        BlockVector(
+            mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
+                [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 xᵢ[3] 0; 0 0 0 xᵢ[4]] * nᵢ
+            end,
+            [2, 2]
+        )
+    end
+
+    environment = BeliefEnvironment(f, gt_initial_state, h)
+
+    # Cost
+    function steal_liklihood(bs::Beliefs)
+        sq_dist = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
+        sq_vel_dist = dot(bs.beliefs[1].belief_mean[3:4] - bs.beliefs[2].belief_mean[3:4], bs.beliefs[1].belief_mean[3:4] - bs.beliefs[2].belief_mean[3:4])
+        dist_uncertainty = dot(bs.beliefs[1].belief_covariance[1, 1:2], bs.beliefs[1].belief_covariance[2, 1:2])
+        vel_uncertainty = dot(bs.beliefs[1].belief_covariance[3, 3:4], bs.beliefs[1].belief_covariance[4, 3:4])
+        return 1/(dist_uncertainty + vel_uncertainty + 1e-9) * exp(-5 * sq_dist^2) * exp(-sq_vel_dist)
+    end
+    function defender_non_terminal_cost(bs::Beliefs, us)
+        steal_prob = steal_liklihood(bs)
+        control_effort = dot(us[Block(1)], us[Block(1)])
+        return -1 * steal_prob + 3 * control_effort
+    end
+    function attacker_non_terminal_cost(bs::Beliefs, us)
+        steal_prob = steal_liklihood(bs)
+        control_effort = dot(us[Block(2)], us[Block(2)])
+        return steal_prob + 3 * control_effort
+    end    
+    function shot_probability(bs::Beliefs)
+        dist_penalty = 0.1
+        block_max = 0.8
+        block_falloff = 0.5
+        attacker_uncertainty_penalty = 0.3  
+        defender_uncertainty_penalty = 0.5 
+        goal_center = (goal_position[1] + goal_position[2]) / 2
+
+        attacker_pos = bs.beliefs[2].belief_mean[1:2] # Player 2 is Attacker
+        defender_pos = bs.beliefs[1].belief_mean[1:2] # Player 1 is Defender
+        attacker_pos_uncertainty = tr(bs.beliefs[2].belief_covariance[1:2, 1:2])
+        defender_pos_uncertainty = tr(bs.beliefs[1].belief_covariance[1:2, 1:2])
+
+        # Term 1: Base score, penalized by distance to goal and attacker's own uncertainty.
+        dist_sq_to_goal = dot(attacker_pos - goal_center, attacker_pos - goal_center)
+        distance_penalty = dist_penalty * dist_sq_to_goal
+        attacker_uncertainty_penalty_term = attacker_uncertainty_penalty * attacker_pos_uncertainty
+
+        # Term 2: Defender blocking penalty, hindered by defender's own uncertainty.
+        v_attacker_to_goal = goal_center - attacker_pos
+        v_attacker_to_defender = defender_pos - attacker_pos
+        dist_sq_to_defender = dot(v_attacker_to_defender, v_attacker_to_defender)
+
+        cos_block_angle =
+            dot(v_attacker_to_goal, v_attacker_to_defender) /
+            (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
+
+        # Defender's blocking power is reduced by their positional uncertainty
+        block_effectiveness = (block_max * exp(-block_falloff * dist_sq_to_defender)) /
+                              (1 + defender_uncertainty_penalty * defender_pos_uncertainty)
+
+        defender_block_penalty = block_effectiveness * max(0, cos_block_angle)
+
+        # Final score calculation
+        final_score = 1.0 - distance_penalty - attacker_uncertainty_penalty_term - defender_block_penalty
+        return final_score
+    end
+    function attacker_terminal_cost(bs::Beliefs)
+        shot_qual = shot_probability(bs)
+        # Attacker wants to max shot quality, so we min its negative.
+        # Don't let attacker get too far away from origin (area of play). This game construction
+        #   doesn't allow for hard constraints.
+        return -shot_qual + 0.01 * dot(bs.beliefs[2].belief_mean[1:2], bs.beliefs[2].belief_mean[1:2])
+    end
+    function defender_terminal_cost(bs::Beliefs)
+        shot_qual = shot_probability(bs)
+        return shot_qual + 0.01 * dot(bs.beliefs[1].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2])
+    end
+
+    attacker_cost = BeliefCost(
+        attacker_non_terminal_cost,
+        attacker_terminal_cost,
+    )
+    defender_cost = BeliefCost(
+        defender_non_terminal_cost,
+        defender_terminal_cost,
+    )
+
+    bs_hockey_game = BeliefGame(
+        environment,
+        [defender_cost, attacker_cost],
+        initial_beliefs,
+        horizon,
+        (; n=2, states=[4, 4], controls=[2, 2], belief=map(x -> x+x^2, states), sensor=[2, 2]),
+        gt_initial_state,
+    )
+
+    sol = solve(bs_hockey_game; debug=true)
+
+    print("[Hockey] Ran, please implement vis.")
 end

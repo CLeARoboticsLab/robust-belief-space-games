@@ -21,6 +21,11 @@ export MCPGame
 include("Solve.jl")
 export solve
 
+include("BeliefSpaceUtils.jl")
+export Belief, Beliefs, means, covs, dims, BeliefGame, BeliefEnvironment, BeliefCost
+
+include("RobustBeliefSpaceSolver.jl")
+export solve
 
 
 
