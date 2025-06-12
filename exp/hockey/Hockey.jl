@@ -366,7 +366,7 @@ function belief_main()
         [defender_cost, attacker_cost],
         initial_beliefs,
         horizon,
-        (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=map(x -> x+x^2, length.(gt_initial_state.blocks)), sensor=[2, 2]),
+        (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
         gt_initial_state,
     )
 

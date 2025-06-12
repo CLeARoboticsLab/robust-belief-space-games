@@ -4,7 +4,7 @@ struct Regularizations
 end
 
 function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4)
-    nominal_beliefs, nominal_controls = rollout_strategy(game, [(x) -> BlockVector(zeros(sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1])
+    nominal_beliefs, nominal_controls = rollout_strategy(game, [(x) -> BlockVector(fill(0.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1])
     new_cost, old_cost = Inf, Inf
     regularizations = Regularizations(1.0, 1.0)
 

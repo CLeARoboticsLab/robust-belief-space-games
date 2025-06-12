@@ -104,8 +104,22 @@ end
 function rollout_strategy(game::BeliefGame, strategy::Vector{<:Function})
     beliefs = [deepcopy(game.initial_beliefs)]
     controls = []
-    for i in eachindex(strategy) #TODO is the order right? action -> new state -> observe -> action
+    for i in eachindex(strategy)
         push!(controls, strategy[i](beliefs[end]))
+        if DEBUG
+            open(DEBUG_FILE, "a") do f
+                println(f, "\n[Rollout] time: $i")
+                println(f, "Belief means: $(means(beliefs[end]))")
+                println(f, "Belief covariances:")
+                for (i, cov) in enumerate(covs(beliefs[end]))
+                    println(f, "Agent $i covariance:")
+                    display_matrix = IOContext(f, :limit=>false)
+                    show(display_matrix, "text/plain", cov)
+                    println(f)
+                end
+                println(f, "Control: $(controls[end])")
+            end
+        end
         g, W = ekf_update(beliefs[end], controls[end], game.environment.dynamics, game.environment.sensor_models)
         push!(beliefs, Beliefs(g, game.dims.belief))
     end

@@ -32,8 +32,8 @@ include("RobustBeliefSpaceSolver.jl")
 export solve
 
 
-
-
-
+DEBUG = true
+DEBUG_FILE = "./exp/hockey/outputs/belief_diagnostics.txt"
+!DEBUG || open(DEBUG_FILE, "w") do f end
 
 end # module
