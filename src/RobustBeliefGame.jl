@@ -9,6 +9,7 @@ using DifferentiableTrajectoryOptimization: get_constraints_from_box_bounds
 using BlockArrays
 using CairoMakie
 using Printf
+using ForwardDiff
 
 using Infiltrator
 
@@ -23,6 +24,9 @@ export solve
 
 include("BeliefSpaceUtils.jl")
 export Belief, Beliefs, means, covs, dims, BeliefGame, BeliefEnvironment, BeliefCost
+
+include("EKF.jl")
+export ekf_update, ekf_update_gradient
 
 include("RobustBeliefSpaceSolver.jl")
 export solve

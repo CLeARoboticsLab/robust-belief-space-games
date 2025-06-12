@@ -3,7 +3,6 @@ using TrajectoryGamesBase
 using TrajectoryGamesExamples
 using RobustBeliefGame
 using LinearAlgebra
-using GLMakie
 using BlockArrays
 using Makie
 using Symbolics
@@ -263,19 +262,19 @@ function belief_main()
 
     # Environment
         # Dynamics
-    function f(xs, us, ms)
+    function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
         BlockVector(
                 mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
                 [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
-                [0.5 * dt^2; 0.5 * dt^2; dt; dt] * uᵢ +
-                [0 0 0 0; 0 0 0 0; 0 0 uᵢ[1]^2 0; 0 0 0 uᵢ[2]^2] * mᵢ
+                [0.5*dt^2 0; 0 0.5*dt^2; dt 0; 0 dt] * uᵢ +
+                [0 0 0 0; 0 0 0 0; 0 0 0.1*uᵢ[1] 0; 0 0 0 0.1*uᵢ[2]] * mᵢ
             end,
             [4, 4]
         )
     end
 
         # Sensor Models
-    function h(xs, ns)
+    function h(xs::BlockVector, ns::BlockVector)
         BlockVector(
             mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
                 [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 xᵢ[3] 0; 0 0 0 xᵢ[4]] * nᵢ
@@ -367,7 +366,7 @@ function belief_main()
         [defender_cost, attacker_cost],
         initial_beliefs,
         horizon,
-        (; n=2, states=[4, 4], controls=[2, 2], belief=map(x -> x+x^2, states), sensor=[2, 2]),
+        (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=map(x -> x+x^2, length.(gt_initial_state.blocks)), sensor=[2, 2]),
         gt_initial_state,
     )
 

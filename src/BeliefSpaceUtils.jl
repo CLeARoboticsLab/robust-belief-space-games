@@ -1,23 +1,38 @@
+import Base.vec
+
 struct Belief
-    belief_mean::Vector{Float64}
-    belief_covariance::Symmetric{Float64, Matrix{Float64}}
+    belief_mean::Vector
+    belief_covariance::Symmetric
     belief_dim::Int
 end
 
-function Belief(belief_mean::Vector{Float64}, belief_covariance::Symmetric{Float64, Matrix{Float64}})
+function Belief(belief_mean::Vector, belief_covariance::Symmetric)
     return Belief(belief_mean, belief_covariance, length(belief_mean))
 end
 
-function Belief(belief_mean::Vector{Float64}, belief_covariance::Matrix{Float64})
+function Belief(belief_mean::Vector, belief_covariance::Matrix)
     return Belief(belief_mean, Symmetric(belief_covariance), length(belief_mean))
 end
 
+function Belief(vectorized_belief::Vector, dims::Int)
+    return Belief(vectorized_belief[1:dims], Symmetric(reshape(vectorized_belief[dims+1:end], dims, dims)), dims)
+end
+
 function vec(belief::Belief)
-    return [belief.belief_mean; vec(belief.belief_covariance)]
+    return [belief.belief_mean; Base.vec(belief.belief_covariance)]
 end
 
 struct Beliefs
     beliefs::Vector{Belief}
+end
+
+function Beliefs(beliefs::Vector, dims::Vector{Int})
+    return Beliefs(map(eachindex(dims)) do i
+        start = mapreduce(+, 1:i-1, init=0) do j
+            dims[j] + dims[j]^2
+        end
+        Belief(beliefs[start+1:start+dims[i]], Symmetric(reshape(beliefs[start+dims[i]+1:start+dims[i]+dims[i]^2], dims[i], dims[i])))
+    end)
 end
 
 function means(beliefs::Beliefs)
@@ -32,13 +47,21 @@ function dims(beliefs::Beliefs)
     return [belief.belief_dim for belief in beliefs.beliefs]
 end
 
+function total_size(belief::Belief)
+    return belief.belief_dim + belief.belief_dim ^ 2
+end
+
+function total_size(beliefs::Beliefs)
+    return sum(total_size(belief) for belief in beliefs.beliefs)
+end
+
 function vec(beliefs::Beliefs)
     mapreduce(vcat, beliefs.beliefs) do belief
         vec(belief)
     end
 end
 
-function unvec(vec_beliefs::Vector{Float64}, dims::Vector{Int})
+function unvec(vec_beliefs::Vector, dims::Vector{Int})
     belief_dims = map(dims) do dim
         dim + dim ^2
     end
@@ -57,8 +80,6 @@ function Base.:-(b1::Belief, b2::Belief)
     # Subtract corresponding belief means and covariances
     return vec(b1) - vec(b2)
 end
-
-
 
 struct BeliefCost
     non_terminal_cost::Function
@@ -80,12 +101,13 @@ struct BeliefGame
     gt_initial_state::BlockVector
 end
 
-function rollout_strategy(game::BeliefGame, strategy::Vector{Function})
+function rollout_strategy(game::BeliefGame, strategy::Vector{<:Function})
     beliefs = [deepcopy(game.initial_beliefs)]
     controls = []
     for i in eachindex(strategy) #TODO is the order right? action -> new state -> observe -> action
         push!(controls, strategy[i](beliefs[end]))
-        push!(beliefs, ekf_update(beliefs[end], controls[end], game.environment.dynamics, game.environment.sensor_models))
+        g, W = ekf_update(beliefs[end], controls[end], game.environment.dynamics, game.environment.sensor_models)
+        push!(beliefs, Beliefs(g, game.dims.belief))
     end
     return beliefs, controls
 end
