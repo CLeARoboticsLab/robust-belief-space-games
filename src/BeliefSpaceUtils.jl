@@ -1,4 +1,6 @@
 import Base.vec
+import Base: round
+using ForwardDiff: Dual
 
 struct Belief
     belief_mean::Vector
@@ -65,10 +67,10 @@ function unvec(vec_beliefs::Vector, dims::Vector{Int})
     belief_dims = map(dims) do dim
         dim + dim ^2
     end
-    map(eachindex(belief_dims)) do i
+    Beliefs(map(eachindex(belief_dims)) do i
         belief_start = sum(belief_dims[1:i-1])
         Belief(vec_beliefs[belief_start+1:belief_start+dims[i]], reshape(vec_beliefs[belief_start+dims[i]+1:sum(belief_dims[1:i])], dims[i], dims[i]))
-    end
+    end)
 end
 
 function Base.:-(b1::Beliefs, b2::Beliefs)
@@ -101,9 +103,13 @@ struct BeliefGame
     gt_initial_state::BlockVector
 end
 
+function dual_round(x; kwargs...)
+    x isa Dual ? x : round(x; kwargs...)
+end
+
 function rollout_strategy(game::BeliefGame, strategy::Vector{<:Function})
     beliefs = [deepcopy(game.initial_beliefs)]
-    controls = []
+    controls::Vector{BlockVector} = []
     for i in eachindex(strategy)
         push!(controls, strategy[i](beliefs[end]))
         if DEBUG

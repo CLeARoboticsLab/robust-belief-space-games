@@ -7,6 +7,7 @@ using Symbolics
 using LinearAlgebra
 using DifferentiableTrajectoryOptimization: get_constraints_from_box_bounds
 using BlockArrays
+using BlockDiagonals: BlockDiagonal
 using CairoMakie
 using Printf
 using ForwardDiff

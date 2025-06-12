@@ -6,14 +6,7 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
     H=ForwardDiff.jacobian((x)-> Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), control, zero_noise), zero_noise)), vcat(means(beliefs)...))
     N=ForwardDiff.jacobian((x)-> Vector(sensor_model(expected_dynamics, x)), zero_noise)
 
-    Σ = BlockArray(zeros((sum(dims(beliefs)), sum(dims(beliefs)))), dims(beliefs), dims(beliefs))
-    for ii in eachindex(beliefs.beliefs)
-        for jj in eachindex(beliefs.beliefs)
-            if ii == jj
-                Σ[Block(ii), Block(jj)] = beliefs.beliefs[ii].belief_covariance
-            end
-        end
-    end
+    Σ = BlockDiagonal([b.belief_covariance for b in beliefs.beliefs])
     
     if DEBUG 
         open(DEBUG_FILE, "a") do f
@@ -41,7 +34,7 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
         end
     end
 
-    Γ = Symmetric(round.(A * Σ * A' + M * Σ * M', digits = 5))
+    Γ = Symmetric(dual_round.(A * Σ * A' + M * Σ * M', digits = 5))
     
     if DEBUG 
         open(DEBUG_FILE, "a") do f
@@ -52,7 +45,7 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
         end
     end
 
-    K = round.(Γ * H' * ((H * Γ * H' + N * N') \ I), digits = 5)
+    K = dual_round.(Γ * H' * ((H * Γ * H' + N * N') \ I), digits = 5)
     
     if DEBUG
         open(DEBUG_FILE, "a") do f
@@ -63,7 +56,11 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
         end
     end
 
-    g = [expected_dynamics; Base.vec(Symmetric(round.(Γ - K * H * Γ, digits=100)))]
+    temp = BlockArray(Symmetric(dual_round.(Γ - K * H * Γ, digits=5)), dims(beliefs), dims(beliefs))
+    covs_extraced = mapreduce(vcat, 1:length(beliefs.beliefs)) do dim
+        temp[Block(dim), Block(dim)]
+    end
+    g = [expected_dynamics; Base.vec(covs_extraced)]
     W = [sqrt(Symmetric(K * H * Γ)); zeros((sum(dims(beliefs).^2), sum(dims(beliefs))))]
 
     if DEBUG 
@@ -75,15 +72,13 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
             
             # Print covariance matrices
             println(f, "Belief covariances:")
-            cov_size = dims(beliefs)[1]
             cov_vec = g[length(expected_dynamics)+1:end]
-            cov_mat = reshape(cov_vec, (cov_size*length(beliefs.beliefs), cov_size*length(beliefs.beliefs)))
-            show(display_matrix, "text/plain", Symmetric(cov_mat))
-            # for (i, belief) in enumerate(beliefs.beliefs)
-            #     println(f, "Agent $i covariance:")
-            #     show(display_matrix, "text/plain", Symmetric(cov_mat[cov_size*(i-1)+1:cov_size*i, cov_size*(i-1)+1:cov_size*i]))
-            #     println(f)
-            # end
+            cov_mat = reshape(cov_vec, (dims(beliefs)[1], sum(dims(beliefs))))
+            for (i, belief) in enumerate(beliefs.beliefs)
+                println(f, "Agent $i covariance:")
+                show(display_matrix, "text/plain", Symmetric(cov_mat[:, dims(beliefs)[1]*(i-1)+1:dims(beliefs)[1]*i]))
+                println(f)
+            end
             println(f, "\nW matrix:")
             show(display_matrix, "text/plain", W)
             println(f)
@@ -97,22 +92,38 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
     old_debug = DEBUG
     global DEBUG = false
     function mean_grad(x)
-        beliefs_vec = unvec(x[1:total_size(beliefs)], dims(beliefs))
-        control_vec = BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control)))
-        g, _ = ekf_update(Beliefs(beliefs_vec, dims(beliefs)[1]), control_vec, dynamics, sensor_model)
-        return g
+        return ekf_update(
+            unvec(x[1:total_size(beliefs)], dims(beliefs)),
+            BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control))),
+            dynamics,
+            sensor_model)[1]
     end
-    
-    # Function to compute the gradient of the covariance update
     function cov_grad(x)
-        beliefs_vec = unvec(x[1:total_size(beliefs)], dims(beliefs))
-        control_vec = BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control)))
-        _, W = ekf_update(beliefs_vec, control_vec, dynamics, sensor_model)
-        return W
+        return ekf_update(
+            unvec(x[1:total_size(beliefs)], dims(beliefs)), 
+            BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control))),
+            dynamics,
+            sensor_model)[2]
     end
     x = vcat(vec(beliefs), vec(control))
-    g_s = ForwardDiff.gradient(mean_grad, x)
-    W_s = ForwardDiff.gradient(cov_grad, x)
+    g_s = ForwardDiff.jacobian(mean_grad, x)
+    W_s = ForwardDiff.jacobian(cov_grad, x)
+    
+    # Extract Float64 values from Dual numbers
+    g_s_val = ForwardDiff.value.(g_s)
+    W_s_val = ForwardDiff.value.(W_s)
+    
     global DEBUG = old_debug
-    return g_s, W_s
+    if DEBUG 
+        open(DEBUG_FILE, "a") do f
+            println(f, "\ng_s:")
+            display_matrix = IOContext(f, :limit=>false)
+            show(display_matrix, "text/plain", g_s_val)
+            println(f)
+            println(f, "\nW_s:")
+            show(display_matrix, "text/plain", W_s_val)
+            println(f)
+        end
+    end
+    return g_s_val, reshape(W_s_val, (total_size(beliefs), sum(dims(beliefs)), total_size(beliefs)+length(control)))
 end

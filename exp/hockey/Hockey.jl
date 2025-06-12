@@ -149,10 +149,10 @@ function test_shot_probability_viz()
 
     # Text display
     angle_text = @lift """
-    Shot Likelihood: $(round($shot_prob, digits=3))
+    Shot Likelihood: $(dual_round($shot_prob, digits=3))
     """
-        # Attacker Angle: $(round(rad2deg($shooting_angle), digits=1))°
-    # Defender Angle: $(round(rad2deg($blocking_angle), digits=1))°
+        # Attacker Angle: $(dual_round(rad2deg($shooting_angle), digits=1))°
+    # Defender Angle: $(dual_round(rad2deg($blocking_angle), digits=1))°
     
     Label(fig[2, 1], angle_text, fontsize=20, tellwidth=false)
 

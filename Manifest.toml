@@ -2,7 +2,7 @@
 
 julia_version = "1.11.5"
 manifest_format = "2.0"
-project_hash = "11dccfda5e9321567e3e76902b8a1442679db219"
+project_hash = "c445d8729b99bde72f70af1af2201b67cafd47c5"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "e2478490447631aedba0823d4d7a80b2cc8cdb32"
@@ -186,6 +186,16 @@ deps = ["ArrayLayouts", "FillArrays", "LinearAlgebra"]
 git-tree-sha1 = "9a9610fbe5779636f75229e423e367124034af41"
 uuid = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
 version = "0.16.43"
+
+[[deps.BlockDiagonals]]
+deps = ["FillArrays", "LinearAlgebra"]
+git-tree-sha1 = "6e0ac86a90783f36f6daa496acf39ca138be8922"
+uuid = "0a1fb500-61f7-11e9-3c65-f5ef3456f9f0"
+version = "0.2.0"
+weakdeps = ["ChainRulesCore"]
+
+    [deps.BlockDiagonals.extensions]
+    ChainRulesCoreExt = "ChainRulesCore"
 
 [[deps.Bzip2_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]

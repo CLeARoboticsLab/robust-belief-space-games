@@ -224,7 +224,7 @@ function MCPGame(game::TrajectoryGame, horizon::Int, initial_conditions::Vector{
         parameter_dimension = 0
     )
     solve_time = time() - start_time
-    !debug || println("[ProblemFormulation] MCP initialized in $(round(solve_time, digits=2)) seconds")
+    !debug || println("[ProblemFormulation] MCP initialized in $(dual_round(solve_time, digits=2)) seconds")
     
     return MCPGame(game, mcp, horizon, n_eq_constr, n_ineq_constr, n_shared_ineq_constr, all_player_lagrangians_L, initial_conditions)
 end
