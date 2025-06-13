@@ -110,8 +110,9 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
     g_s = ForwardDiff.jacobian(mean_grad, x)
     W_s = ForwardDiff.jacobian(cov_grad, x)
     
-    g_s_val = ForwardDiff.value.(real.(g_s)) # TODO fix real. being necessary...
-    W_s_val = ForwardDiff.value.(real.(W_s))
+
+    g_s_val = clip_gradient(ForwardDiff.value.(real.(g_s)), gradient_clip) # TODO fix real. being necessary...
+    W_s_val = clip_gradient(ForwardDiff.value.(real.(W_s)), gradient_clip)
     
     global DEBUG = old_debug
     if DEBUG 

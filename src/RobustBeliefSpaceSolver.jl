@@ -5,14 +5,18 @@ end
 
 function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4)
     nominal_beliefs, nominal_controls = rollout_strategy(game, [(x) -> BlockVector(fill(0.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1])
-    new_cost, old_cost = 0, Inf
+    new_cost, old_cost = 0, 14
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0
+
+    if DEBUG
+        open(DEBUG_FILE, "w") do f end
+    end
 
     while norm(new_cost - old_cost) > ϵ_converge
         old_cost = new_cost
 
-        strategy = backward_pass(game, nominal_beliefs, nominal_controls, regularizations)
+        strategy = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations)
         candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
 
         new_cost = map(1:game.dims.n) do ii
@@ -34,10 +38,15 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4)
     return nominal_beliefs, nominal_controls
 end
 
-function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations)
+function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int)
     V = []
     V_b = []
     V_bb = []
+
+    # Arrays to store norms
+    V_b_norms, V_bb_norms, Q_s_norms, Q_ss_norms = [], [], [], []
+    Qh_u_norms, Qh_uu_norms, Qh_ub_norms = [], [], []
+    timesteps = game.horizon-1:-1:1
 
     cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:game.dims.n]
 
@@ -56,9 +65,10 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         push!(V_bb, DiffResults.hessian(terminal_cost_gradient_info))
     end
 
-    for t in game.horizon-1:-1:1
+    for t in timesteps
         g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
         g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
+        W = real.(W)
         
         for ii in 1:game.dims.n
         ForwardDiff.hessian!(
@@ -100,6 +110,25 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             temp[Block(2):Block(1+game.dims.n), Block(2):Block(1+game.dims.n)] += regularizations.belief_reg * I
             temp
         end
+        if DEBUG
+            open(DEBUG_FILE, "a") do f
+                println(f, "[backward_pass] time: $t")
+                println(f, "control reg: $(regularizations.control_reg)")
+                println(f, "belief reg: $(regularizations.belief_reg)")
+                println(f, "\nQ:")
+                display_matrix = IOContext(f, :limit=>false)
+                show(display_matrix, "text/plain", Q)
+                println(f)
+                println(f, "\nQ_s:")
+                display_matrix = IOContext(f, :limit=>false)
+                show(display_matrix, "text/plain", Q_s)
+                println(f)
+                println(f, "\nQ_ss:")
+                display_matrix = IOContext(f, :limit=>false)
+                show(display_matrix, "text/plain", Q_ss)
+                println(f)
+            end
+        end
         Qh_u = mapreduce(vcat, 1:game.dims.n) do ii
             Q_s[ii][Block(ii+game.dims.n)] # skip the first n belief blocks of Q_s
         end
@@ -109,6 +138,15 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         Qh_ub = mapreduce(vcat, 1:game.dims.n) do ii
             Q_ss[ii][Block(ii+game.dims.n), Block(1):Block(game.dims.n)]
         end
+        push!(V_b_norms, norm.(V_b))
+        push!(V_bb_norms, norm.(V_bb))
+        push!(Q_s_norms, norm.(Q_s))
+        push!(Q_ss_norms, norm.(Q_ss))
+
+        push!(Qh_u_norms, norm(Qh_u))
+        push!(Qh_uu_norms, norm(Qh_uu))
+        push!(Qh_ub_norms, norm(Qh_ub))
+
         strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t])
         push!(joint_feedback_strategies, strategy)
 
@@ -129,10 +167,27 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)]' * feed_back # Q_ub
         end
     end
+
+    if DEBUG
+        fig = Figure()
+        ax = Axis(fig[1, 1], xlabel = "Time (t)", ylabel = "Norm", title = "Backward Pass Matrix Norms (Iteration $iteration)")
+
+        lines!(ax, timesteps, V_b_norms, label="V_b")
+        lines!(ax, timesteps, V_bb_norms, label="V_bb")
+        lines!(ax, timesteps, Q_s_norms, label="Q_s")
+        lines!(ax, timesteps, Q_ss_norms, label="Q_ss")
+        lines!(ax, timesteps, Qh_u_norms, label="Qh_u")
+        lines!(ax, timesteps, Qh_uu_norms, label="Qh_uu")
+        lines!(ax, timesteps, Qh_ub_norms, label="Qh_ub")
+
+        axislegend(ax)
+        save("exp/hockey/outputs/backward_pass_norms_iteration_$iteration.png", fig)
+    end
+
     return joint_feedback_strategies
 end
 
-function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief; α = 0.1)
+function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief; α = 0.01)
 
     Qh_uu_reg = Qh_uu + ϵ * I
     if DEBUG

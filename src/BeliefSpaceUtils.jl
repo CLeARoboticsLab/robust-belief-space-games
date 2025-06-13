@@ -103,6 +103,15 @@ struct BeliefGame
     gt_initial_state::BlockVector
 end
 
+function clip_gradient(grad, max_norm)
+    norm = sqrt(sum(grad.^2))
+    if norm > max_norm
+        return grad .* (max_norm / norm)
+    else
+        return grad
+    end
+end
+
 function dual_round(x; kwargs...)
     x isa Dual ? x : round(x; kwargs...)
 end
