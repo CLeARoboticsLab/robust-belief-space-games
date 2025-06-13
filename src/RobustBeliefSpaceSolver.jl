@@ -133,7 +133,18 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
 end
 
 function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief; α = 0.1)
-    Qh_uu_inv = Qh_uu \ I
+
+    Qh_uu_reg = Qh_uu + ϵ * I
+    if DEBUG
+        open(DEBUG_FILE, "a") do f
+            println(f, "\nQh_uu:")
+            display_matrix = IOContext(f, :limit=>false)
+            show(display_matrix, "text/plain", Qh_uu)
+            println(f)
+        end
+    end
+
+    Qh_uu_inv = Qh_uu_reg \ I
     feed_forward = Qh_uu_inv * Qh_u
     feed_back = Qh_uu_inv * Qh_ub
     function (belief::Belief)

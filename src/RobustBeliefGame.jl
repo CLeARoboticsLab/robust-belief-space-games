@@ -37,4 +37,6 @@ DEBUG = true
 DEBUG_FILE = "./exp/hockey/outputs/belief_diagnostics.txt"
 !DEBUG || open(DEBUG_FILE, "w") do f end
 
+ϵ = 1e-6
+
 end # module

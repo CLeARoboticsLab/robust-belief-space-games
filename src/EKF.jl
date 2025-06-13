@@ -34,7 +34,7 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
         end
     end
 
-    Γ = Symmetric(dual_round.(A * Σ * A' + M * Σ * M', digits = 5))
+    Γ = Symmetric(dual_round.(A * Σ * A' + M * Σ * M' + ϵ * I, digits = 5))
     
     if DEBUG 
         open(DEBUG_FILE, "a") do f
@@ -61,7 +61,8 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
         temp[Block(dim), Block(dim)]
     end
     g = [expected_dynamics; Base.vec(covs_extraced)]
-    W = [sqrt(Symmetric(K * H * Γ)); zeros((sum(dims(beliefs).^2), sum(dims(beliefs))))]
+
+    W = [sqrt(Symmetric(K * H * Γ + ϵ * I)); zeros((sum(dims(beliefs).^2), sum(dims(beliefs))))]
 
     if DEBUG 
         open(DEBUG_FILE, "a") do f
@@ -109,9 +110,8 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
     g_s = ForwardDiff.jacobian(mean_grad, x)
     W_s = ForwardDiff.jacobian(cov_grad, x)
     
-    # Extract Float64 values from Dual numbers
-    g_s_val = ForwardDiff.value.(g_s)
-    W_s_val = ForwardDiff.value.(W_s)
+    g_s_val = ForwardDiff.value.(real.(g_s)) # TODO fix real. being necessary...
+    W_s_val = ForwardDiff.value.(real.(W_s))
     
     global DEBUG = old_debug
     if DEBUG 
