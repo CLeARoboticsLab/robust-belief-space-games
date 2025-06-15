@@ -74,12 +74,10 @@ function unvec(vec_beliefs::Vector, dims::Vector{Int})
 end
 
 function Base.:-(b1::Beliefs, b2::Beliefs)
-    # Subtract corresponding belief means and covariances
     return vec(b1) - vec(b2)
 end
 
 function Base.:-(b1::Belief, b2::Belief)
-    # Subtract corresponding belief means and covariances
     return vec(b1) - vec(b2)
 end
 
@@ -103,12 +101,12 @@ struct BeliefGame
     gt_initial_state::BlockVector
 end
 
-function clip_gradient(grad, max_norm)
-    norm = sqrt(sum(grad.^2))
+function clip(x, max_norm)
+    norm = LinearAlgebra.norm(x)
     if norm > max_norm
-        return grad .* (max_norm / norm)
+        return x .* (max_norm / norm)
     else
-        return grad
+        return x
     end
 end
 

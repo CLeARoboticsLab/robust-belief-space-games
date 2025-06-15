@@ -234,7 +234,7 @@ end
 
 function belief_main()
     # Game Params
-    horizon = 20
+    horizon = 10
     dt = 0.3
     n=2
     goal_position = [

@@ -1,11 +1,11 @@
-struct Regularizations
+mutable struct Regularizations
     control_reg::Float64
     belief_reg::Float64
 end
 
 function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4)
     nominal_beliefs, nominal_controls = rollout_strategy(game, [(x) -> BlockVector(fill(0.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1])
-    new_cost, old_cost = 0, 14
+    new_cost, old_cost = [0, 0], [Inf, Inf]
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0
 
@@ -14,13 +14,27 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4)
     end
 
     while norm(new_cost - old_cost) > ϵ_converge
+        !DEBUG || println("[solve] error: $(norm(new_cost - old_cost))")
         old_cost = new_cost
+        if DEBUG
+            open(DEBUG_FILE, "w") do f
+                println(f, "[solve] beliefs and controls")
+                println(f, "Initial nominal beliefs:")
+                display_matrix = IOContext(f, :limit=>false)
+                show(display_matrix, "text/plain", nominal_beliefs)
+                println(f)
+                println(f, "Initial nominal controls:")
+                display_matrix = IOContext(f, :limit=>false)
+                show(display_matrix, "text/plain", nominal_controls)
+                println(f)
+            end
+        end
 
         strategy = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations)
         candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
 
         new_cost = map(1:game.dims.n) do ii
-            mapreduce(+, 1:game.horizon) do t
+            mapreduce(+, 1:game.horizon - 1) do t
                 game.costs[ii].non_terminal_cost(candidate_beliefs[t], candidate_controls[t])
             end +
             game.costs[ii].terminal_cost(candidate_beliefs[end])
@@ -43,14 +57,11 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     V_b = []
     V_bb = []
 
-    # Arrays to store norms
-    V_b_norms, V_bb_norms, Q_s_norms, Q_ss_norms = [], [], [], []
-    Qh_u_norms, Qh_uu_norms, Qh_ub_norms = [], [], []
     timesteps = game.horizon-1:-1:1
 
     cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:game.dims.n]
 
-    joint_feedback_strategies = []
+    joint_feedback_strategies = Vector{Function}()
 
     # Initialize gradient helpers
     x_val = vec(nominal_beliefs[end])
@@ -66,8 +77,8 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     end
 
     for t in timesteps
-        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
         g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
+        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
         W = real.(W)
         
         for ii in 1:game.dims.n
@@ -80,31 +91,44 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 vcat(vec(nominal_beliefs[t]), vec(nominal_controls[t]))
                 )
         end
+        if DEBUG
+            open(DEBUG_FILE, "a") do f
+                println(f, "[backward_pass] time: $t")
+                println(f, "cost_gradient_info:")
+                display_matrix = IOContext(f, :limit=>false)
+                show(display_matrix, "text/plain", cost_gradient_info)
+                println(f)
+                println(f, "V:")
+                display_matrix = IOContext(f, :limit=>false)
+                show(display_matrix, "text/plain", V)
+                println(f)
+            end
+        end
 
         Q = map(1:game.dims.n) do ii
-            DiffResults.value(cost_gradient_info[ii]) +
+            clip(DiffResults.value(cost_gradient_info[ii]) +
             V[ii] +
             only(0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                 W[:, jj, :]' *V_bb[ii] * W[:, jj]
-            end)
+            end), clip_norm)
         end
         Q_s = map(1:game.dims.n) do ii
             BlockVector(
-                DiffResults.gradient(cost_gradient_info[ii]) +
+                clip(DiffResults.gradient(cost_gradient_info[ii]) +
                 g_s' * V_b[ii] +
                 0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                     W_s[:,jj,:]' *V_bb[ii] * W[:,jj]
-                end, 
+                end, clip_norm), 
                 [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls...]
             )
         end
         Q_ss = map(1:game.dims.n) do ii
             temp = BlockArray(
-                DiffResults.hessian(cost_gradient_info[ii]) +
+                clip(DiffResults.hessian(cost_gradient_info[ii]) +
                 g_s' * (V_bb[ii]+regularizations.belief_reg * I) * g_s +
                 0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                     W_s[:,jj,:]' * (V_bb[ii]+regularizations.belief_reg * I) * W_s[:,jj,:]
-                end,
+                end, clip_norm),
                 [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls...], [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls...]
             )
             temp[Block(2):Block(1+game.dims.n), Block(2):Block(1+game.dims.n)] += regularizations.belief_reg * I
@@ -112,7 +136,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         end
         if DEBUG
             open(DEBUG_FILE, "a") do f
-                println(f, "[backward_pass] time: $t")
+                println(f, "[backward_pass]")
                 println(f, "control reg: $(regularizations.control_reg)")
                 println(f, "belief reg: $(regularizations.belief_reg)")
                 println(f, "\nQ:")
@@ -138,71 +162,54 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         Qh_ub = mapreduce(vcat, 1:game.dims.n) do ii
             Q_ss[ii][Block(ii+game.dims.n), Block(1):Block(game.dims.n)]
         end
-        push!(V_b_norms, norm.(V_b))
-        push!(V_bb_norms, norm.(V_bb))
-        push!(Q_s_norms, norm.(Q_s))
-        push!(Q_ss_norms, norm.(Q_ss))
-
-        push!(Qh_u_norms, norm(Qh_u))
-        push!(Qh_uu_norms, norm(Qh_uu))
-        push!(Qh_ub_norms, norm(Qh_ub))
 
         strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t])
         push!(joint_feedback_strategies, strategy)
 
         V = map(1:game.dims.n) do ii
-            Q[ii] + Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n)]' * feed_forward + # Q_u
-            0.5 * feed_forward' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1+game.dims.n):Block(2*game.dims.n)] * feed_forward # Q_uu
+            clip(Q[ii] + Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n)]' * feed_forward + # Q_u
+            0.5 * feed_forward' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1+game.dims.n):Block(2*game.dims.n)] * feed_forward, clip_norm)# Q_uu
         end
         V_b = map(1:game.dims.n) do ii
-            Q_s[ii][Block(1):Block(game.dims.n)] + # Q_b
+            clip(Q_s[ii][Block(1):Block(game.dims.n)] + # Q_b
             feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1+game.dims.n):Block(2*game.dims.n)] * feed_forward + # Q_uu
             feed_back' * Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n)] + # Q_u
-            Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)]' * feed_forward # Q_ub
+            Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)]' * feed_forward, clip_norm)# Q_ub
         end
         V_bb = map(1:game.dims.n) do ii
-            Q_ss[ii][Block(1):Block(game.dims.n), Block(1):Block(game.dims.n)] + # Q_bb
+            clip(Q_ss[ii][Block(1):Block(game.dims.n), Block(1):Block(game.dims.n)] + # Q_bb
             feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1+game.dims.n):Block(2*game.dims.n)] * feed_back + # Q_uu
             feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)] + # Q_ub
-            Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)]' * feed_back # Q_ub
+            Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)]' * feed_back, clip_norm) # Q_ub
         end
     end
-
-    if DEBUG
-        fig = Figure()
-        ax = Axis(fig[1, 1], xlabel = "Time (t)", ylabel = "Norm", title = "Backward Pass Matrix Norms (Iteration $iteration)")
-
-        lines!(ax, timesteps, V_b_norms, label="V_b")
-        lines!(ax, timesteps, V_bb_norms, label="V_bb")
-        lines!(ax, timesteps, Q_s_norms, label="Q_s")
-        lines!(ax, timesteps, Q_ss_norms, label="Q_ss")
-        lines!(ax, timesteps, Qh_u_norms, label="Qh_u")
-        lines!(ax, timesteps, Qh_uu_norms, label="Qh_uu")
-        lines!(ax, timesteps, Qh_ub_norms, label="Qh_ub")
-
-        axislegend(ax)
-        save("exp/hockey/outputs/backward_pass_norms_iteration_$iteration.png", fig)
-    end
-
     return joint_feedback_strategies
 end
 
-function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief; α = 0.01)
-
+function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief; α = 0.1)
     Qh_uu_reg = Qh_uu + ϵ * I
+    Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
+    feed_forward = dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)
+    feed_back = dual_round.(clip(Qh_uu_inv * Qh_ub, clip_norm), digits=5)
     if DEBUG
         open(DEBUG_FILE, "a") do f
-            println(f, "\nQh_uu:")
+            println(f, "[joint_feedback_strategy]")
+            println(f, "Qh_uu:")
             display_matrix = IOContext(f, :limit=>false)
             show(display_matrix, "text/plain", Qh_uu)
             println(f)
+            println(f, "Qh_uu_inv:")
+            show(display_matrix, "text/plain", Qh_uu_inv)
+            println(f)
+            println(f, "feed_forward:")
+            show(display_matrix, "text/plain", feed_forward)
+            println(f)
+            println(f, "feed_back:")
+            show(display_matrix, "text/plain", feed_back)
+            println(f)
         end
-    end
-
-    Qh_uu_inv = Qh_uu_reg \ I
-    feed_forward = Qh_uu_inv * Qh_u
-    feed_back = Qh_uu_inv * Qh_ub
-    function (belief::Belief)
-        return nominal_control + α(feed_forward + feed_back * (belief - nominal_belief))
+    end    
+    function (belief::Beliefs)
+        return nominal_control + α * (feed_forward + feed_back * (belief - nominal_belief))
     end, feed_forward, feed_back
 end

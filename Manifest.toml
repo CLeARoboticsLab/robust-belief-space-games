@@ -2,7 +2,7 @@
 
 julia_version = "1.11.5"
 manifest_format = "2.0"
-project_hash = "c445d8729b99bde72f70af1af2201b67cafd47c5"
+project_hash = "e11be47d2f4d7c8acaaad5f10351992c42f40550"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "e2478490447631aedba0823d4d7a80b2cc8cdb32"
@@ -669,6 +669,12 @@ version = "2.27.0"
     BlockBandedMatrices = "ffab5731-97b5-5995-9138-79e8c1846df0"
     SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
     StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+
+[[deps.FiniteDifferences]]
+deps = ["ChainRulesCore", "LinearAlgebra", "Printf", "Random", "Richardson", "SparseArrays", "StaticArrays"]
+git-tree-sha1 = "06d76c780d657729cf20821fb5832c6cc4dfd0b5"
+uuid = "26cc04aa-876d-5657-8c51-4c34ba976000"
+version = "0.12.32"
 
 [[deps.FixedPointNumbers]]
 deps = ["Statistics"]
@@ -1830,6 +1836,12 @@ weakdeps = ["Distributed"]
 
     [deps.Revise.extensions]
     DistributedExt = "Distributed"
+
+[[deps.Richardson]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "48f038bfd83344065434089c2a79417f38715c41"
+uuid = "708f8203-808e-40c0-ba2d-98a6953ed40d"
+version = "1.4.2"
 
 [[deps.RingLists]]
 deps = ["Random"]

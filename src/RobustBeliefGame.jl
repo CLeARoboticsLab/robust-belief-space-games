@@ -11,6 +11,7 @@ using BlockDiagonals: BlockDiagonal
 using CairoMakie
 using Printf
 using ForwardDiff
+using FiniteDifferences
 
 using Infiltrator
 
@@ -36,7 +37,9 @@ export solve
 DEBUG = true
 DEBUG_FILE = "./exp/hockey/outputs/belief_diagnostics.txt"
 
-ϵ = 1e-6
-gradient_clip = 100
+ϵ = 1e-7
+clip_norm = 100
+
+ForwardDiff.set_preferences!(ForwardDiff, "nansafe_mode" => true)
 
 end # module

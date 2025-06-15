@@ -62,7 +62,7 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
     end
     g = [expected_dynamics; Base.vec(covs_extraced)]
 
-    W = [sqrt(Symmetric(K * H * Γ + ϵ * I)); zeros((sum(dims(beliefs).^2), sum(dims(beliefs))))]
+    W = [dual_round.(real.(sqrt(Symmetric(K * H * Γ + ϵ * I))); digits=5); zeros((sum(dims(beliefs).^2), sum(dims(beliefs))))]
 
     if DEBUG 
         open(DEBUG_FILE, "a") do f
@@ -108,22 +108,23 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
     end
     x = vcat(vec(beliefs), vec(control))
     g_s = ForwardDiff.jacobian(mean_grad, x)
-    W_s = ForwardDiff.jacobian(cov_grad, x)
+    fdm = FiniteDifferences.central_fdm(5, 1)
+    W_s = only(FiniteDifferences.jacobian(fdm, cov_grad, x))
     
-
-    g_s_val = clip_gradient(ForwardDiff.value.(real.(g_s)), gradient_clip) # TODO fix real. being necessary...
-    W_s_val = clip_gradient(ForwardDiff.value.(real.(W_s)), gradient_clip)
-    
+    g_s_val = clip(ForwardDiff.value.(real.(g_s)), clip_norm) # TODO fix real. being necessary...
+    W_s_val = clip(real.(W_s), clip_norm)
     global DEBUG = old_debug
     if DEBUG 
         open(DEBUG_FILE, "a") do f
+            println(f, "[ekf_update_gradient]")
             println(f, "\ng_s:")
             display_matrix = IOContext(f, :limit=>false)
             show(display_matrix, "text/plain", g_s_val)
-            println(f)
-            println(f, "\nW_s:")
-            show(display_matrix, "text/plain", W_s_val)
-            println(f)
+            println(f, "g_s norm: $(norm(g_s_val))")
+            println(f, "g_s has imaginary parts: $(any(imag.(g_s_val) .≠ 0))")
+            println(f, "W_s norm: $(norm(W_s_val))")
+            println(f, "W_s has imaginary parts: $(any(imag.(W_s_val) .≠ 0))")
+            println(f, "W_s is nan: $(any(isnan.(W_s_val)))")
         end
     end
     return g_s_val, reshape(W_s_val, (total_size(beliefs), sum(dims(beliefs)), total_size(beliefs)+length(control)))
