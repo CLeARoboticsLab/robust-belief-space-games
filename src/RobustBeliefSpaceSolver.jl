@@ -4,20 +4,18 @@ mutable struct Regularizations
 end
 
 function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4)
-    nominal_beliefs, nominal_controls = rollout_strategy(game, [(x) -> BlockVector(fill(0.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1])
-    new_cost, old_cost = [0, 0], [Inf, Inf]
-    regularizations = Regularizations(1.0, 1.0)
-    iterations = 0
-
     if DEBUG
         open(DEBUG_FILE, "w") do f end
     end
+    nominal_beliefs, nominal_controls = rollout_strategy(game, [(x) -> BlockVector(fill(.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1])
+    new_cost, old_cost = [0, 0], [Inf, Inf]
+    regularizations = Regularizations(1.0, 1.0)
+    iterations = 0    
 
     while norm(new_cost - old_cost) > ϵ_converge
-        !DEBUG || println("[solve] error: $(norm(new_cost - old_cost))")
         old_cost = new_cost
         if DEBUG
-            open(DEBUG_FILE, "w") do f
+            open(DEBUG_FILE, "a") do f
                 println(f, "[solve] beliefs and controls")
                 println(f, "Initial nominal beliefs:")
                 display_matrix = IOContext(f, :limit=>false)
@@ -46,6 +44,9 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4)
         else
             regularizations.control_reg *= 1.2
         end
+        !DEBUG || println("[solve] error: $(norm(new_cost - old_cost))")
+        !DEBUG || println("[solve] old_cost: $old_cost")
+        !DEBUG || println("[solve] new_cost: $new_cost")
         iterations += 1
     end
     !DEBUG || println("Converged in $iterations iterations")
@@ -139,18 +140,18 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 println(f, "[backward_pass]")
                 println(f, "control reg: $(regularizations.control_reg)")
                 println(f, "belief reg: $(regularizations.belief_reg)")
-                println(f, "\nQ:")
-                display_matrix = IOContext(f, :limit=>false)
-                show(display_matrix, "text/plain", Q)
-                println(f)
-                println(f, "\nQ_s:")
-                display_matrix = IOContext(f, :limit=>false)
-                show(display_matrix, "text/plain", Q_s)
-                println(f)
-                println(f, "\nQ_ss:")
-                display_matrix = IOContext(f, :limit=>false)
-                show(display_matrix, "text/plain", Q_ss)
-                println(f)
+                # println(f, "\nQ:")
+                # display_matrix = IOContext(f, :limit=>false)
+                # show(display_matrix, "text/plain", Q)
+                # println(f)
+                # println(f, "\nQ_s:")
+                # display_matrix = IOContext(f, :limit=>false)
+                # show(display_matrix, "text/plain", Q_s)
+                # println(f)
+                # println(f, "\nQ_ss:")
+                # display_matrix = IOContext(f, :limit=>false)
+                # show(display_matrix, "text/plain", Q_ss)
+                # println(f)
             end
         end
         Qh_u = mapreduce(vcat, 1:game.dims.n) do ii
@@ -186,7 +187,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     return joint_feedback_strategies
 end
 
-function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief; α = 0.1)
+function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief; α = 0.5)
     Qh_uu_reg = Qh_uu + ϵ * I
     Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
     feed_forward = dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)

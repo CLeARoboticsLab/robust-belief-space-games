@@ -34,7 +34,7 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
         end
     end
 
-    Γ = Symmetric(dual_round.(A * Σ * A' + M * Σ * M' + ϵ * I, digits = 5))
+    Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
     
     if DEBUG 
         open(DEBUG_FILE, "a") do f

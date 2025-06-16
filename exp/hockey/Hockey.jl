@@ -5,7 +5,10 @@ using RobustBeliefGame
 using LinearAlgebra
 using BlockArrays
 using Makie
+using Makie.GeometryBasics
 using Symbolics
+using CairoMakie
+# import Makie.GeometryBasics: Point2f
 
 struct DummyEnvironment end
 
@@ -267,7 +270,7 @@ function belief_main()
                 mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
                 [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
                 [0.5*dt^2 0; 0 0.5*dt^2; dt 0; 0 dt] * uᵢ +
-                [0 0 0 0; 0 0 0 0; 0 0 0.1*uᵢ[1] 0; 0 0 0 0.1*uᵢ[2]] * mᵢ
+                [0.1 0 0 0; 0 0.1 0 0; 0 0 0.2*uᵢ[1] 0; 0 0 0 0.2*uᵢ[2]] * mᵢ
             end,
             [4, 4]
         )
@@ -277,7 +280,7 @@ function belief_main()
     function h(xs::BlockVector, ns::BlockVector)
         BlockVector(
             mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-                [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 xᵢ[3] 0; 0 0 0 xᵢ[4]] * nᵢ
+                [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 2*xᵢ[3] 0; 0 0 0 2*xᵢ[4]] * nᵢ
             end,
             [2, 2]
         )
@@ -294,19 +297,20 @@ function belief_main()
         return 1/(dist_uncertainty + vel_uncertainty + 1e-9) * exp(-5 * sq_dist^2) * exp(-sq_vel_dist)
     end
     function defender_non_terminal_cost(bs::Beliefs, us)
-        steal_prob = steal_liklihood(bs)
+        # steal_prob = steal_liklihood(bs)
+        steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
         control_effort = dot(us[Block(1)], us[Block(1)])
-        return -1 * steal_prob + 3 * control_effort
+        return -1 * steal_prob + control_effort
     end
     function attacker_non_terminal_cost(bs::Beliefs, us)
         steal_prob = steal_liklihood(bs)
         control_effort = dot(us[Block(2)], us[Block(2)])
-        return steal_prob + 3 * control_effort
+        return steal_prob + control_effort
     end    
     function shot_probability(bs::Beliefs)
         dist_penalty = 0.1
-        block_max = 0.8
-        block_falloff = 0.5
+        block_max = 3
+        block_falloff = 0.8
         attacker_uncertainty_penalty = 0.3  
         defender_uncertainty_penalty = 0.5 
         goal_center = (goal_position[1] + goal_position[2]) / 2
@@ -341,15 +345,13 @@ function belief_main()
         return final_score
     end
     function attacker_terminal_cost(bs::Beliefs)
-        shot_qual = shot_probability(bs)
         # Attacker wants to max shot quality, so we min its negative.
         # Don't let attacker get too far away from origin (area of play). This game construction
         #   doesn't allow for hard constraints.
-        return -shot_qual + 0.01 * dot(bs.beliefs[2].belief_mean[1:2], bs.beliefs[2].belief_mean[1:2])
+        return -shot_probability(bs)
     end
     function defender_terminal_cost(bs::Beliefs)
-        shot_qual = shot_probability(bs)
-        return shot_qual + 0.01 * dot(bs.beliefs[1].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2])
+        return shot_probability(bs)
     end
 
     attacker_cost = BeliefCost(
@@ -372,5 +374,37 @@ function belief_main()
 
     sol = solve(bs_hockey_game; debug=true)
 
-    print("[Hockey] Ran, please implement vis.")
+    visualize_belief_hockey_solution(sol, goal_position)
+end
+
+function visualize_belief_hockey_solution(sol, goal_position)
+    fig = Figure(;size=(800, 600))
+    ax = Axis(fig[1, 1],
+        title="Belief Hockey Game Solution",
+        xlabel="x position",
+        ylabel="y position",
+        aspect=1,
+    )
+    beliefs = sol[1]
+    controls = sol[2]
+
+    # Extract mean trajectories
+    attacker_means = [bs.beliefs[2].belief_mean for bs in beliefs]
+    defender_means = [bs.beliefs[1].belief_mean for bs in beliefs]
+
+    # Plot mean trajectories
+    lines!(ax, [m[1] for m in attacker_means], [m[2] for m in attacker_means], label="Attacker Mean", color=:blue, linewidth=2)
+    lines!(ax, [m[1] for m in defender_means], [m[2] for m in defender_means], label="Defender Mean", color=:red, linewidth=2)
+
+    # Plot goal positions
+    goal_posts = [[p[1] for p in goal_position], [p[2] for p in goal_position]]
+    lines!(ax, goal_posts[1], goal_posts[2], label="Goal", color=:green, linewidth=5)
+
+    # Plot initial positions
+    scatter!(ax, [attacker_means[1][1]], [attacker_means[1][2]], label="Attacker Start", color=:blue, markersize=15)
+    scatter!(ax, [defender_means[1][1]], [defender_means[1][2]], label="Defender Start", color=:red, markersize=15)
+
+    Legend(fig[1, 2], ax)
+    save("exp/hockey/outputs/belief_hockey_solution.png", fig)
+    display(fig)
 end
