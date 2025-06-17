@@ -3,17 +3,23 @@ mutable struct Regularizations
     belief_reg::Float64
 end
 
-function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4, debug_file=DEBUG_FILE)
+function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG_FILE, α = 0.001)
     if DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
     end
     nominal_beliefs, nominal_controls = rollout_strategy(game, [(x) -> BlockVector(fill(.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1])
-    new_cost, old_cost = [0, 0], [Inf, Inf]
+    new_cost = map(1:game.dims.n) do ii
+        mapreduce(+, 1:game.horizon - 1) do t
+            game.costs[ii].non_terminal_cost(nominal_beliefs[t], nominal_controls[t])
+        end +
+        game.costs[ii].terminal_cost(nominal_beliefs[end])
+    end
+    old_cost = 2 * new_cost
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0    
 
-    while norm(new_cost - old_cost) > ϵ_converge
+    while norm(new_cost - old_cost)/norm(old_cost) > ϵ_converge * α
         old_cost = new_cost
         if DEBUG
             open(DEBUG_FILE, "a") do f
@@ -29,7 +35,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4, debug_file=DEBUG
             end
         end
 
-        strategy = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations)
+        strategy = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; α = α)
         candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
 
         new_cost = map(1:game.dims.n) do ii
@@ -45,7 +51,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4, debug_file=DEBUG
         else
             regularizations.control_reg *= 1.2
         end
-        !DEBUG || println("[solve] error: $(norm(new_cost - old_cost))")
+        !DEBUG || println("[solve] error: $(norm(new_cost - old_cost)/norm(old_cost) * α)")
         !DEBUG || println("[solve] old_cost: $old_cost")
         !DEBUG || println("[solve] new_cost: $new_cost")
         iterations += 1
@@ -54,7 +60,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-4, debug_file=DEBUG
     return nominal_beliefs, nominal_controls
 end
 
-function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int)
+function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; α = 0.01)
     V = []
     V_b = []
     V_bb = []
@@ -133,7 +139,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 end, clip_norm),
                 [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls...], [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls...]
             )
-            temp[Block(2):Block(1+game.dims.n), Block(2):Block(1+game.dims.n)] += regularizations.belief_reg * I
+            temp[Block(game.dims.n+1):Block(2*game.dims.n), Block(game.dims.n+1):Block(2*game.dims.n)] += regularizations.control_reg * I
             temp
         end
         if DEBUG
@@ -165,7 +171,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             Q_ss[ii][Block(ii+game.dims.n), Block(1):Block(game.dims.n)]
         end
 
-        strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t])
+        strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t], game.dims; α = α)
         push!(joint_feedback_strategies, strategy)
 
         V = map(1:game.dims.n) do ii
@@ -188,7 +194,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     return joint_feedback_strategies
 end
 
-function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief; α = 0.5)
+function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.001)
     Qh_uu_reg = Qh_uu + ϵ * I
     Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
     feed_forward = dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)
@@ -212,6 +218,6 @@ function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_be
         end
     end    
     function (belief::Beliefs)
-        return nominal_control + α * (feed_forward + feed_back * (belief - nominal_belief))
+        return BlockVector(nominal_control + α * (feed_forward + feed_back * (belief - nominal_belief)), dims.controls)
     end, feed_forward, feed_back
 end
