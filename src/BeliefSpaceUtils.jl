@@ -28,15 +28,6 @@ struct Beliefs
     beliefs::Vector{Belief}
 end
 
-function Beliefs(beliefs::Vector, dims::Vector{Int})
-    return Beliefs(map(eachindex(dims)) do i
-        start = mapreduce(+, 1:i-1, init=0) do j
-            dims[j] + dims[j]^2
-        end
-        Belief(beliefs[start+1:start+dims[i]], Symmetric(reshape(beliefs[start+dims[i]+1:start+dims[i]+dims[i]^2], dims[i], dims[i])))
-    end)
-end
-
 function means(beliefs::Beliefs)
     return [belief.belief_mean for belief in beliefs.beliefs]
 end
@@ -135,7 +126,7 @@ function rollout_strategy(game::BeliefGame, strategy::Vector{<:Function})
             end
         end
         g, W = ekf_update(beliefs[end], controls[end], game.environment.dynamics, game.environment.sensor_models)
-        push!(beliefs, Beliefs(g, game.dims.belief))
+        push!(beliefs, unvec(g, game.dims.belief))
     end
     return beliefs, controls
 end
