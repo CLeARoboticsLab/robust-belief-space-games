@@ -122,6 +122,7 @@ function rollout_strategy(game::BeliefGame, strategy::Vector{<:Function})
         if DEBUG
             open(DEBUG_FILE, "a") do f
                 println(f, "\n[Rollout] time: $i")
+                println(f, "Controls: $(controls[end])")
                 println(f, "Belief means: $(means(beliefs[end]))")
                 println(f, "Belief covariances:")
                 for (i, cov) in enumerate(covs(beliefs[end]))
