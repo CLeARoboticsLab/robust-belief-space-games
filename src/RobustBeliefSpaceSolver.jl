@@ -3,23 +3,25 @@ mutable struct Regularizations
     belief_reg::Float64
 end
 
-function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG_FILE, α = 0.001)
+function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, α = 0.01)
     if DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
     end
-    nominal_beliefs, nominal_controls = rollout_strategy(game, [(x) -> BlockVector(fill(.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1])
+    nominal_beliefs, nominal_controls = rollout_strategy(game, [(x) -> BlockVector(fill(-.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1])
     new_cost = map(1:game.dims.n) do ii
         mapreduce(+, 1:game.horizon - 1) do t
             game.costs[ii].non_terminal_cost(nominal_beliefs[t], nominal_controls[t])
         end +
         game.costs[ii].terminal_cost(nominal_beliefs[end])
     end
-    old_cost = 2 * new_cost
+    old_cost = 1/ϵ_converge^2 * new_cost
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0    
+    improvement_iterations = 0
+    println("old_cost: $old_cost, new_cost: $new_cost, norm: $(norm(new_cost - old_cost)/norm(old_cost))")
 
-    while norm(new_cost - old_cost)/norm(old_cost) > ϵ_converge * α
+    while norm(new_cost - old_cost)/norm(old_cost) > ϵ_converge
         old_cost = new_cost
         if DEBUG
             open(DEBUG_FILE, "a") do f
@@ -47,16 +49,17 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
 
         if any(map(x -> new_cost[x] < old_cost[x], 1:game.dims.n))
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
-            regularizations.control_reg *= 0.8
+            regularizations.control_reg *= 0.9
+            !DEBUG || println("[solve] error: $(norm(new_cost - old_cost)/norm(old_cost))")
+            !DEBUG || println("[solve] old_cost: $old_cost")
+            !DEBUG || println("[solve] new_cost: $new_cost")
+            improvement_iterations += 1
         else
             regularizations.control_reg *= 1.2
         end
-        !DEBUG || println("[solve] error: $(norm(new_cost - old_cost)/norm(old_cost) * α)")
-        !DEBUG || println("[solve] old_cost: $old_cost")
-        !DEBUG || println("[solve] new_cost: $new_cost")
         iterations += 1
     end
-    !DEBUG || println("Converged in $iterations iterations")
+    !DEBUG || println("Converged in $improvement_iterations / $iterations iterations")
     return nominal_beliefs, nominal_controls
 end
 
@@ -194,7 +197,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     return joint_feedback_strategies
 end
 
-function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.001)
+function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01)
     Qh_uu_reg = Qh_uu + ϵ * I
     Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
     feed_forward = dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)

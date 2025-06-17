@@ -29,7 +29,7 @@ struct Beliefs
 end
 
 function means(beliefs::Beliefs)
-    return [belief.belief_mean for belief in beliefs.beliefs]
+    return mortar([belief.belief_mean for belief in beliefs.beliefs])
 end
 
 function covs(beliefs::Beliefs)
@@ -49,18 +49,14 @@ function total_size(beliefs::Beliefs)
 end
 
 function vec(beliefs::Beliefs)
-    mapreduce(vcat, beliefs.beliefs) do belief
-        vec(belief)
-    end
+    vcat(means(beliefs), vcat([reshape(cov, (beliefs.beliefs[ii].belief_dim^2,)) for (ii, cov) in enumerate(covs(beliefs))]...))
 end
 
 function unvec(vec_beliefs::Vector, dims::Vector{Int})
-    belief_dims = map(dims) do dim
-        dim + dim ^2
-    end
-    Beliefs(map(eachindex(belief_dims)) do i
-        belief_start = sum(belief_dims[1:i-1])
-        Belief(vec_beliefs[belief_start+1:belief_start+dims[i]], reshape(vec_beliefs[belief_start+dims[i]+1:sum(belief_dims[1:i])], dims[i], dims[i]))
+    belief_means = [vec_beliefs[sum(dims[1:i-1])+1:sum(dims[1:i])] for i in eachindex(dims)]
+    belief_covs = [vec_beliefs[sum(dims) + sum(dims[1:i-1].^2)+1:sum(dims)+sum(dims[1:i].^2)] for i in eachindex(dims)]
+    return Beliefs(map(eachindex(belief_means)) do i
+        Belief(belief_means[i], reshape(belief_covs[i], (dims[i], dims[i])))
     end)
 end
 

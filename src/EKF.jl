@@ -1,8 +1,8 @@
 function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function)
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
-    expected_dynamics = dynamics(BlockVector(vcat(means(beliefs)...), dims(beliefs)), control, zero_noise)
-    A=ForwardDiff.jacobian((x)-> Vector(dynamics(BlockVector(x, dims(beliefs)), control, zero_noise)), vcat(means(beliefs)...))
-    M=ForwardDiff.jacobian((x)-> Vector(dynamics(BlockVector(vcat(means(beliefs)...), dims(beliefs)), control, x)), zero_noise)
+    expected_dynamics = dynamics(means(beliefs), control, zero_noise)
+    A=ForwardDiff.jacobian((x)-> Vector(dynamics(x, control, zero_noise)), means(beliefs))
+    M=ForwardDiff.jacobian((x)-> Vector(dynamics(means(beliefs), control, x)), zero_noise)
     H=ForwardDiff.jacobian((x)-> Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), control, zero_noise), zero_noise)), vcat(means(beliefs)...))
     N=ForwardDiff.jacobian((x)-> Vector(sensor_model(expected_dynamics, x)), zero_noise)
 

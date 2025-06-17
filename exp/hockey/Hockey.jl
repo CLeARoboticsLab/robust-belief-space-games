@@ -7,8 +7,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-using CairoMakie
-# import Makie.GeometryBasics: Point2f
+# using CairoMakie
+using GLMakie
 
 struct DummyEnvironment end
 
@@ -237,7 +237,7 @@ end
 
 function belief_main()
     # Game Params
-    horizon = 10
+    horizon = 20
     dt = 0.3
     n=2
     goal_position = [
@@ -300,12 +300,12 @@ function belief_main()
         # steal_prob = steal_liklihood(bs)
         steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
         control_effort = dot(us[Block(1)], us[Block(1)])
-        return -1 * steal_prob + control_effort
+        return -2 * steal_prob + 1 * control_effort
     end
     function attacker_non_terminal_cost(bs::Beliefs, us)
         steal_prob = steal_liklihood(bs)
         control_effort = dot(us[Block(2)], us[Block(2)])
-        return steal_prob + control_effort
+        return 10 * steal_prob + 2 * control_effort
     end    
     function shot_probability(bs::Beliefs)
         dist_penalty = 0.1
@@ -351,7 +351,7 @@ function belief_main()
         return -shot_probability(bs)
     end
     function defender_terminal_cost(bs::Beliefs)
-        return shot_probability(bs)
+        return 10 * shot_probability(bs)
     end
 
     attacker_cost = BeliefCost(
@@ -378,13 +378,6 @@ function belief_main()
 end
 
 function visualize_belief_hockey_solution(sol, goal_position)
-    fig = Figure(;size=(800, 600))
-    ax = Axis(fig[1, 1],
-        title="Belief Hockey Game Solution",
-        xlabel="x position",
-        ylabel="y position",
-        aspect=1,
-    )
     beliefs = sol[1]
     controls = sol[2]
 
@@ -393,18 +386,44 @@ function visualize_belief_hockey_solution(sol, goal_position)
     defender_means = [bs.beliefs[1].belief_mean for bs in beliefs]
 
     # Plot mean trajectories
+    fig = Figure(size=(1000, 800))
+    ax = Axis(fig[1, 1],
+        title="Hockey Game Trajectories",
+        xlabel="x position",
+        ylabel="y position",
+        aspect=1
+    )
+
+    # Create observables for the trajectories
+    attacker_pos = Observable(Point2f(attacker_means[1][1], attacker_means[1][2]))
+    defender_pos = Observable(Point2f(defender_means[1][1], defender_means[1][2]))
+    current_step = Observable(1)
+
+    # Plot trajectories
     lines!(ax, [m[1] for m in attacker_means], [m[2] for m in attacker_means], label="Attacker Mean", color=:blue, linewidth=2)
     lines!(ax, [m[1] for m in defender_means], [m[2] for m in defender_means], label="Defender Mean", color=:red, linewidth=2)
+
+    # Plot current positions
+    scatter!(ax, attacker_pos, label="Attacker", color=:blue, markersize=15)
+    scatter!(ax, defender_pos, label="Defender", color=:red, markersize=15)
 
     # Plot goal positions
     goal_posts = [[p[1] for p in goal_position], [p[2] for p in goal_position]]
     lines!(ax, goal_posts[1], goal_posts[2], label="Goal", color=:green, linewidth=5)
 
-    # Plot initial positions
-    scatter!(ax, [attacker_means[1][1]], [attacker_means[1][2]], label="Attacker Start", color=:blue, markersize=15)
-    scatter!(ax, [defender_means[1][1]], [defender_means[1][2]], label="Defender Start", color=:red, markersize=15)
-
+    # Add legend
     Legend(fig[1, 2], ax)
-    save("exp/hockey/outputs/belief_hockey_solution.png", fig)
+
+    # Add slider
+    slider = Slider(fig[2, 1], range=1:length(attacker_means), startvalue=1)
+    on(slider.value) do val
+        current_step[] = val
+        attacker_pos[] = Point2f(attacker_means[val][1], attacker_means[val][2])
+        defender_pos[] = Point2f(defender_means[val][1], defender_means[val][2])
+    end
+
+    # Display the figure
     display(fig)
+
+    save("exp/hockey/outputs/belief_hockey_solution.png", fig)
 end

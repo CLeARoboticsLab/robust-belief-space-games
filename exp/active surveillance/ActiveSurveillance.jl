@@ -7,7 +7,7 @@ using Infiltrator
 
 function belief_main()
     # Game Params
-    horizon = 5
+    horizon = 20
     dt = 0.3
     n=2
 	surveillance_center = [5.0, 5.0]
@@ -96,10 +96,10 @@ function belief_main()
 		return 0.1 * prod(diag(β.beliefs[2].belief_covariance[1:2, 1:2]))
 	end
     function non_terminal_cost_2(β::Beliefs, u::BlockVector)
-		return u[Block(2)]' * 0.01 * I(2) * u[Block(2)] + 0.1 * (β.beliefs[2].belief_mean[4] - 10)^2 + 0.1 * c_coll(β)
+		return u[Block(2)]' * 0.01 * I(2) * u[Block(2)] + 0.1 * (β.beliefs[2].belief_mean[4] - 10)^2 + 1 * c_coll(β)
 	end
 	function terminal_cost_2(β::Beliefs)
-		return 0.1 * (β.beliefs[2].belief_mean[4] - 10)^2 + 0.1 * c_coll(β)
+		return 0.1 * (β.beliefs[2].belief_mean[4] - 10)^2 + 1 * c_coll(β)
 	end
 
 	environment = BeliefEnvironment(
