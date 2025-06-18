@@ -71,14 +71,14 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
 
     timesteps = game.horizon-1:-1:1
 
-    cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:game.dims.n]
+    cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:(game.dims.n+game.is_robust)]
 
     joint_feedback_strategies = Vector{Function}()
 
     # Initialize gradient helpers
     x_val = vec(nominal_beliefs[end])
     terminal_cost_gradient_info = DiffResults.HessianResult(x_val)
-    for ii in 1:game.dims.n
+    for ii in 1:(game.dims.n+game.is_robust)
         ForwardDiff.hessian!(
             terminal_cost_gradient_info,
             (x) -> game.costs[ii].terminal_cost(unvec(x, game.dims.belief)),
@@ -93,7 +93,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
         W = real.(W)
         
-        for ii in 1:game.dims.n
+        for ii in 1:(game.dims.n+game.is_robust)
         ForwardDiff.hessian!(
             cost_gradient_info[ii],
             x -> game.costs[ii].non_terminal_cost(
@@ -116,14 +116,14 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 println(f)
             end
         end
-        Q = map(1:game.dims.n) do ii
+        Q = map(1:(game.dims.n+game.is_robust)) do ii
             clip(DiffResults.value(cost_gradient_info[ii]) +
             V[ii] +
             only(0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                 W[:, jj, :]' *V_bb[ii] * W[:, jj]
             end), clip_norm)
         end
-        Q_s = map(1:game.dims.n) do ii
+        Q_s = map(1:(game.dims.n+game.is_robust)) do ii
             BlockVector(
                 clip(DiffResults.gradient(cost_gradient_info[ii]) +
                 g_s' * V_b[ii] +
@@ -133,7 +133,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., game.is_robust ? game.dims.states[1] : 0]
             )
         end
-        Q_ss = map(1:game.dims.n) do ii
+        Q_ss = map(1:(game.dims.n+game.is_robust)) do ii
             temp = BlockArray(
                 clip(DiffResults.hessian(cost_gradient_info[ii]) +
                 g_s' * (V_bb[ii]+regularizations.belief_reg * I) * g_s +
@@ -145,11 +145,6 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             )
             temp[Block(game.dims.n+1):Block(2*game.dims.n), Block(game.dims.n+1):Block(2*game.dims.n)] += regularizations.control_reg * I
             temp
-        end
-        if game.is_robust
-            push!(Q, -1 .* deepcopy(Q[1]))
-            push!(Q_s, -1 .* deepcopy(Q_s[1]))
-            push!(Q_ss, -1 .* deepcopy(Q_ss[1]))
         end
         if DEBUG
             open(DEBUG_FILE, "a") do f
