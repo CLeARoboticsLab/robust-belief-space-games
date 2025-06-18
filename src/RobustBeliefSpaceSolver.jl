@@ -8,13 +8,14 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
     end
-    nominal_beliefs, nominal_controls = rollout_strategy(game, [(x) -> BlockVector(fill(-.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1])
+    dummy_strategy = get_dummy_strategy(game)
+    nominal_beliefs, nominal_controls = rollout_strategy(game, dummy_strategy)
     new_cost = map(1:game.dims.n) do ii
         mapreduce(+, 1:game.horizon - 1) do t
             game.costs[ii].non_terminal_cost(nominal_beliefs[t], nominal_controls[t])
         end +
         game.costs[ii].terminal_cost(nominal_beliefs[end])
-    end
+    end # For robust version, third player's cost is exactly -(first player's cost)
     old_cost = 1/ϵ_converge^2 * new_cost
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0    
@@ -36,7 +37,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
                 println(f)
             end
         end
-
+        # TODO strategy should output 3 players' actions -> game doesn't need third player's control dims, assume size of state
         strategy = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; α = α)
         candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
 
@@ -115,7 +116,6 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 println(f)
             end
         end
-
         Q = map(1:game.dims.n) do ii
             clip(DiffResults.value(cost_gradient_info[ii]) +
             V[ii] +
@@ -145,6 +145,11 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             temp[Block(game.dims.n+1):Block(2*game.dims.n), Block(game.dims.n+1):Block(2*game.dims.n)] += regularizations.control_reg * I
             temp
         end
+        if game.is_robust
+            push!(Q, -1 .* deepcopy(Q[1]))
+            push!(Q_s, -1 .* deepcopy(Q_s[1]))
+            push!(Q_ss, -1 .* deepcopy(Q_ss[1]))
+        end
         if DEBUG
             open(DEBUG_FILE, "a") do f
                 println(f, "[backward_pass]")
@@ -164,30 +169,31 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 # println(f)
             end
         end
-        Qh_u = mapreduce(vcat, 1:game.dims.n) do ii
+        Qh_u = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
             Q_s[ii][Block(ii+game.dims.n)] # skip the first n belief blocks of Q_s
         end
-        Qh_uu = mapreduce(vcat, 1:game.dims.n) do ii
+        Qh_uu = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
             Q_ss[ii][Block(ii+game.dims.n), Block(1+game.dims.n):Block(game.dims.n+game.dims.n)]
         end
-        Qh_ub = mapreduce(vcat, 1:game.dims.n) do ii
+        Qh_ub = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
             Q_ss[ii][Block(ii+game.dims.n), Block(1):Block(game.dims.n)]
         end
+
 
         strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t], game.dims; α = α)
         push!(joint_feedback_strategies, strategy)
 
-        V = map(1:game.dims.n) do ii
+        V = map(1:(game.dims.n+game.is_robust)) do ii
             clip(Q[ii] + Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n)]' * feed_forward + # Q_u
             0.5 * feed_forward' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1+game.dims.n):Block(2*game.dims.n)] * feed_forward, clip_norm)# Q_uu
         end
-        V_b = map(1:game.dims.n) do ii
+        V_b = map(1:(game.dims.n+game.is_robust)) do ii
             clip(Q_s[ii][Block(1):Block(game.dims.n)] + # Q_b
             feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1+game.dims.n):Block(2*game.dims.n)] * feed_forward + # Q_uu
             feed_back' * Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n)] + # Q_u
             Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)]' * feed_forward, clip_norm)# Q_ub
         end
-        V_bb = map(1:game.dims.n) do ii
+        V_bb = map(1:(game.dims.n+game.is_robust)) do ii
             clip(Q_ss[ii][Block(1):Block(game.dims.n), Block(1):Block(game.dims.n)] + # Q_bb
             feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1+game.dims.n):Block(2*game.dims.n)] * feed_back + # Q_uu
             feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)] + # Q_ub
@@ -223,4 +229,12 @@ function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_be
     function (belief::Beliefs)
         return BlockVector(nominal_control + α * (feed_forward + feed_back * (belief - nominal_belief)), dims.controls)
     end, feed_forward, feed_back
+end
+
+function get_dummy_strategy(game::BeliefGame)
+    if game.is_robust
+        return [(belief::Beliefs) -> BlockVector(fill(-.01, sum(game.dims.controls) + game.dims.states[1]), vcat(game.dims.controls, game.dims.states[1])) for _ in 1:game.horizon]
+    else
+        return [(belief::Beliefs) -> BlockVector(fill(-.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon]
+    end
 end

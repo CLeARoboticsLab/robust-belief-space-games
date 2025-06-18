@@ -370,14 +370,29 @@ function belief_main()
         horizon,
         (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
         gt_initial_state,
+        false,
     )
 
     sol = solve(bs_hockey_game; debug=true)
 
-    visualize_belief_hockey_solution(sol, goal_position)
+    visualize_belief_hockey_solution(sol, goal_position; graph_name="non_robust_belief_hockey")
+
+    bs_hockey_game = BeliefGame(
+        environment,
+        [defender_cost, attacker_cost],
+        initial_beliefs,
+        horizon,
+        (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
+        gt_initial_state,
+        true,
+    )
+
+    sol = solve(bs_hockey_game; debug=true)
+
+    visualize_belief_hockey_solution(sol, goal_position; graph_name="robust_belief_hockey")
 end
 
-function visualize_belief_hockey_solution(sol, goal_position)
+function visualize_belief_hockey_solution(sol, goal_position; graph_name="belief_hockey")
     beliefs = sol[1]
     controls = sol[2]
 
@@ -425,5 +440,5 @@ function visualize_belief_hockey_solution(sol, goal_position)
     # Display the figure
     display(fig)
 
-    save("exp/hockey/outputs/belief_hockey_solution.png", fig)
+    save("exp/hockey/outputs/$graph_name.png", fig)
 end
