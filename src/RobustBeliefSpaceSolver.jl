@@ -15,7 +15,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             game.costs[ii].non_terminal_cost(nominal_beliefs[t], nominal_controls[t])
         end +
         game.costs[ii].terminal_cost(nominal_beliefs[end])
-    end # For robust version, third player's cost is exactly -(first player's cost)
+    end 
     old_cost = 1/ϵ_converge^2 * new_cost
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0    
@@ -78,10 +78,10 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     # Initialize gradient helpers
     x_val = vec(nominal_beliefs[end])
     terminal_cost_gradient_info = DiffResults.HessianResult(x_val)
-    for cost in game.costs
+    for ii in 1:game.dims.n
         ForwardDiff.hessian!(
             terminal_cost_gradient_info,
-            (x) -> cost.terminal_cost(unvec(x, game.dims.belief)),
+            (x) -> game.costs[ii].terminal_cost(unvec(x, game.dims.belief)),
             x_val)
         push!(V, DiffResults.value(terminal_cost_gradient_info))
         push!(V_b, DiffResults.gradient(terminal_cost_gradient_info))
@@ -98,7 +98,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             cost_gradient_info[ii],
             x -> game.costs[ii].non_terminal_cost(
                 unvec(x[1:total_size(nominal_beliefs[t])], game.dims.belief),
-                BlockVector(x[total_size(nominal_beliefs[t])+1:end], game.dims.controls)
+                BlockVector(x[total_size(nominal_beliefs[t])+1:end], game.is_robust ? vcat(game.dims.controls..., game.dims.states[1]) : game.dims.controls)
                     ),
                 vcat(vec(nominal_beliefs[t]), vec(nominal_controls[t]))
                 )
@@ -130,7 +130,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                     W_s[:,jj,:]' *V_bb[ii] * W[:,jj]
                 end, clip_norm), 
-                [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls...]
+                [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., game.is_robust ? game.dims.states[1] : 0]
             )
         end
         Q_ss = map(1:game.dims.n) do ii
@@ -140,7 +140,8 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                     W_s[:,jj,:]' * (V_bb[ii]+regularizations.belief_reg * I) * W_s[:,jj,:]
                 end, clip_norm),
-                [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls...], [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls...]
+                [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., game.is_robust ? game.dims.states[1] : 0],
+                [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., game.is_robust ? game.dims.states[1] : 0]
             )
             temp[Block(game.dims.n+1):Block(2*game.dims.n), Block(game.dims.n+1):Block(2*game.dims.n)] += regularizations.control_reg * I
             temp
@@ -173,37 +174,36 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             Q_s[ii][Block(ii+game.dims.n)] # skip the first n belief blocks of Q_s
         end
         Qh_uu = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            Q_ss[ii][Block(ii+game.dims.n), Block(1+game.dims.n):Block(game.dims.n+game.dims.n)]
+            Q_ss[ii][Block(ii+game.dims.n), Block(1+game.dims.n):Block(game.dims.n+game.dims.n+game.is_robust)]
         end
         Qh_ub = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
             Q_ss[ii][Block(ii+game.dims.n), Block(1):Block(game.dims.n)]
         end
 
 
-        strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t], game.dims; α = α)
+        strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t], game.dims; α = α, is_robust=game.is_robust)
         push!(joint_feedback_strategies, strategy)
-
         V = map(1:(game.dims.n+game.is_robust)) do ii
-            clip(Q[ii] + Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n)]' * feed_forward + # Q_u
-            0.5 * feed_forward' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1+game.dims.n):Block(2*game.dims.n)] * feed_forward, clip_norm)# Q_uu
+            clip(Q[ii] + Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)]' * feed_forward + # Q_u
+            0.5 * feed_forward' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)] * feed_forward, clip_norm)# Q_uu
         end
         V_b = map(1:(game.dims.n+game.is_robust)) do ii
             clip(Q_s[ii][Block(1):Block(game.dims.n)] + # Q_b
-            feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1+game.dims.n):Block(2*game.dims.n)] * feed_forward + # Q_uu
-            feed_back' * Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n)] + # Q_u
-            Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)]' * feed_forward, clip_norm)# Q_ub
+            feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)] * feed_forward + # Q_uu
+            feed_back' * Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)] + # Q_u
+            Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1):Block(game.dims.n)]' * feed_forward, clip_norm)# Q_ub
         end
         V_bb = map(1:(game.dims.n+game.is_robust)) do ii
             clip(Q_ss[ii][Block(1):Block(game.dims.n), Block(1):Block(game.dims.n)] + # Q_bb
-            feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1+game.dims.n):Block(2*game.dims.n)] * feed_back + # Q_uu
-            feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)] + # Q_ub
-            Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n), Block(1):Block(game.dims.n)]' * feed_back, clip_norm) # Q_ub
+            feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)] * feed_back + # Q_uu
+            feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1):Block(game.dims.n)] + # Q_ub
+            Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1):Block(game.dims.n)]' * feed_back, clip_norm) # Q_ub
         end
     end
     return joint_feedback_strategies
 end
 
-function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01)
+function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01, is_robust=false)
     Qh_uu_reg = Qh_uu + ϵ * I
     Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
     feed_forward = dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)
@@ -227,7 +227,7 @@ function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_be
         end
     end    
     function (belief::Beliefs)
-        return BlockVector(nominal_control + α * (feed_forward + feed_back * (belief - nominal_belief)), dims.controls)
+        return BlockVector(nominal_control + α * (feed_forward + feed_back * (belief - nominal_belief)), vcat(dims.controls, is_robust ? dims.states[1] : 0))
     end, feed_forward, feed_back
 end
 

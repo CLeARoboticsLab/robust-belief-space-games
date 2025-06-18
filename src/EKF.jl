@@ -61,7 +61,8 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
         temp[Block(dim), Block(dim)]
     end
     if is_robust
-        g = [expected_dynamics + control[Block(game.dims.n + 1)]; Base.vec(covs_extraced)]
+        disturbed_expected_dynamics = expected_dynamics[Block(1)] + control[Block(length(beliefs.beliefs) + 1)]
+        g = [vcat(disturbed_expected_dynamics, expected_dynamics[Block(2):Block(length(beliefs.beliefs))]); Base.vec(covs_extraced)]
     else
         g = [expected_dynamics; Base.vec(covs_extraced)]
     end
