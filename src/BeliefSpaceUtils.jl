@@ -86,6 +86,7 @@ struct BeliefGame
     horizon::Int
     dims::NamedTuple{(:n, :states, :controls, :belief, :sensor)}
     gt_initial_state::BlockVector
+    is_robust::Bool # Assuming player 1 is robust
 end
 
 function clip(x, max_norm)
@@ -121,7 +122,7 @@ function rollout_strategy(game::BeliefGame, strategy::Vector{<:Function})
                 println(f, "Control: $(controls[end])")
             end
         end
-        g, W = ekf_update(beliefs[end], controls[end], game.environment.dynamics, game.environment.sensor_models)
+        g, W = ekf_update(beliefs[end], controls[end], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
         push!(beliefs, unvec(g, game.dims.belief))
     end
     return beliefs, controls

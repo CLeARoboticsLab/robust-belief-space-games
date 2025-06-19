@@ -1,4 +1,4 @@
-function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function)
+function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
     expected_dynamics = dynamics(means(beliefs), control, zero_noise)
     A=ForwardDiff.jacobian((x)-> Vector(dynamics(x, control, zero_noise)), means(beliefs))
@@ -60,7 +60,12 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
     covs_extraced = mapreduce(vcat, 1:length(beliefs.beliefs)) do dim
         temp[Block(dim), Block(dim)]
     end
-    g = [expected_dynamics; Base.vec(covs_extraced)]
+    if is_robust
+        disturbed_expected_dynamics = expected_dynamics[Block(1)] + control[Block(length(beliefs.beliefs) + 1)]
+        g = [vcat(disturbed_expected_dynamics, expected_dynamics[Block(2):Block(length(beliefs.beliefs))]); Base.vec(covs_extraced)]
+    else
+        g = [expected_dynamics; Base.vec(covs_extraced)]
+    end
 
     W = [dual_round.(real.(sqrt(Symmetric(K * H * Γ + ϵ * I))); digits=5); zeros((sum(dims(beliefs).^2), sum(dims(beliefs))))]
 
@@ -89,7 +94,7 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
     return g, W
 end
 
-function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function)
+function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
     old_debug = DEBUG
     global DEBUG = false
     function mean_grad(x)
@@ -127,5 +132,8 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
             println(f, "W_s is nan: $(any(isnan.(W_s_val)))")
         end
     end
-    return g_s_val, reshape(W_s_val, (total_size(beliefs), sum(dims(beliefs)), total_size(beliefs)+length(control)))
+    return g_s_val, reshape(W_s_val,
+        (total_size(beliefs),
+        sum(dims(beliefs)),
+        total_size(beliefs)+length(control)+(is_robust ? dims(beliefs)[1] : 0)))
 end

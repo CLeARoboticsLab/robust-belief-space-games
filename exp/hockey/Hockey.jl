@@ -303,9 +303,10 @@ function belief_main()
         return -2 * steal_prob + 1 * control_effort
     end
     function attacker_non_terminal_cost(bs::Beliefs, us)
-        steal_prob = steal_liklihood(bs)
+        # steal_prob = steal_liklihood(bs)
+        steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
         control_effort = dot(us[Block(2)], us[Block(2)])
-        return 10 * steal_prob + 2 * control_effort
+        return exp(0.9 * steal_prob) + 2 * control_effort
     end    
     function shot_probability(bs::Beliefs)
         dist_penalty = 0.1
@@ -353,6 +354,13 @@ function belief_main()
     function defender_terminal_cost(bs::Beliefs)
         return 10 * shot_probability(bs)
     end
+    function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
+        steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
+        return steal_prob + exp(dot(us[Block(3)], us[Block(3)]))
+    end
+    function nature_terminal_cost(bs::Beliefs)
+        return -10 * shot_probability(bs)
+    end
 
     attacker_cost = BeliefCost(
         attacker_non_terminal_cost,
@@ -362,22 +370,41 @@ function belief_main()
         defender_non_terminal_cost,
         defender_terminal_cost,
     )
+    nature_cost = BeliefCost(
+        nature_non_terminal_cost,
+        nature_terminal_cost,
+    )
+
+    # bs_hockey_game = BeliefGame(
+    #     environment,
+    #     [defender_cost, attacker_cost],
+    #     initial_beliefs,
+    #     horizon,
+    #     (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
+    #     gt_initial_state,
+    #     false,
+    # )
+
+    # sol = solve(bs_hockey_game; debug=true)
+
+    # visualize_belief_hockey_solution(sol, goal_position; graph_name="non_robust_belief_hockey")
 
     bs_hockey_game = BeliefGame(
         environment,
-        [defender_cost, attacker_cost],
+        [defender_cost, attacker_cost, nature_cost],
         initial_beliefs,
         horizon,
         (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
         gt_initial_state,
+        true,
     )
 
     sol = solve(bs_hockey_game; debug=true)
 
-    visualize_belief_hockey_solution(sol, goal_position)
+    visualize_belief_hockey_solution(sol, goal_position; graph_name="robust_belief_hockey")
 end
 
-function visualize_belief_hockey_solution(sol, goal_position)
+function visualize_belief_hockey_solution(sol, goal_position; graph_name="belief_hockey")
     beliefs = sol[1]
     controls = sol[2]
 
@@ -425,5 +452,5 @@ function visualize_belief_hockey_solution(sol, goal_position)
     # Display the figure
     display(fig)
 
-    save("exp/hockey/outputs/belief_hockey_solution.png", fig)
+    save("exp/hockey/outputs/$graph_name.png", fig)
 end
