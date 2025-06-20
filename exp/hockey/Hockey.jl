@@ -246,12 +246,12 @@ function load_solution(filename)
     return robust_sol, non_robust_sol, goal_position
 end
 
-function belief_main()
+function belief_main(override_solution=false)
     solution_filename = "exp/hockey/outputs/hockey_solution.jld2"
 
     local robust_sol, non_robust_sol, goal_position
 
-    if isfile(solution_filename)
+    if isfile(solution_filename) && !override_solution
         println("Loading solution from $solution_filename")
         robust_sol, non_robust_sol, goal_position = load_solution(solution_filename)
     else
@@ -394,7 +394,6 @@ function belief_main()
             nature_non_terminal_cost,
             nature_terminal_cost,
         )
-
         non_robust_hockey_game = BeliefGame(
             environment,
             [defender_cost, attacker_cost],
@@ -404,7 +403,6 @@ function belief_main()
             gt_initial_state,
             false,
         )
-
         robust_hockey_game = BeliefGame(
             environment,
             [defender_cost, attacker_cost, nature_cost],
@@ -417,12 +415,11 @@ function belief_main()
             
         non_robust_sol = solve(non_robust_hockey_game; debug=true)
         robust_sol = solve(robust_hockey_game; debug=true)
-
         println("Saving solution to $solution_filename")
         save_solution(solution_filename, robust_sol, non_robust_sol, goal_position)
     end
     
-    visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position; graph_name="robust_belief_hockey")
+    visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
 end
 
 function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; graph_name="belief_hockey")
@@ -477,26 +474,48 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     goal_posts = [[p[1] for p in goal_position], [p[2] for p in goal_position]]
     lines!(ax, goal_posts[1], goal_posts[2], label="Goal", color=:green, linewidth=5)
 
+    # Velocity arrows
+    velocity_scale = 0.5
+    arrows!(ax, 
+        @lift([robust_attacker_means[$current_step][1]]), @lift([robust_attacker_means[$current_step][2]]),
+        @lift([velocity_scale * robust_attacker_means[$current_step][3]]), @lift([velocity_scale * robust_attacker_means[$current_step][4]]),
+        color=robust_attacker_color, arrowsize=15, lengthscale=1.0, alpha=robust_opacity, linewidth=3)
+    arrows!(ax, 
+        @lift([robust_defender_means[$current_step][1]]), @lift([robust_defender_means[$current_step][2]]),
+        @lift([velocity_scale * robust_defender_means[$current_step][3]]), @lift([velocity_scale * robust_defender_means[$current_step][4]]),
+        color=robust_defender_color, arrowsize=15, lengthscale=1.0, alpha=robust_opacity, linewidth=3)
+    arrows!(ax, 
+        @lift([non_robust_attacker_means[$current_step][1]]), @lift([non_robust_attacker_means[$current_step][2]]),
+        @lift([velocity_scale * non_robust_attacker_means[$current_step][3]]), @lift([velocity_scale * non_robust_attacker_means[$current_step][4]]),
+        color=non_robust_attacker_color, arrowsize=12, lengthscale=1.0, alpha=non_robust_opacity, linewidth=2)
+    arrows!(ax, 
+        @lift([non_robust_defender_means[$current_step][1]]), @lift([non_robust_defender_means[$current_step][2]]),
+        @lift([velocity_scale * non_robust_defender_means[$current_step][3]]), @lift([velocity_scale * non_robust_defender_means[$current_step][4]]),
+        color=non_robust_defender_color, arrowsize=12, lengthscale=1.0, alpha=non_robust_opacity, linewidth=2)
+
     function get_uncertainty_visuals(mean, covariance, base_color)
-        fallback_points = [
-            Point2f(mean[1] + 0.1, mean[2] + 0.1),
-            Point2f(mean[1] + 0.1, mean[2] - 0.1), 
-            Point2f(mean[1] - 0.1, mean[2] - 0.1),
-            Point2f(mean[1] - 0.1, mean[2] + 0.1)
-        ]
-        try
-            # pos_cov = covariance[1:2, 1:2] + 1e-6 * I(2)
-            # E = eigen(pos_cov)
-            # E.values = max.(E.values, 1e-6)
-            E = eigen(covariance)
-            scale = sqrt(-2 * log(1 - 0.95)) # 95% confidence
-            t = range(0, 2π, 100)
-            ellipse_points = [Point2f(scale * sqrt(E.values[1]) * E.vectors[1,1] * cos(θ) + scale * sqrt(E.values[2]) * E.vectors[1,2] * sin(θ) + mean[1],
-                                     scale * sqrt(E.values[1]) * E.vectors[2,1] * cos(θ) + scale * sqrt(E.values[2]) * E.vectors[2,2] * sin(θ) + mean[2]) for θ in t]
-            return (ellipse_points, (base_color, 0.2))
-        catch
-            return (fallback_points, (warning_color, 0.5))
-        end
+        E = safe_eigen(covariance)
+        scale = sqrt(-2 * log(1 - 0.95)) # 95% confidence
+        t = range(0, 2π, 100)
+        ellipse_points = [Point2f(scale * sqrt(E.values[1]) * E.vectors[1,1] * cos(θ) + scale * sqrt(E.values[2]) * E.vectors[1,2] * sin(θ) + mean[1],
+                                    scale * sqrt(E.values[1]) * E.vectors[2,1] * cos(θ) + scale * sqrt(E.values[2]) * E.vectors[2,2] * sin(θ) + mean[2]) for θ in t]
+        return (ellipse_points, (base_color, 0.2))
+    end
+
+    function get_velocity_uncertainty_visuals(mean, covariance, base_color)
+        # Extract velocity components (indices 3-4) and their covariance
+        vel_mean = mean[3:4]
+        vel_cov = covariance[3:4, 3:4]
+        
+        velocity_scale = 0.5
+        arrow_tip = mean[1:2] + velocity_scale * vel_mean        
+        E = safe_eigen(vel_cov)
+        scale = sqrt(-2 * log(1 - 0.95)) # 95% confidence
+        t = range(0, 2π, 50)
+        ellipse_points = [Point2f(velocity_scale * scale * sqrt(E.values[1]) * E.vectors[1,1] * cos(θ) + velocity_scale * scale * sqrt(E.values[2]) * E.vectors[1,2] * sin(θ) + arrow_tip[1],
+                                    velocity_scale * scale * sqrt(E.values[1]) * E.vectors[2,1] * cos(θ) + velocity_scale * scale * sqrt(E.values[2]) * E.vectors[2,2] * sin(θ) + arrow_tip[2]) for θ in t]
+        
+        return (ellipse_points, (base_color, 0.2))
     end
 
     rob_att_ellipse_pts = Observable(Point2f[])
@@ -508,10 +527,27 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     non_rob_def_ellipse_pts = Observable(Point2f[])
     non_rob_def_ellipse_color_tuple = Observable((non_robust_defender_color, 0.2))
 
+    # Velocity uncertainty ellipses
+    rob_att_vel_ellipse_pts = Observable(Point2f[])
+    rob_att_vel_ellipse_color_tuple = Observable((robust_attacker_color, 0.15))
+    rob_def_vel_ellipse_pts = Observable(Point2f[])
+    rob_def_vel_ellipse_color_tuple = Observable((robust_defender_color, 0.15))
+    non_rob_att_vel_ellipse_pts = Observable(Point2f[])
+    non_rob_att_vel_ellipse_color_tuple = Observable((non_robust_attacker_color, 0.15))
+    non_rob_def_vel_ellipse_pts = Observable(Point2f[])
+    non_rob_def_vel_ellipse_color_tuple = Observable((non_robust_defender_color, 0.15))
+
+    # Position uncertainty ellipses
     poly!(ax, rob_att_ellipse_pts, color=@lift(to_color($rob_att_ellipse_color_tuple)), strokecolor=@lift(to_color($rob_att_ellipse_color_tuple)), strokewidth=2, alpha=robust_opacity)
     poly!(ax, rob_def_ellipse_pts, color=@lift(to_color($rob_def_ellipse_color_tuple)), strokecolor=@lift(to_color($rob_def_ellipse_color_tuple)), strokewidth=2, alpha=robust_opacity)
     poly!(ax, non_rob_att_ellipse_pts, color=@lift(to_color($non_rob_att_ellipse_color_tuple)), strokecolor=@lift(to_color($non_rob_att_ellipse_color_tuple)), strokewidth=2, alpha=non_robust_opacity)
     poly!(ax, non_rob_def_ellipse_pts, color=@lift(to_color($non_rob_def_ellipse_color_tuple)), strokecolor=@lift(to_color($non_rob_def_ellipse_color_tuple)), strokewidth=2, alpha=non_robust_opacity)
+
+    # Velocity uncertainty ellipses (dashed lines to distinguish from position uncertainty)
+    poly!(ax, rob_att_vel_ellipse_pts, color=@lift(to_color($rob_att_vel_ellipse_color_tuple)), strokecolor=@lift(to_color($rob_att_vel_ellipse_color_tuple)), strokewidth=1, alpha=robust_opacity, linestyle=:dash)
+    poly!(ax, rob_def_vel_ellipse_pts, color=@lift(to_color($rob_def_vel_ellipse_color_tuple)), strokecolor=@lift(to_color($rob_def_vel_ellipse_color_tuple)), strokewidth=1, alpha=robust_opacity, linestyle=:dash)
+    poly!(ax, non_rob_att_vel_ellipse_pts, color=@lift(to_color($non_rob_att_vel_ellipse_color_tuple)), strokecolor=@lift(to_color($non_rob_att_vel_ellipse_color_tuple)), strokewidth=1, alpha=non_robust_opacity, linestyle=:dash)
+    poly!(ax, non_rob_def_vel_ellipse_pts, color=@lift(to_color($non_rob_def_vel_ellipse_color_tuple)), strokecolor=@lift(to_color($non_rob_def_vel_ellipse_color_tuple)), strokewidth=1, alpha=non_robust_opacity, linestyle=:dash)
 
     Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
     
@@ -530,14 +566,32 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     on(focus_non_robust_btn.clicks) do n; robust_opacity[] = 0.1; non_robust_opacity[] = 1.0; end
     on(show_both_btn.clicks) do n; robust_opacity[] = 0.7; non_robust_opacity[] = 0.7; end
     on(current_step) do val
+        # Update position uncertainty ellipses
         rob_att_ellipse_pts[], rob_att_ellipse_color_tuple[] = get_uncertainty_visuals(robust_attacker_pos[], robust_beliefs[val].beliefs[2].belief_covariance, robust_attacker_color)
         rob_def_ellipse_pts[], rob_def_ellipse_color_tuple[] = get_uncertainty_visuals(robust_defender_pos[], robust_beliefs[val].beliefs[1].belief_covariance, robust_defender_color)
         non_rob_att_ellipse_pts[], non_rob_att_ellipse_color_tuple[] = get_uncertainty_visuals(non_robust_attacker_pos[], non_robust_beliefs[val].beliefs[2].belief_covariance, non_robust_attacker_color)
         non_rob_def_ellipse_pts[], non_rob_def_ellipse_color_tuple[] = get_uncertainty_visuals(non_robust_defender_pos[], non_robust_beliefs[val].beliefs[1].belief_covariance, non_robust_defender_color)
+        
+        # Update velocity uncertainty ellipses
+        rob_att_vel_ellipse_pts[], rob_att_vel_ellipse_color_tuple[] = get_velocity_uncertainty_visuals(robust_attacker_means[val], robust_beliefs[val].beliefs[2].belief_covariance, robust_attacker_color)
+        rob_def_vel_ellipse_pts[], rob_def_vel_ellipse_color_tuple[] = get_velocity_uncertainty_visuals(robust_defender_means[val], robust_beliefs[val].beliefs[1].belief_covariance, robust_defender_color)
+        non_rob_att_vel_ellipse_pts[], non_rob_att_vel_ellipse_color_tuple[] = get_velocity_uncertainty_visuals(non_robust_attacker_means[val], non_robust_beliefs[val].beliefs[2].belief_covariance, non_robust_attacker_color)
+        non_rob_def_vel_ellipse_pts[], non_rob_def_vel_ellipse_color_tuple[] = get_velocity_uncertainty_visuals(non_robust_defender_means[val], non_robust_beliefs[val].beliefs[1].belief_covariance, non_robust_defender_color)
     end
     
     set_close_to!(slider, 1)
 
     display(fig)
     save("exp/hockey/outputs/$graph_name.png", fig)
+end
+
+function safe_eigen(A)
+    # try
+        A_reg = A + 1e-8 * I(size(A, 1))
+        E = eigen(A_reg)
+        return (values = max.(E.values, 1e-6), vectors = E.vectors)
+    # catch
+    #     n = size(A, 1)
+    #     return (values = fill(1e-6, n), vectors = Matrix(I, n, n))
+    # end
 end
