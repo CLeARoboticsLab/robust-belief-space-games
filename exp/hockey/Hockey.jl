@@ -9,6 +9,8 @@ using Makie.GeometryBasics
 using Symbolics
 # using CairoMakie
 using GLMakie
+using JLD2
+using FileIO
 
 struct DummyEnvironment end
 
@@ -235,222 +237,307 @@ function main()
     save("exp/hockey/outputs/hockey_solution.png", fig)
 end
 
-function belief_main()
-    # Game Params
-    horizon = 20
-    dt = 0.3
-    n=2
-    goal_position = [
-        [0.25, -1.5],
-        [-0.25, -1.5],
-    ]
-
-    # Initial States/Beliefs
-    gt_initial_state = mortar([ # gt = ground truth
-        [-0.75, 1.5, 0.0, 0.0],
-        [0.75, 5.0, 0.0, 0.0],  # Attacker
-    ])
-    initial_belief_covariance = [
-        [0 0 0    0;
-         0 0 0    0;
-         0 0 0.25 0;
-         0 0 0    0.25],
-        [0 0 0    0;
-         0 0 0    0;
-         0 0 0.25 0;
-         0 0 0    0.25],
-    ]
-    initial_beliefs = Beliefs([Belief(gt_initial_state[Block(i)], initial_belief_covariance[i]) for i in 1:2])
-
-
-    # Environment
-        # Dynamics
-    function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
-        BlockVector(
-                mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
-                [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
-                [0.5*dt^2 0; 0 0.5*dt^2; dt 0; 0 dt] * uᵢ +
-                [0.1 0 0 0; 0 0.1 0 0; 0 0 0.2*uᵢ[1] 0; 0 0 0 0.2*uᵢ[2]] * mᵢ
-            end,
-            [4, 4]
-        )
-    end
-
-        # Sensor Models
-    function h(xs::BlockVector, ns::BlockVector)
-        BlockVector(
-            mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-                [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 2*xᵢ[3] 0; 0 0 0 2*xᵢ[4]] * nᵢ
-            end,
-            [2, 2]
-        )
-    end
-
-    environment = BeliefEnvironment(f, gt_initial_state, h)
-
-    # Cost
-    function steal_liklihood(bs::Beliefs)
-        sq_dist = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
-        sq_vel_dist = dot(bs.beliefs[1].belief_mean[3:4] - bs.beliefs[2].belief_mean[3:4], bs.beliefs[1].belief_mean[3:4] - bs.beliefs[2].belief_mean[3:4])
-        dist_uncertainty = dot(bs.beliefs[1].belief_covariance[1, 1:2], bs.beliefs[1].belief_covariance[2, 1:2])
-        vel_uncertainty = dot(bs.beliefs[1].belief_covariance[3, 3:4], bs.beliefs[1].belief_covariance[4, 3:4])
-        return 1/(dist_uncertainty + vel_uncertainty + 1e-9) * exp(-5 * sq_dist^2) * exp(-sq_vel_dist)
-    end
-    function defender_non_terminal_cost(bs::Beliefs, us)
-        # steal_prob = steal_liklihood(bs)
-        steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
-        control_effort = dot(us[Block(1)], us[Block(1)])
-        return -2 * steal_prob + 1 * control_effort
-    end
-    function attacker_non_terminal_cost(bs::Beliefs, us)
-        # steal_prob = steal_liklihood(bs)
-        steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
-        control_effort = dot(us[Block(2)], us[Block(2)])
-        return exp(0.9 * steal_prob) + 2 * control_effort
-    end    
-    function shot_probability(bs::Beliefs)
-        dist_penalty = 0.1
-        block_max = 3
-        block_falloff = 0.8
-        attacker_uncertainty_penalty = 0.3  
-        defender_uncertainty_penalty = 0.5 
-        goal_center = (goal_position[1] + goal_position[2]) / 2
-
-        attacker_pos = bs.beliefs[2].belief_mean[1:2] # Player 2 is Attacker
-        defender_pos = bs.beliefs[1].belief_mean[1:2] # Player 1 is Defender
-        attacker_pos_uncertainty = tr(bs.beliefs[2].belief_covariance[1:2, 1:2])
-        defender_pos_uncertainty = tr(bs.beliefs[1].belief_covariance[1:2, 1:2])
-
-        # Term 1: Base score, penalized by distance to goal and attacker's own uncertainty.
-        dist_sq_to_goal = dot(attacker_pos - goal_center, attacker_pos - goal_center)
-        distance_penalty = dist_penalty * dist_sq_to_goal
-        attacker_uncertainty_penalty_term = attacker_uncertainty_penalty * attacker_pos_uncertainty
-
-        # Term 2: Defender blocking penalty, hindered by defender's own uncertainty.
-        v_attacker_to_goal = goal_center - attacker_pos
-        v_attacker_to_defender = defender_pos - attacker_pos
-        dist_sq_to_defender = dot(v_attacker_to_defender, v_attacker_to_defender)
-
-        cos_block_angle =
-            dot(v_attacker_to_goal, v_attacker_to_defender) /
-            (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
-
-        # Defender's blocking power is reduced by their positional uncertainty
-        block_effectiveness = (block_max * exp(-block_falloff * dist_sq_to_defender)) /
-                              (1 + defender_uncertainty_penalty * defender_pos_uncertainty)
-
-        defender_block_penalty = block_effectiveness * max(0, cos_block_angle)
-
-        # Final score calculation
-        final_score = 1.0 - distance_penalty - attacker_uncertainty_penalty_term - defender_block_penalty
-        return final_score
-    end
-    function attacker_terminal_cost(bs::Beliefs)
-        # Attacker wants to max shot quality, so we min its negative.
-        # Don't let attacker get too far away from origin (area of play). This game construction
-        #   doesn't allow for hard constraints.
-        return -shot_probability(bs)
-    end
-    function defender_terminal_cost(bs::Beliefs)
-        return 10 * shot_probability(bs)
-    end
-    function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
-        steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
-        return steal_prob + exp(dot(us[Block(3)], us[Block(3)]))
-    end
-    function nature_terminal_cost(bs::Beliefs)
-        return -10 * shot_probability(bs)
-    end
-
-    attacker_cost = BeliefCost(
-        attacker_non_terminal_cost,
-        attacker_terminal_cost,
-    )
-    defender_cost = BeliefCost(
-        defender_non_terminal_cost,
-        defender_terminal_cost,
-    )
-    nature_cost = BeliefCost(
-        nature_non_terminal_cost,
-        nature_terminal_cost,
-    )
-
-    # bs_hockey_game = BeliefGame(
-    #     environment,
-    #     [defender_cost, attacker_cost],
-    #     initial_beliefs,
-    #     horizon,
-    #     (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
-    #     gt_initial_state,
-    #     false,
-    # )
-
-    # sol = solve(bs_hockey_game; debug=true)
-
-    # visualize_belief_hockey_solution(sol, goal_position; graph_name="non_robust_belief_hockey")
-
-    bs_hockey_game = BeliefGame(
-        environment,
-        [defender_cost, attacker_cost, nature_cost],
-        initial_beliefs,
-        horizon,
-        (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
-        gt_initial_state,
-        true,
-    )
-
-    sol = solve(bs_hockey_game; debug=true)
-
-    visualize_belief_hockey_solution(sol, goal_position; graph_name="robust_belief_hockey")
+function save_solution(filename, robust_sol, non_robust_sol, goal_position)
+    @save filename robust_sol non_robust_sol goal_position
 end
 
-function visualize_belief_hockey_solution(sol, goal_position; graph_name="belief_hockey")
-    beliefs = sol[1]
-    controls = sol[2]
+function load_solution(filename)
+    @load filename robust_sol non_robust_sol goal_position
+    return robust_sol, non_robust_sol, goal_position
+end
 
-    # Extract mean trajectories
-    attacker_means = [bs.beliefs[2].belief_mean for bs in beliefs]
-    defender_means = [bs.beliefs[1].belief_mean for bs in beliefs]
+function belief_main()
+    solution_filename = "exp/hockey/outputs/hockey_solution.jld2"
 
-    # Plot mean trajectories
-    fig = Figure(size=(1000, 800))
+    local robust_sol, non_robust_sol, goal_position
+
+    if isfile(solution_filename)
+        println("Loading solution from $solution_filename")
+        robust_sol, non_robust_sol, goal_position = load_solution(solution_filename)
+    else
+        println("No solution file found. Running solver...")
+        # Game Params
+        horizon = 20
+        dt = 0.3
+        n=2
+        goal_position = [
+            [0.25, -1.5],
+            [-0.25, -1.5],
+        ]
+
+        # Initial States/Beliefs
+        gt_initial_state = mortar([ # gt = ground truth
+            [-0.75, 1.5, 0.0, 0.0],
+            [0.75, 5.0, 0.0, 0.0],  # Attacker
+        ])
+        initial_belief_covariance = [
+            [0 0 0    0;
+            0 0 0    0;
+            0 0 0.25 0;
+            0 0 0    0.25],
+            [0 0 0    0;
+            0 0 0    0;
+            0 0 0.25 0;
+            0 0 0    0.25],
+        ]
+        initial_beliefs = Beliefs([Belief(gt_initial_state[Block(i)], initial_belief_covariance[i]) for i in 1:2])
+
+
+        # Environment
+            # Dynamics
+        function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
+            BlockVector(
+                    mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
+                    [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
+                    [0.5*dt^2 0; 0 0.5*dt^2; dt 0; 0 dt] * uᵢ +
+                    [0.1 0 0 0; 0 0.1 0 0; 0 0 0.2*uᵢ[1] 0; 0 0 0 0.2*uᵢ[2]] * mᵢ
+                end,
+                [4, 4]
+            )
+        end
+
+            # Sensor Models
+        function h(xs::BlockVector, ns::BlockVector)
+            BlockVector(
+                mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
+                    [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 2*xᵢ[3] 0; 0 0 0 2*xᵢ[4]] * nᵢ
+                end,
+                [2, 2]
+            )
+        end
+
+        environment = BeliefEnvironment(f, gt_initial_state, h)
+
+        # Cost
+        function steal_liklihood(bs::Beliefs)
+            sq_dist = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
+            sq_vel_dist = dot(bs.beliefs[1].belief_mean[3:4] - bs.beliefs[2].belief_mean[3:4], bs.beliefs[1].belief_mean[3:4] - bs.beliefs[2].belief_mean[3:4])
+            dist_uncertainty = dot(bs.beliefs[1].belief_covariance[1, 1:2], bs.beliefs[1].belief_covariance[2, 1:2])
+            vel_uncertainty = dot(bs.beliefs[1].belief_covariance[3, 3:4], bs.beliefs[1].belief_covariance[4, 3:4])
+            return 1/(dist_uncertainty + vel_uncertainty + 1e-9) * exp(-5 * sq_dist^2) * exp(-sq_vel_dist)
+        end
+        function defender_non_terminal_cost(bs::Beliefs, us)
+            # steal_prob = steal_liklihood(bs)
+            steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
+            control_effort = dot(us[Block(1)], us[Block(1)])
+            return -2 * steal_prob + 1 * control_effort
+        end
+        function attacker_non_terminal_cost(bs::Beliefs, us)
+            # steal_prob = steal_liklihood(bs)
+            steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
+            control_effort = dot(us[Block(2)], us[Block(2)])
+            return exp(0.9 * steal_prob) + 2 * control_effort
+        end    
+        function shot_probability(bs::Beliefs)
+            dist_penalty = 0.1
+            block_max = 3
+            block_falloff = 0.8
+            attacker_uncertainty_penalty = 0.3  
+            defender_uncertainty_penalty = 0.5 
+            goal_center = (goal_position[1] + goal_position[2]) / 2
+
+            attacker_pos = bs.beliefs[2].belief_mean[1:2] # Player 2 is Attacker
+            defender_pos = bs.beliefs[1].belief_mean[1:2] # Player 1 is Defender
+            attacker_pos_uncertainty = tr(bs.beliefs[2].belief_covariance[1:2, 1:2])
+            defender_pos_uncertainty = tr(bs.beliefs[1].belief_covariance[1:2, 1:2])
+
+            # Term 1: Base score, penalized by distance to goal and attacker's own uncertainty.
+            dist_sq_to_goal = dot(attacker_pos - goal_center, attacker_pos - goal_center)
+            distance_penalty = dist_penalty * dist_sq_to_goal
+            attacker_uncertainty_penalty_term = attacker_uncertainty_penalty * attacker_pos_uncertainty
+
+            # Term 2: Defender blocking penalty, hindered by defender's own uncertainty.
+            v_attacker_to_goal = goal_center - attacker_pos
+            v_attacker_to_defender = defender_pos - attacker_pos
+            dist_sq_to_defender = dot(v_attacker_to_defender, v_attacker_to_defender)
+
+            cos_block_angle =
+                dot(v_attacker_to_goal, v_attacker_to_defender) /
+                (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
+
+            # Defender's blocking power is reduced by their positional uncertainty
+            block_effectiveness = (block_max * exp(-block_falloff * dist_sq_to_defender)) /
+                                (1 + defender_uncertainty_penalty * defender_pos_uncertainty)
+
+            defender_block_penalty = block_effectiveness * max(0, cos_block_angle)
+
+            # Final score calculation
+            final_score = 1.0 - distance_penalty - attacker_uncertainty_penalty_term - defender_block_penalty
+            return final_score
+        end
+        function attacker_terminal_cost(bs::Beliefs)
+            # Attacker wants to max shot quality, so we min its negative.
+            # Don't let attacker get too far away from origin (area of play). This game construction
+            #   doesn't allow for hard constraints.
+            return -shot_probability(bs)
+        end
+        function defender_terminal_cost(bs::Beliefs)
+            return 10 * shot_probability(bs)
+        end
+        function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
+            steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
+            return steal_prob + exp(dot(us[Block(3)], us[Block(3)]))
+        end
+        function nature_terminal_cost(bs::Beliefs)
+            return -10 * shot_probability(bs)
+        end
+
+        attacker_cost = BeliefCost(
+            attacker_non_terminal_cost,
+            attacker_terminal_cost,
+        )
+        defender_cost = BeliefCost(
+            defender_non_terminal_cost,
+            defender_terminal_cost,
+        )
+        nature_cost = BeliefCost(
+            nature_non_terminal_cost,
+            nature_terminal_cost,
+        )
+
+        non_robust_hockey_game = BeliefGame(
+            environment,
+            [defender_cost, attacker_cost],
+            initial_beliefs,
+            horizon,
+            (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
+            gt_initial_state,
+            false,
+        )
+
+        robust_hockey_game = BeliefGame(
+            environment,
+            [defender_cost, attacker_cost, nature_cost],
+            initial_beliefs,
+            horizon,
+            (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
+            gt_initial_state,
+            true,
+            )
+            
+        non_robust_sol = solve(non_robust_hockey_game; debug=true)
+        robust_sol = solve(robust_hockey_game; debug=true)
+
+        println("Saving solution to $solution_filename")
+        save_solution(solution_filename, robust_sol, non_robust_sol, goal_position)
+    end
+    
+    visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position; graph_name="robust_belief_hockey")
+end
+
+function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; graph_name="belief_hockey")
+    robust_beliefs = sol[1]
+    non_robust_beliefs = non_robust_sol[1]
+
+    # Plotting Vars
+    robust_attacker_color = :blue
+    robust_defender_color = :red
+    non_robust_attacker_color = :darkblue
+    non_robust_defender_color = :darkred
+    warning_color = :darkorange
+
+    robust_attacker_means = [bs.beliefs[2].belief_mean for bs in robust_beliefs]
+    robust_defender_means = [bs.beliefs[1].belief_mean for bs in robust_beliefs]
+    non_robust_attacker_means = [bs.beliefs[2].belief_mean for bs in non_robust_beliefs]
+    non_robust_defender_means = [bs.beliefs[1].belief_mean for bs in non_robust_beliefs]
+
+    fig = Figure()
+
+    # --- Top Row: Axis and Legend ---
     ax = Axis(fig[1, 1],
         title="Hockey Game Trajectories",
         xlabel="x position",
         ylabel="y position",
-        aspect=1
     )
-
-    # Create observables for the trajectories
-    attacker_pos = Observable(Point2f(attacker_means[1][1], attacker_means[1][2]))
-    defender_pos = Observable(Point2f(defender_means[1][1], defender_means[1][2]))
+    
+    # --- Bottom Row: Controls ---
+    control_grid = fig[2, 1:2] = GridLayout(tellheight=false)
+    
+    # Observables
     current_step = Observable(1)
+    robust_opacity = Observable(1.0)
+    non_robust_opacity = Observable(0.3)
 
-    # Plot trajectories
-    lines!(ax, [m[1] for m in attacker_means], [m[2] for m in attacker_means], label="Attacker Mean", color=:blue, linewidth=2)
-    lines!(ax, [m[1] for m in defender_means], [m[2] for m in defender_means], label="Defender Mean", color=:red, linewidth=2)
+    lines!(ax, [m[1] for m in robust_attacker_means], [m[2] for m in robust_attacker_means], label="Robust Attacker", color=robust_attacker_color, linewidth=3, alpha=robust_opacity)
+    lines!(ax, [m[1] for m in robust_defender_means], [m[2] for m in robust_defender_means], label="Robust Defender", color=robust_defender_color, linewidth=3, alpha=robust_opacity)
+    lines!(ax, [m[1] for m in non_robust_attacker_means], [m[2] for m in non_robust_attacker_means], label="Non-Robust Attacker", color=non_robust_attacker_color, linewidth=2, alpha=non_robust_opacity)
+    lines!(ax, [m[1] for m in non_robust_defender_means], [m[2] for m in non_robust_defender_means], label="Non-Robust Defender", color=non_robust_defender_color, linewidth=2, alpha=non_robust_opacity)
 
-    # Plot current positions
-    scatter!(ax, attacker_pos, label="Attacker", color=:blue, markersize=15)
-    scatter!(ax, defender_pos, label="Defender", color=:red, markersize=15)
+    robust_attacker_pos = @lift(Point2f(robust_attacker_means[$current_step][1:2]))
+    robust_defender_pos = @lift(Point2f(robust_defender_means[$current_step][1:2]))
+    non_robust_attacker_pos = @lift(Point2f(non_robust_attacker_means[$current_step][1:2]))
+    non_robust_defender_pos = @lift(Point2f(non_robust_defender_means[$current_step][1:2]))
+    
+    scatter!(ax, robust_attacker_pos, color=robust_attacker_color, markersize=20, alpha=robust_opacity)
+    scatter!(ax, robust_defender_pos, color=robust_defender_color, markersize=20, alpha=robust_opacity)
+    scatter!(ax, non_robust_attacker_pos, color=non_robust_attacker_color, markersize=15, alpha=non_robust_opacity)
+    scatter!(ax, non_robust_defender_pos, color=non_robust_defender_color, markersize=15, alpha=non_robust_opacity)
 
-    # Plot goal positions
+    # Goal
     goal_posts = [[p[1] for p in goal_position], [p[2] for p in goal_position]]
     lines!(ax, goal_posts[1], goal_posts[2], label="Goal", color=:green, linewidth=5)
 
-    # Add legend
-    Legend(fig[1, 2], ax)
-
-    # Add slider
-    slider = Slider(fig[2, 1], range=1:length(attacker_means), startvalue=1)
-    on(slider.value) do val
-        current_step[] = val
-        attacker_pos[] = Point2f(attacker_means[val][1], attacker_means[val][2])
-        defender_pos[] = Point2f(defender_means[val][1], defender_means[val][2])
+    function get_uncertainty_visuals(mean, covariance, base_color)
+        fallback_points = [
+            Point2f(mean[1] + 0.1, mean[2] + 0.1),
+            Point2f(mean[1] + 0.1, mean[2] - 0.1), 
+            Point2f(mean[1] - 0.1, mean[2] - 0.1),
+            Point2f(mean[1] - 0.1, mean[2] + 0.1)
+        ]
+        try
+            # pos_cov = covariance[1:2, 1:2] + 1e-6 * I(2)
+            # E = eigen(pos_cov)
+            # E.values = max.(E.values, 1e-6)
+            E = eigen(covariance)
+            scale = sqrt(-2 * log(1 - 0.95)) # 95% confidence
+            t = range(0, 2π, 100)
+            ellipse_points = [Point2f(scale * sqrt(E.values[1]) * E.vectors[1,1] * cos(θ) + scale * sqrt(E.values[2]) * E.vectors[1,2] * sin(θ) + mean[1],
+                                     scale * sqrt(E.values[1]) * E.vectors[2,1] * cos(θ) + scale * sqrt(E.values[2]) * E.vectors[2,2] * sin(θ) + mean[2]) for θ in t]
+            return (ellipse_points, (base_color, 0.2))
+        catch
+            return (fallback_points, (warning_color, 0.5))
+        end
     end
 
-    # Display the figure
-    display(fig)
+    rob_att_ellipse_pts = Observable(Point2f[])
+    rob_att_ellipse_color_tuple = Observable((robust_attacker_color, 0.2))
+    rob_def_ellipse_pts = Observable(Point2f[])
+    rob_def_ellipse_color_tuple = Observable((robust_defender_color, 0.2))
+    non_rob_att_ellipse_pts = Observable(Point2f[])
+    non_rob_att_ellipse_color_tuple = Observable((non_robust_attacker_color, 0.2))
+    non_rob_def_ellipse_pts = Observable(Point2f[])
+    non_rob_def_ellipse_color_tuple = Observable((non_robust_defender_color, 0.2))
 
+    poly!(ax, rob_att_ellipse_pts, color=@lift(to_color($rob_att_ellipse_color_tuple)), strokecolor=@lift(to_color($rob_att_ellipse_color_tuple)), strokewidth=2, alpha=robust_opacity)
+    poly!(ax, rob_def_ellipse_pts, color=@lift(to_color($rob_def_ellipse_color_tuple)), strokecolor=@lift(to_color($rob_def_ellipse_color_tuple)), strokewidth=2, alpha=robust_opacity)
+    poly!(ax, non_rob_att_ellipse_pts, color=@lift(to_color($non_rob_att_ellipse_color_tuple)), strokecolor=@lift(to_color($non_rob_att_ellipse_color_tuple)), strokewidth=2, alpha=non_robust_opacity)
+    poly!(ax, non_rob_def_ellipse_pts, color=@lift(to_color($non_rob_def_ellipse_color_tuple)), strokecolor=@lift(to_color($non_rob_def_ellipse_color_tuple)), strokewidth=2, alpha=non_robust_opacity)
+
+    Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
+    
+    slider = Slider(control_grid[1, 1], range=1:length(robust_attacker_means), startvalue=1)
+    on(slider.value) do val; current_step[] = val; end
+    
+    Label(control_grid[1, 2], "Time:")
+    Label(control_grid[1, 3], @lift("$(Int($current_step))"))
+
+    button_grid = control_grid[2, 1:3] = GridLayout(tellwidth = false)
+    focus_robust_btn = Button(button_grid[1, 1], label="Focus Robust")
+    focus_non_robust_btn = Button(button_grid[1, 2], label="Focus Non-Robust")
+    show_both_btn = Button(button_grid[1, 3], label="Show Both")
+    
+    on(focus_robust_btn.clicks) do n; robust_opacity[] = 1.0; non_robust_opacity[] = 0.1; end
+    on(focus_non_robust_btn.clicks) do n; robust_opacity[] = 0.1; non_robust_opacity[] = 1.0; end
+    on(show_both_btn.clicks) do n; robust_opacity[] = 0.7; non_robust_opacity[] = 0.7; end
+    on(current_step) do val
+        rob_att_ellipse_pts[], rob_att_ellipse_color_tuple[] = get_uncertainty_visuals(robust_attacker_pos[], robust_beliefs[val].beliefs[2].belief_covariance, robust_attacker_color)
+        rob_def_ellipse_pts[], rob_def_ellipse_color_tuple[] = get_uncertainty_visuals(robust_defender_pos[], robust_beliefs[val].beliefs[1].belief_covariance, robust_defender_color)
+        non_rob_att_ellipse_pts[], non_rob_att_ellipse_color_tuple[] = get_uncertainty_visuals(non_robust_attacker_pos[], non_robust_beliefs[val].beliefs[2].belief_covariance, non_robust_attacker_color)
+        non_rob_def_ellipse_pts[], non_rob_def_ellipse_color_tuple[] = get_uncertainty_visuals(non_robust_defender_pos[], non_robust_beliefs[val].beliefs[1].belief_covariance, non_robust_defender_color)
+    end
+    
+    set_close_to!(slider, 1)
+
+    display(fig)
     save("exp/hockey/outputs/$graph_name.png", fig)
 end
