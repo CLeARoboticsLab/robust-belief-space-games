@@ -20,7 +20,6 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0    
     improvement_iterations = 0
-    println("old_cost: $old_cost, new_cost: $new_cost, norm: $(norm(new_cost - old_cost)/norm(old_cost))")
 
     while norm(new_cost - old_cost)/norm(old_cost) > ϵ_converge
         old_cost = new_cost
