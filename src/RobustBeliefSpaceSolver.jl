@@ -36,7 +36,6 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
                 println(f)
             end
         end
-        # TODO strategy should output 3 players' actions -> game doesn't need third player's control dims, assume size of state
         strategy = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; α = α)
         candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
 

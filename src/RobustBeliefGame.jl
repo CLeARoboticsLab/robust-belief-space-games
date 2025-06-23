@@ -25,7 +25,7 @@ include("Solve.jl")
 export solve
 
 include("BeliefSpaceUtils.jl")
-export Belief, Beliefs, means, covs, dims, BeliefGame, BeliefEnvironment, BeliefCost
+export Belief, Beliefs, means, covs, dims, BeliefGame, BeliefEnvironment, BeliefCost, vec, unvec
 
 include("EKF.jl")
 export ekf_update, ekf_update_gradient
@@ -34,7 +34,7 @@ include("RobustBeliefSpaceSolver.jl")
 export solve
 
 
-DEBUG = true
+DEBUG = false
 DEBUG_FILE = "./exp/hockey/outputs/belief_diagnostics.txt"
 
 ϵ = 1e-7
