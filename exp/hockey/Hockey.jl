@@ -644,12 +644,14 @@ function receding_horizon_main(; robust=true, horizon=20, plotting_horizon=10, o
     function defender_non_terminal_cost(bs::Beliefs, us)
         steal_prob = steal_liklihood(bs)
         control_effort = dot(us[Block(1)], us[Block(1)])
-        return -2 * atan(steal_prob) + 2 * atan(control_effort)
+        # -2 * atan(steal_prob) + 2 * atan(control_effort)
+        -2 * steal_prob + 1 * control_effort
     end
     function attacker_non_terminal_cost(bs::Beliefs, us)
         steal_prob = steal_liklihood(bs)
         control_effort = dot(us[Block(2)], us[Block(2)])
-        return exp(0.7 * steal_prob) + 4 * atan(control_effort)
+        # exp(0.7 * steal_prob) + 4 * atan(control_effort)
+        exp(0.9 * steal_prob) + 2 * control_effort
     end
     function shot_probability(bs::Beliefs)
         dist_penalty = 0.1
@@ -675,17 +677,17 @@ function receding_horizon_main(; robust=true, horizon=20, plotting_horizon=10, o
         return final_score
     end
     function attacker_terminal_cost(bs::Beliefs)
-        return -8 * shot_probability(bs)
+        return -1 * shot_probability(bs)
     end
     function defender_terminal_cost(bs::Beliefs)
         return 10 * shot_probability(bs)
     end
     function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
-        steal_prob = atan(dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2]))
-        return steal_prob + exp(atan(dot(us[Block(3)], us[Block(3)])))
+        steal_prob = steal_liklihood(bs)
+        steal_prob + exp(atan(dot(us[Block(3)], us[Block(3)])))
     end
     function nature_terminal_cost(bs::Beliefs)
-        return -defender_terminal_cost(bs)
+        -10 * steal_liklihood(bs)
     end
 
     attacker_cost = BeliefCost(attacker_non_terminal_cost, attacker_terminal_cost)
@@ -782,14 +784,13 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     executed_pos = @lift [Point2f(s[Block(1)][1], s[Block(1)][2]) for s in gt_state_history[1:$current_step]]
     
     # Current belief means and planned trajectory
-    current_belief_means = @lift belief_history[$current_step].beliefs
-    planned_means = @lift [b.belief_mean for b in planned_trajectories[$current_step]]
+    current_belief = @lift belief_history[$current_step].beliefs
     
-    attacker_pos = @lift Point2f($current_belief_means[1].belief_mean[1:2])
-    defender_pos = @lift Point2f($current_belief_means[2].belief_mean[1:2])
+    attacker_pos = @lift Point2f($current_belief[1].belief_mean[1:2])
+    defender_pos = @lift Point2f($current_belief[2].belief_mean[1:2])
     
-    planned_attacker_traj = @lift [Point2f(m[Block(1)][1:2]) for m in $planned_means]
-    planned_defender_traj = @lift [Point2f(m[Block(2)][1:2]) for m in $planned_means]
+    planned_attacker_traj = @lift [Point2f(m[Block(1)][1:2]) for m in $planned_trajectories[$current_step]]
+    planned_defender_traj = @lift [Point2f(m[Block(2)][1:2]) for m in $planned_trajectories[$current_step]]
     
     # --- Plotting ---
     # Goal
@@ -815,8 +816,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
         Point2f[scale * E.vectors * [sqrt(E.values[1])*cos(θ), sqrt(E.values[2])*sin(θ)] + mean[1:2] for θ in t]
     end
     
-    attacker_ellipse = @lift get_ellipse($attacker_pos, $current_belief_means[1].belief_covariance)
-    defender_ellipse = @lift get_ellipse($defender_pos, $current_belief_means[2].belief_covariance)
+    attacker_ellipse = @lift get_ellipse($attacker_pos, $current_belief[1].belief_covariance)
+    defender_ellipse = @lift get_ellipse($defender_pos, $current_belief[2].belief_covariance)
     
     poly!(ax, attacker_ellipse, color=(attacker_color, 0.3), strokecolor=attacker_color)
     poly!(ax, defender_ellipse, color=(defender_color, 0.3), strokecolor=defender_color)
