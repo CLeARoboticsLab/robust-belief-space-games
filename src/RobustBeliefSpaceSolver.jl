@@ -58,7 +58,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         end
         iterations += 1
     end
-    !DEBUG || println("Converged in $improvement_iterations / $iterations iterations")
+    println("Converged in $improvement_iterations / $iterations iterations")
     return nominal_beliefs, nominal_controls
 end
 
@@ -164,34 +164,47 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             end
         end
         Qh_u = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            Q_s[ii][Block(ii+game.dims.n)] # skip the first n belief blocks of Q_s
+            @view Q_s[ii][Block(ii+game.dims.n)] # skip the first n belief blocks of Q_s
         end
         Qh_uu = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            Q_ss[ii][Block(ii+game.dims.n), Block(1+game.dims.n):Block(game.dims.n+game.dims.n+game.is_robust)]
+            @view Q_ss[ii][Block(ii+game.dims.n), Block(1+game.dims.n):Block(game.dims.n+game.dims.n+game.is_robust)]
         end
         Qh_ub = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            Q_ss[ii][Block(ii+game.dims.n), Block(1):Block(game.dims.n)]
+            @view Q_ss[ii][Block(ii+game.dims.n), Block(1):Block(game.dims.n)]
         end
 
 
         strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t], game.dims; α = α, is_robust=game.is_robust)
         push!(joint_feedback_strategies, strategy)
-        V = map(1:(game.dims.n+game.is_robust)) do ii
-            clip(Q[ii] + Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)]' * feed_forward + # Q_u
-            0.5 * feed_forward' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)] * feed_forward, clip_norm)# Q_uu
+
+        u_block_indices = Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)
+        b_block_indices = Block(1):Block(game.dims.n)
+
+        V_new = Vector{eltype(V)}(undef, game.dims.n + game.is_robust)
+        V_b_new = Vector{eltype(V_b)}(undef, game.dims.n + game.is_robust)
+        V_bb_new = Vector{eltype(V_bb)}(undef, game.dims.n + game.is_robust)
+
+        for ii in 1:(game.dims.n + game.is_robust)
+            Q_u = @view Q_s[ii][u_block_indices]
+            Q_uu = @view Q_ss[ii][u_block_indices, u_block_indices]
+            Q_b = @view Q_s[ii][b_block_indices]
+            Q_ub = @view Q_ss[ii][u_block_indices, b_block_indices]
+            Q_bb = @view Q_ss[ii][b_block_indices, b_block_indices]
+
+            V_new[ii] = clip(Q[ii] + Q_u' * feed_forward +
+                             0.5 * feed_forward' * Q_uu * feed_forward, clip_norm)
+            
+            V_b_new[ii] = clip(Q_b + # Q_b
+                                feed_back' * Q_uu * feed_forward + # Q_uu
+                                feed_back' * Q_u + # Q_u
+                                Q_ub' * feed_forward, clip_norm)# Q_ub
+            
+            V_bb_new[ii] = clip(Q_bb + # Q_bb
+                                 feed_back' * Q_uu * feed_back + # Q_uu
+                                 feed_back' * Q_ub + # Q_ub
+                                 Q_ub' * feed_back, clip_norm) # Q_ub
         end
-        V_b = map(1:(game.dims.n+game.is_robust)) do ii
-            clip(Q_s[ii][Block(1):Block(game.dims.n)] + # Q_b
-            feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)] * feed_forward + # Q_uu
-            feed_back' * Q_s[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)] + # Q_u
-            Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1):Block(game.dims.n)]' * feed_forward, clip_norm)# Q_ub
-        end
-        V_bb = map(1:(game.dims.n+game.is_robust)) do ii
-            clip(Q_ss[ii][Block(1):Block(game.dims.n), Block(1):Block(game.dims.n)] + # Q_bb
-            feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)] * feed_back + # Q_uu
-            feed_back' * Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1):Block(game.dims.n)] + # Q_ub
-            Q_ss[ii][Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust), Block(1):Block(game.dims.n)]' * feed_back, clip_norm) # Q_ub
-        end
+        V, V_b, V_bb = V_new, V_b_new, V_bb_new
     end
     return joint_feedback_strategies
 end
