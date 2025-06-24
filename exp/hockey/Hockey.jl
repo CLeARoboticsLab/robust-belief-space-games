@@ -247,8 +247,8 @@ function load_solution(filename)
     return robust_sol, non_robust_sol, goal_position
 end
 
-function belief_main(override_solution=false)
-    solution_filename = "exp/hockey/outputs/hockey_solution.jld2"
+function belief_main(sol_number=2, override_solution=false)
+    solution_filename = "exp/hockey/outputs/hockey_solution_$sol_number.jld2"
 
     local robust_sol, non_robust_sol, goal_position
 
@@ -292,7 +292,7 @@ function belief_main(override_solution=false)
                     mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
                     [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
                     [0.5*dt^2 0; 0 0.5*dt^2; dt 0; 0 dt] * uᵢ +
-                    [1 0 0 0; 0 1 0 0; 0 0 2+uᵢ[1] 0; 0 0 0 2+uᵢ[2]] * mᵢ
+                    [1 0 0 0; 0 1 0 0; 0 0 .2*uᵢ[1] 0; 0 0 0 .2*uᵢ[2]] * mᵢ
                 end,
                 [4, 4]
             )
@@ -316,17 +316,19 @@ function belief_main(override_solution=false)
             sq_vel_dist = dot(bs.beliefs[1].belief_mean[3:4] - bs.beliefs[2].belief_mean[3:4], bs.beliefs[1].belief_mean[3:4] - bs.beliefs[2].belief_mean[3:4])
             dist_uncertainty = dot(bs.beliefs[1].belief_covariance[1, 1:2], bs.beliefs[1].belief_covariance[2, 1:2])
             vel_uncertainty = dot(bs.beliefs[1].belief_covariance[3, 3:4], bs.beliefs[1].belief_covariance[4, 3:4])
-            return 1/(dist_uncertainty + vel_uncertainty + 1e-9) * atan(exp(-5 * sq_dist^2)) * atan(exp(-sq_vel_dist))
+            return 1/(dist_uncertainty + vel_uncertainty + 1e-9) * exp(-5 * sq_dist^2) * exp(-sq_vel_dist)
         end
         function defender_non_terminal_cost(bs::Beliefs, us)
             steal_prob = steal_liklihood(bs)
+            # steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
             control_effort = dot(us[Block(1)], us[Block(1)])
-            return -2 * steal_prob + 2 * control_effort
+            return -2 * steal_prob + 2 * control_effort + dot(bs.beliefs[2].belief_mean[1:2], bs.beliefs[2].belief_mean[1:2])^6
         end
         function attacker_non_terminal_cost(bs::Beliefs, us)
             steal_prob = steal_liklihood(bs)
+            # steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
             control_effort = dot(us[Block(2)], us[Block(2)])
-            return exp(0.7 * steal_prob) + 4 * control_effort
+            return steal_prob + 4 * control_effort + dot(bs.beliefs[1].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2])^6
         end    
         function shot_probability(bs::Beliefs)
             dist_penalty = 0.1
@@ -376,7 +378,7 @@ function belief_main(override_solution=false)
         end
         function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
             steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
-            return steal_prob + exp(dot(us[Block(3)], us[Block(3)]))
+            return steal_prob + exp(1 + dot(us[Block(3)], us[Block(3)]))
         end
         function nature_terminal_cost(bs::Beliefs)
             return -defender_terminal_cost(bs)
