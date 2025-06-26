@@ -63,15 +63,14 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
 end
 
 function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; α = 0.01)
-    V = []
-    V_b = []
-    V_bb = []
-
-    timesteps = game.horizon-1:-1:1
+    T = eltype(nominal_beliefs[1].beliefs[1].belief_mean)
+    V = Vector{T}()
+    V_b = Vector{Vector{T}}()
+    V_bb = Vector{Matrix{T}}()
 
     cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:(game.dims.n+game.is_robust)]
 
-    joint_feedback_strategies = Vector{Function}()
+    joint_feedback_strategies = Vector{Any}()
 
     # Initialize gradient helpers
     x_val = vec(nominal_beliefs[end])
@@ -86,7 +85,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         push!(V_bb, DiffResults.hessian(terminal_cost_gradient_info))
     end
 
-    for t in timesteps
+    for t in game.horizon-1:-1:1
         g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
         g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
         W = real.(W)
@@ -206,7 +205,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         end
         V, V_b, V_bb = V_new, V_b_new, V_bb_new
     end
-    return joint_feedback_strategies
+    return reverse!(joint_feedback_strategies)
 end
 
 function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01, is_robust=false)
