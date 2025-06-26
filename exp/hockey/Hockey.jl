@@ -15,6 +15,8 @@ using Distributions
 
 struct DummyEnvironment end
 
+include("HockeyVisuals.jl")
+
 function TrajectoryGamesBase.get_constraints(::DummyEnvironment, player_index)
     (state) -> Symbolics.Num[]
 end
@@ -76,95 +78,6 @@ function shot_probability(attacker_pos, defender_pos, goal_p1, goal_p2)
 
     return -0.1 * dot(u, v) / (nv + nu + 1e-9) + -1 * nv
     # return dot(attacker_pos,attacker_pos)
-end
-
-function test_shot_probability_viz()
-    fig = Figure(resolution=(1000, 800))
-    ax = Axis(fig[1, 1],
-        title="Shot Probability Visualization",
-        xlabel="x position",
-        ylabel="y position",
-        aspect=1
-    )
-    deregister_interaction!(ax, :rectanglezoom)
-
-    attacker_pos = Observable(Point2f(0.75, 5.0))
-    defender_pos = Observable(Point2f(-0.75, 1.5))
-    goal_p1 = Point2f(-1.5, 0.25)
-    goal_p2 = Point2f(-1.5, -0.25)
-
-    # The goal
-    lines!(ax, [goal_p1, goal_p2], color=:green, linewidth=5, label="Goal")
-    
-    # The players
-    attacker_plot = scatter!(ax, attacker_pos, color=:blue, markersize=20, label="Attacker")
-    defender_plot = scatter!(ax, defender_pos, color=:red, markersize=20, label="Defender")
-    
-    # The angles
-    # shooting_angle = @lift(attacker_shooting_angle($attacker_pos, goal_p1, goal_p2))
-    # blocking_angle = @lift(defender_blocking_angle($attacker_pos, $defender_pos))
-    shot_prob = @lift(shot_probability($attacker_pos, $defender_pos, goal_p1, goal_p2))
-
-    # Angle visualizations
-    poly!(ax, @lift([$attacker_pos, goal_p1, goal_p2]), color=(:blue, 0.2), strokecolor=:blue, strokewidth=1, pickable=false)
-
-    defender_range = 0.1
-    poly_blocking_points = @lift begin
-        v = $defender_pos - $attacker_pos
-        # Avoid division by zero if points are on top of each other
-        if norm(v) > 1e-9
-            vn = v / norm(v)
-            # rotate by 90 degrees
-            guard_vec = defender_range * [0.0 1.0; -1.0 0.0] * vn
-            p1 = $defender_pos + guard_vec
-            p2 = $defender_pos - guard_vec
-            [$attacker_pos, p1, p2]
-        else
-            [$attacker_pos, $attacker_pos, $attacker_pos]
-        end
-    end
-    poly!(ax, poly_blocking_points, color=(:red, 0.2), strokecolor=:red, strokewidth=1, pickable=false)
-    
-    # Manual dragging interaction
-    dragged_plot = Observable{Any}(nothing)
-    register_interaction!(ax, :manual_drag) do event::MouseEvent, axis
-        if event.type === MouseEventTypes.leftdown
-            plt, _ = pick(axis)
-            if plt === attacker_plot || plt === defender_plot
-                dragged_plot[] = plt
-                return Consume(true)
-            end
-        elseif event.type === MouseEventTypes.leftdrag
-            if !isnothing(dragged_plot[])
-                pos = Point2f(mouseposition(axis))
-                if dragged_plot[] === attacker_plot
-                    attacker_pos[] = pos
-                elseif dragged_plot[] === defender_plot
-                    defender_pos[] = pos
-                end
-                return Consume(true)
-            end
-        elseif event.type === MouseEventTypes.leftup
-            if !isnothing(dragged_plot[])
-                dragged_plot[] = nothing
-                return Consume(true)
-            end
-        end
-        return Consume(false)
-    end
-
-    # Text display
-    angle_text = @lift """
-    Shot Likelihood: $(dual_round($shot_prob, digits=3))
-    """
-        # Attacker Angle: $(dual_round(rad2deg($shooting_angle), digits=1))°
-    # Defender Angle: $(dual_round(rad2deg($blocking_angle), digits=1))°
-    
-    Label(fig[2, 1], angle_text, fontsize=20, tellwidth=false)
-
-    axislegend(ax)
-    display(fig)
-    return fig
 end
 
 function main()
@@ -261,7 +174,7 @@ function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
             mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
             [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
             [0.5*dt^2 0; 0 0.5*dt^2; dt 0; 0 dt] * uᵢ +
-            [1 0 0 0; 0 1 0 0; 0 0 .2*uᵢ[1] 0; 0 0 0 .2*uᵢ[2]] * mᵢ
+            [.01 0 0 0; 0 .01 0 0; 0 0 .05*uᵢ[1] 0; 0 0 0 .05*uᵢ[2]] * mᵢ
         end,
         [4, 4]
     )
@@ -271,7 +184,7 @@ end
 function h(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 2*xᵢ[3]+1 0; 0 0 0 2*xᵢ[4]+1] * nᵢ
+            [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 .05*xᵢ[3]+.025 0; 0 0 0 .05*xᵢ[4]+.025] * nᵢ
         end,
         [2, 2]
     )
@@ -344,11 +257,13 @@ function defender_terminal_cost(bs::Beliefs)
 end
 function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
     steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
-    return steal_prob + exp(1 + dot(us[Block(3)], us[Block(3)]))
+    return steal_prob + exp(dot(us[Block(3)], us[Block(3)]))
 end
 function nature_terminal_cost(bs::Beliefs)
     return -defender_terminal_cost(bs)
 end
+
+
 
 function belief_main(sol_number=2, override_solution=false)
     solution_filename = "exp/hockey/outputs/hockey_solution_$sol_number.jld2"
@@ -363,7 +278,7 @@ function belief_main(sol_number=2, override_solution=false)
         !override_solution && println("No solution file found. Running solver...")
         override_solution && println("Overriding solution...")
         # Game Params
-        horizon = 20
+        horizon = 5 # Reduced from 20 to make the problem smaller
 
         # Initial States/Beliefs
         gt_initial_state = mortar([ # gt = ground truth
@@ -424,167 +339,7 @@ function belief_main(sol_number=2, override_solution=false)
     visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
 end
 
-function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; graph_name="belief_hockey")
-    robust_beliefs = sol[1]
-    non_robust_beliefs = non_robust_sol[1]
 
-    # Plotting Vars
-    robust_attacker_color = :blue
-    robust_defender_color = :red
-    non_robust_attacker_color = :darkblue
-    non_robust_defender_color = :darkred
-
-    robust_attacker_means = [bs.beliefs[1].belief_mean for bs in robust_beliefs]
-    robust_defender_means = [bs.beliefs[2].belief_mean for bs in robust_beliefs]
-    non_robust_attacker_means = [bs.beliefs[1].belief_mean for bs in non_robust_beliefs]
-    non_robust_defender_means = [bs.beliefs[2].belief_mean for bs in non_robust_beliefs]
-
-    fig = Figure()
-
-    # --- Top Row: Axis and Legend ---
-    ax = Axis(fig[1, 1],
-        title="Hockey Game Trajectories",
-        xlabel="x position",
-        ylabel="y position",
-    )
-    
-    # --- Bottom Row: Controls ---
-    control_grid = fig[2, 1:2] = GridLayout(tellheight=false)
-    
-    # Observables
-    current_step = Observable(1)
-    robust_opacity = Observable(1.0)
-    non_robust_opacity = Observable(0.3)
-
-    lines!(ax, [m[1] for m in robust_attacker_means], [m[2] for m in robust_attacker_means], label="Robust Attacker", color=robust_attacker_color, linewidth=3, alpha=robust_opacity)
-    lines!(ax, [m[1] for m in robust_defender_means], [m[2] for m in robust_defender_means], label="Robust Defender", color=robust_defender_color, linewidth=3, alpha=robust_opacity)
-    lines!(ax, [m[1] for m in non_robust_attacker_means], [m[2] for m in non_robust_attacker_means], label="Non-Robust Attacker", color=non_robust_attacker_color, linewidth=2, alpha=non_robust_opacity)
-    lines!(ax, [m[1] for m in non_robust_defender_means], [m[2] for m in non_robust_defender_means], label="Non-Robust Defender", color=non_robust_defender_color, linewidth=2, alpha=non_robust_opacity)
-
-    robust_attacker_pos = @lift(Point2f(robust_attacker_means[$current_step][1:2]))
-    robust_defender_pos = @lift(Point2f(robust_defender_means[$current_step][1:2]))
-    non_robust_attacker_pos = @lift(Point2f(non_robust_attacker_means[$current_step][1:2]))
-    non_robust_defender_pos = @lift(Point2f(non_robust_defender_means[$current_step][1:2]))
-    
-    scatter!(ax, robust_attacker_pos, color=robust_attacker_color, markersize=20, alpha=robust_opacity)
-    scatter!(ax, robust_defender_pos, color=robust_defender_color, markersize=20, alpha=robust_opacity)
-    scatter!(ax, non_robust_attacker_pos, color=non_robust_attacker_color, markersize=15, alpha=non_robust_opacity)
-    scatter!(ax, non_robust_defender_pos, color=non_robust_defender_color, markersize=15, alpha=non_robust_opacity)
-
-    # Goal
-    goal_posts = [[p[1] for p in goal_position], [p[2] for p in goal_position]]
-    lines!(ax, goal_posts[1], goal_posts[2], label="Goal", color=:green, linewidth=5)
-
-    # Velocity arrows
-    velocity_scale = 0.5
-    arrows!(ax, 
-        @lift([robust_attacker_means[$current_step][1]]), @lift([robust_attacker_means[$current_step][2]]),
-        @lift([velocity_scale * robust_attacker_means[$current_step][3]]), @lift([velocity_scale * robust_attacker_means[$current_step][4]]),
-        color=robust_attacker_color, arrowsize=15, lengthscale=1.0, alpha=robust_opacity, linewidth=3)
-    arrows!(ax, 
-        @lift([robust_defender_means[$current_step][1]]), @lift([robust_defender_means[$current_step][2]]),
-        @lift([velocity_scale * robust_defender_means[$current_step][3]]), @lift([velocity_scale * robust_defender_means[$current_step][4]]),
-        color=robust_defender_color, arrowsize=15, lengthscale=1.0, alpha=robust_opacity, linewidth=3)
-    arrows!(ax, 
-        @lift([non_robust_attacker_means[$current_step][1]]), @lift([non_robust_attacker_means[$current_step][2]]),
-        @lift([velocity_scale * non_robust_attacker_means[$current_step][3]]), @lift([velocity_scale * non_robust_attacker_means[$current_step][4]]),
-        color=non_robust_attacker_color, arrowsize=12, lengthscale=1.0, alpha=non_robust_opacity, linewidth=2)
-    arrows!(ax, 
-        @lift([non_robust_defender_means[$current_step][1]]), @lift([non_robust_defender_means[$current_step][2]]),
-        @lift([velocity_scale * non_robust_defender_means[$current_step][3]]), @lift([velocity_scale * non_robust_defender_means[$current_step][4]]),
-        color=non_robust_defender_color, arrowsize=12, lengthscale=1.0, alpha=non_robust_opacity, linewidth=2)
-
-    function get_uncertainty_visuals(mean, covariance, base_color)
-        E = safe_eigen(covariance)
-        scale = sqrt(-2 * log(1 - 0.95)) # 95% confidence
-        t = range(0, 2π, 100)
-        ellipse_points = [Point2f(scale * sqrt(E.values[1]) * E.vectors[1,1] * cos(θ) + scale * sqrt(E.values[2]) * E.vectors[1,2] * sin(θ) + mean[1],
-                                    scale * sqrt(E.values[1]) * E.vectors[2,1] * cos(θ) + scale * sqrt(E.values[2]) * E.vectors[2,2] * sin(θ) + mean[2]) for θ in t]
-        return (ellipse_points, (base_color, 0.2))
-    end
-
-    function get_velocity_uncertainty_visuals(mean, covariance, base_color)
-        # Extract velocity components (indices 3-4) and their covariance
-        vel_mean = mean[3:4]
-        vel_cov = covariance[3:4, 3:4]
-        
-        velocity_scale = 0.5
-        arrow_tip = mean[1:2] + velocity_scale * vel_mean        
-        E = safe_eigen(vel_cov)
-        scale = sqrt(-2 * log(1 - 0.95)) # 95% confidence
-        t = range(0, 2π, 50)
-        ellipse_points = [Point2f(velocity_scale * scale * sqrt(E.values[1]) * E.vectors[1,1] * cos(θ) + velocity_scale * scale * sqrt(E.values[2]) * E.vectors[1,2] * sin(θ) + arrow_tip[1],
-                                    velocity_scale * scale * sqrt(E.values[1]) * E.vectors[2,1] * cos(θ) + velocity_scale * scale * sqrt(E.values[2]) * E.vectors[2,2] * sin(θ) + arrow_tip[2]) for θ in t]
-        
-        return (ellipse_points, (base_color, 0.2))
-    end
-
-    rob_att_ellipse_pts = Observable(Point2f[])
-    rob_att_ellipse_color_tuple = Observable((robust_attacker_color, 0.2))
-    rob_def_ellipse_pts = Observable(Point2f[])
-    rob_def_ellipse_color_tuple = Observable((robust_defender_color, 0.2))
-    non_rob_att_ellipse_pts = Observable(Point2f[])
-    non_rob_att_ellipse_color_tuple = Observable((non_robust_attacker_color, 0.2))
-    non_rob_def_ellipse_pts = Observable(Point2f[])
-    non_rob_def_ellipse_color_tuple = Observable((non_robust_defender_color, 0.2))
-
-    # Velocity uncertainty ellipses
-    rob_att_vel_ellipse_pts = Observable(Point2f[])
-    rob_att_vel_ellipse_color_tuple = Observable((robust_attacker_color, 0.15))
-    rob_def_vel_ellipse_pts = Observable(Point2f[])
-    rob_def_vel_ellipse_color_tuple = Observable((robust_defender_color, 0.15))
-    non_rob_att_vel_ellipse_pts = Observable(Point2f[])
-    non_rob_att_vel_ellipse_color_tuple = Observable((non_robust_attacker_color, 0.15))
-    non_rob_def_vel_ellipse_pts = Observable(Point2f[])
-    non_rob_def_vel_ellipse_color_tuple = Observable((non_robust_defender_color, 0.15))
-
-    # Position uncertainty ellipses
-    poly!(ax, rob_att_ellipse_pts, color=@lift(to_color($rob_att_ellipse_color_tuple)), strokecolor=@lift(to_color($rob_att_ellipse_color_tuple)), strokewidth=2, alpha=robust_opacity)
-    poly!(ax, rob_def_ellipse_pts, color=@lift(to_color($rob_def_ellipse_color_tuple)), strokecolor=@lift(to_color($rob_def_ellipse_color_tuple)), strokewidth=2, alpha=robust_opacity)
-    poly!(ax, non_rob_att_ellipse_pts, color=@lift(to_color($non_rob_att_ellipse_color_tuple)), strokecolor=@lift(to_color($non_rob_att_ellipse_color_tuple)), strokewidth=2, alpha=non_robust_opacity)
-    poly!(ax, non_rob_def_ellipse_pts, color=@lift(to_color($non_rob_def_ellipse_color_tuple)), strokecolor=@lift(to_color($non_rob_def_ellipse_color_tuple)), strokewidth=2, alpha=non_robust_opacity)
-
-    # Velocity uncertainty ellipses (dashed lines to distinguish from position uncertainty)
-    poly!(ax, rob_att_vel_ellipse_pts, color=@lift(to_color($rob_att_vel_ellipse_color_tuple)), strokecolor=@lift(to_color($rob_att_vel_ellipse_color_tuple)), strokewidth=1, alpha=robust_opacity, linestyle=:dash)
-    poly!(ax, rob_def_vel_ellipse_pts, color=@lift(to_color($rob_def_vel_ellipse_color_tuple)), strokecolor=@lift(to_color($rob_def_vel_ellipse_color_tuple)), strokewidth=1, alpha=robust_opacity, linestyle=:dash)
-    poly!(ax, non_rob_att_vel_ellipse_pts, color=@lift(to_color($non_rob_att_vel_ellipse_color_tuple)), strokecolor=@lift(to_color($non_rob_att_vel_ellipse_color_tuple)), strokewidth=1, alpha=non_robust_opacity, linestyle=:dash)
-    poly!(ax, non_rob_def_vel_ellipse_pts, color=@lift(to_color($non_rob_def_vel_ellipse_color_tuple)), strokecolor=@lift(to_color($non_rob_def_vel_ellipse_color_tuple)), strokewidth=1, alpha=non_robust_opacity, linestyle=:dash)
-
-    Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
-    
-    slider = Slider(control_grid[1, 1], range=1:length(robust_attacker_means), startvalue=1)
-    on(slider.value) do val; current_step[] = val; end
-    
-    Label(control_grid[1, 2], "Time:")
-    Label(control_grid[1, 3], @lift("$(Int($current_step))"))
-
-    button_grid = control_grid[2, 1:3] = GridLayout(tellwidth = false)
-    focus_robust_btn = Button(button_grid[1, 1], label="Focus Robust")
-    focus_non_robust_btn = Button(button_grid[1, 2], label="Focus Non-Robust")
-    show_both_btn = Button(button_grid[1, 3], label="Show Both")
-    
-    on(focus_robust_btn.clicks) do n; robust_opacity[] = 1.0; non_robust_opacity[] = 0.1; end
-    on(focus_non_robust_btn.clicks) do n; robust_opacity[] = 0.1; non_robust_opacity[] = 1.0; end
-    on(show_both_btn.clicks) do n; robust_opacity[] = 0.7; non_robust_opacity[] = 0.7; end
-    on(current_step) do val
-        # Update position uncertainty ellipses
-        rob_att_ellipse_pts[], rob_att_ellipse_color_tuple[] = get_uncertainty_visuals(robust_attacker_pos[], robust_beliefs[val].beliefs[1].belief_covariance, robust_attacker_color)
-        rob_def_ellipse_pts[], rob_def_ellipse_color_tuple[] = get_uncertainty_visuals(robust_defender_pos[], robust_beliefs[val].beliefs[2].belief_covariance, robust_defender_color)
-        non_rob_att_ellipse_pts[], non_rob_att_ellipse_color_tuple[] = get_uncertainty_visuals(non_robust_attacker_pos[], non_robust_beliefs[val].beliefs[1].belief_covariance, non_robust_attacker_color)
-        non_rob_def_ellipse_pts[], non_rob_def_ellipse_color_tuple[] = get_uncertainty_visuals(non_robust_defender_pos[], non_robust_beliefs[val].beliefs[2].belief_covariance, non_robust_defender_color)
-        
-        # Update velocity uncertainty ellipses
-        rob_att_vel_ellipse_pts[], rob_att_vel_ellipse_color_tuple[] = get_velocity_uncertainty_visuals(robust_attacker_means[val], robust_beliefs[val].beliefs[1].belief_covariance, robust_attacker_color)
-        rob_def_vel_ellipse_pts[], rob_def_vel_ellipse_color_tuple[] = get_velocity_uncertainty_visuals(robust_defender_means[val], robust_beliefs[val].beliefs[2].belief_covariance, robust_defender_color)
-        non_rob_att_vel_ellipse_pts[], non_rob_att_vel_ellipse_color_tuple[] = get_velocity_uncertainty_visuals(non_robust_attacker_means[val], non_robust_beliefs[val].beliefs[1].belief_covariance, non_robust_attacker_color)
-        non_rob_def_vel_ellipse_pts[], non_rob_def_vel_ellipse_color_tuple[] = get_velocity_uncertainty_visuals(non_robust_defender_means[val], non_robust_beliefs[val].beliefs[2].belief_covariance, non_robust_defender_color)
-    end
-    
-    set_close_to!(slider, 1)
-
-    display(fig)
-    save("exp/hockey/outputs/$graph_name.png", fig)
-end
 
 function safe_eigen(A)
     # try
@@ -693,72 +448,4 @@ function receding_horizon_main(; robust=true, horizon=20, plotting_horizon=10, o
         goal_position; 
         is_robust=robust
     )
-end
-
-function visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, goal_position; is_robust)
-    fig = Figure(resolution=(1200, 1000))
-    
-    ax = Axis(fig[1, 1], title="Receding Horizon Hockey Game", xlabel="x", ylabel="y", aspect=1)
-    
-    current_step = Observable(1)
-    horizon = length(gt_state_history) - 1
-    
-    # Colors
-    attacker_color = :blue
-    defender_color = :red
-    gt_color = :black
-    plan_color = :gray
-    
-    # --- Observables for plotting ---
-    # Executed (ground truth) trajectory
-    executed_pos = @lift [Point2f(s[Block(1)][1], s[Block(1)][2]) for s in gt_state_history[1:$current_step]]
-    
-    # Current belief means and planned trajectory
-    current_belief = @lift belief_history[$current_step].beliefs
-    
-    attacker_pos = @lift Point2f($current_belief[1].belief_mean[1:2])
-    defender_pos = @lift Point2f($current_belief[2].belief_mean[1:2])
-    
-    planned_attacker_traj = @lift [Point2f(m[Block(1)][1:2]) for m in $planned_trajectories[$current_step]]
-    planned_defender_traj = @lift [Point2f(m[Block(2)][1:2]) for m in $planned_trajectories[$current_step]]
-    
-    # --- Plotting ---
-    # Goal
-    lines!(ax, [p[1] for p in goal_position], [p[2] for p in goal_position], color=:green, linewidth=5, label="Goal")
-    
-    # Planned trajectories for the current step
-    lines!(ax, planned_attacker_traj, color=plan_color, linestyle=:dash, linewidth=2, label="Attacker Plan")
-    lines!(ax, planned_defender_traj, color=plan_color, linestyle=:dot, linewidth=2, label="Defender Plan")
-
-    # Executed ground truth trajectory
-    lines!(ax, @lift([s[Block(1)][1] for s in gt_state_history[1:$current_step]]), @lift([s[Block(1)][2] for s in gt_state_history[1:$current_step]]), color=gt_color, linewidth=3, label="Attacker History")
-    lines!(ax, @lift([s[Block(2)][1] for s in gt_state_history[1:$current_step]]), @lift([s[Block(2)][2] for s in gt_state_history[1:$current_step]]), color=gt_color, linewidth=3, linestyle=:dash, label="Defender History")
-    
-    # Current belief positions (as markers)
-    scatter!(ax, attacker_pos, color=attacker_color, markersize=20, label="Attacker Belief")
-    scatter!(ax, defender_pos, color=defender_color, markersize=20, label="Defender Belief")
-    
-    # Belief uncertainty ellipses
-    function get_ellipse(mean, cov)
-        E = eigen(cov[1:2, 1:2] + 1e-9I)
-        scale = sqrt(-2 * log(1 - 0.95)) # 95% confidence
-        t = range(0, 2π, 100)
-        Point2f[scale * E.vectors * [sqrt(E.values[1])*cos(θ), sqrt(E.values[2])*sin(θ)] + mean[1:2] for θ in t]
-    end
-    
-    attacker_ellipse = @lift get_ellipse($attacker_pos, $current_belief[1].belief_covariance)
-    defender_ellipse = @lift get_ellipse($defender_pos, $current_belief[2].belief_covariance)
-    
-    poly!(ax, attacker_ellipse, color=(attacker_color, 0.3), strokecolor=attacker_color)
-    poly!(ax, defender_ellipse, color=(defender_color, 0.3), strokecolor=defender_color)
-
-    # --- Controls ---
-    Label(fig[2, 1], @lift("Step: $($current_step) / $(horizon)"), fontsize=20)
-    slider = Slider(fig[3, 1], range=1:horizon, startvalue=1)
-    on(slider.value) do val; current_step[] = val; end
-    
-    axislegend(ax, position=:rt)
-    
-    display(fig)
-    save("exp/hockey/outputs/receding_horizon_$(is_robust ? "robust" : "non_robust").png", fig)
 end
