@@ -28,7 +28,7 @@ include("BeliefSpaceUtils.jl")
 export Belief, Beliefs, means, covs, dims, BeliefGame, BeliefEnvironment, BeliefCost, vec, unvec
 
 include("EKF.jl")
-export ekf_update, ekf_update_gradient
+export ekf_update, ekf_update_gradient, ekf_update_with_observations
 
 include("RobustBeliefSpaceSolver.jl")
 export solve

@@ -275,8 +275,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     defender_gt_x = [s[Block(2)][1] for s in gt_state_history]
     defender_gt_y = [s[Block(2)][2] for s in gt_state_history]
     
-    lines!(ax, attacker_gt_x, attacker_gt_y, color=gt_color, linewidth=3, label="Attacker History")
-    lines!(ax, defender_gt_x, defender_gt_y, color=gt_color, linewidth=3, linestyle=:dash, label="Defender History")
+    lines!(ax, attacker_gt_x, attacker_gt_y, color=gt_color, linewidth=3, label="Attacker Ground Truth")
+    lines!(ax, defender_gt_x, defender_gt_y, color=gt_color, linewidth=3, linestyle=:dash, label="Defender Ground Truth")
     
     # Plot full belief trajectories as static lines
     attacker_belief_x = [b.beliefs[1].belief_mean[1] for b in belief_history]
@@ -296,8 +296,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     defender_pos = @lift Point2f($current_belief_state.beliefs[2].belief_mean[1:2])
     
     # Planned trajectories (what they plan to do from the current step)
-    planned_attacker_traj = @lift [Point2f(m.beliefs[1].belief_mean[1:2]) for m in planned_trajectories[$current_step]]
-    planned_defender_traj = @lift [Point2f(m.beliefs[2].belief_mean[1:2]) for m in planned_trajectories[$current_step]]
+    planned_attacker_traj = @lift [Point2f(m.beliefs[1].belief_mean[1:2]) for m in planned_trajectories[$current_step][1]]
+    planned_defender_traj = @lift [Point2f(m.beliefs[2].belief_mean[1:2]) for m in planned_trajectories[$current_step][2]]
     
     # --- Planned trajectories for the current step (higher opacity) ---
     lines!(ax, planned_attacker_traj, color=attacker_color, linestyle=:dash, linewidth=3, alpha=plan_opacity, label="Attacker Plan")

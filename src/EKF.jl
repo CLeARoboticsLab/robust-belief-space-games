@@ -137,3 +137,21 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
         sum(dims(beliefs)),
         total_size(beliefs)+length(control)+(is_robust ? dims(beliefs)[1] : 0)))
 end
+
+function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dynamics::Function, sensor_model::Function, observations::BlockVector; is_robust=false)
+    zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
+    expected_dynamics = dynamics(means(beliefs), control, zero_noise)
+    A=ForwardDiff.jacobian((x)-> Vector(dynamics(x, control, zero_noise)), means(beliefs))
+    M=ForwardDiff.jacobian((x)-> Vector(dynamics(means(beliefs), control, x)), zero_noise)
+    H=ForwardDiff.jacobian((x)-> Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), control, zero_noise), zero_noise)), vcat(means(beliefs)...))
+    N=ForwardDiff.jacobian((x)-> Vector(sensor_model(expected_dynamics, x)), zero_noise)
+
+    Σ = BlockDiagonal([b.belief_covariance for b in beliefs.beliefs])
+    Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
+    K = dual_round.(Γ * H' * ((H * Γ * H' + N * N') \ I), digits = 5)
+
+    temp = BlockArray(Symmetric(dual_round.(Γ - K * H * Γ, digits=5)), dims(beliefs), dims(beliefs))
+
+    mean_update = expected_dynamics + K * (observations - sensor_model(expected_dynamics, zero_noise))
+    return Beliefs([Belief(@view(mean_update[Block(ii)]), @view(temp[Block(ii), Block(ii)])) for ii in 1:length(beliefs.beliefs)])
+end

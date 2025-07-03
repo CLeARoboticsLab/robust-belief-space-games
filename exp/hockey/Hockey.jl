@@ -12,6 +12,7 @@ using GLMakie
 using JLD2
 using FileIO
 using Distributions
+using Random
 
 struct DummyEnvironment end
 
@@ -184,7 +185,7 @@ end
 function h(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 .05*xᵢ[3]+.025 0; 0 0 0 .05*xᵢ[4]+.025] * nᵢ
+            [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 xᵢ[3]+3 0; 0 0 0 xᵢ[4]+3] * nᵢ
         end,
         [2, 2]
     )
@@ -263,8 +264,6 @@ function nature_terminal_cost(bs::Beliefs)
     return -defender_terminal_cost(bs)
 end
 
-
-
 function belief_main(sol_number=2, override_solution=false)
     solution_filename = "exp/hockey/outputs/hockey_solution_$sol_number.jld2"
 
@@ -329,7 +328,6 @@ function belief_main(sol_number=2, override_solution=false)
             gt_initial_state,
             true,
             )
-            
         non_robust_sol = solve(non_robust_hockey_game; debug=true)
         robust_sol = solve(robust_hockey_game; debug=true)
         println("Saving solution to $solution_filename")
@@ -338,8 +336,6 @@ function belief_main(sol_number=2, override_solution=false)
     
     visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
 end
-
-
 
 function safe_eigen(A)
     # try
@@ -352,18 +348,15 @@ function safe_eigen(A)
     # end
 end
 
-function receding_horizon_main(; robust=true, horizon=20, plotting_horizon=10, override=false)
+function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, override=false, random_seed=1)
     global goal_position
-    if isfile("exp/hockey/outputs/receding_horizon_$(robust ? "robust" : "non_robust").jld2") && !override
+    if isfile("exp/hockey/outputs/rh_$file_num.jld2") && !override
         println("Loading solution from file")
-        @load "exp/hockey/outputs/receding_horizon_$(robust ? "robust" : "non_robust").jld2" gt_state_history belief_history planned_trajectories goal_position robust
+        @load "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories goal_position robust
         visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, goal_position; is_robust=robust)
         return
     end
 
-    # --- Game Setup ---
-    # Mostly copied from belief_main, could be refactored
- 
     gt_initial_state = mortar([
         [0.75, 5.0, 0.0, 0.0],  # Attacker
         [-0.75, 1.5, 0.0, 0.0], # Defender
@@ -378,67 +371,51 @@ function receding_horizon_main(; robust=true, horizon=20, plotting_horizon=10, o
     defender_cost = BeliefCost(defender_non_terminal_cost, defender_terminal_cost)
     nature_cost = BeliefCost(nature_non_terminal_cost, nature_terminal_cost)
     environment = BeliefEnvironment(f, gt_initial_state, h)
-    
-    game_template = BeliefGame(
-        environment,
-        robust ? [attacker_cost, defender_cost, nature_cost] : [attacker_cost, defender_cost],
-        initial_beliefs, # This will be updated each step
-        plotting_horizon,
-        (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
-        gt_initial_state,
-        robust,
-    )
 
-    # --- Receding Horizon Loop ---
+    costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
+    robust = [false, true]
+    dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2])
+
     current_beliefs = initial_beliefs
     current_gt_state = gt_initial_state
-    
+    all_observations = []
     gt_state_history = [current_gt_state]
     belief_history = [current_beliefs]
     planned_trajectories = []
     executed_controls = []
+
+    Random.seed!(random_seed)
+    normal_distribution = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
+    draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
     
     for t in 1:horizon
         println("--- Receding Horizon Step $t / $horizon ---")
-        
-        # 1. Update the game with the current belief and solve
-        game = BeliefGame(
-            game_template.environment,
-            game_template.costs,
-            current_beliefs,
-            game_template.horizon,
-            game_template.dims,
-            current_gt_state,
-            game_template.is_robust
-        )
-        
-        sol = solve(game; debug=false)
-        push!(planned_trajectories, sol[1]) # Store the planned belief trajectory
-        
-        # 2. Get first action
-        u = sol[2][1]
+        sols = map(1:dims.n) do ii
+            game = BeliefGame(
+                environment,
+                costs[ii],
+                current_beliefs,
+                plotting_horizon,
+                dims,
+                current_gt_state,
+                robust[ii])
+            solve(game; debug=false)
+        end
+        u = mortar([sols[ii][2][1][Block(ii)] for ii in 1:dims.n])
+        current_gt_state = f(current_gt_state, u, draw_from_normal())
+
+        # TODO different sensor models per player
+        observations = h(current_gt_state, draw_from_normal())
+        current_beliefs = ekf_update_with_observations(current_beliefs, u, environment.dynamics, environment.sensor_models, observations; is_robust=robust)
+
         push!(executed_controls, u)
-        
-        # 3. Simulate one step in the "real" environment
-        m_true = BlockVector(randn(sum(game_template.dims.states)), game_template.dims.states)
-        next_gt_state = f(current_gt_state, u, m_true)
-        
-        # 4. Update belief using the solver's internal EKF-based propagation
-        g, W = RobustBeliefGame.ekf_update(current_beliefs, u, environment.dynamics, environment.sensor_models; is_robust=robust)
-        
-        # Sample noise and apply it to get the next belief state
-        noise = randn(size(W, 2))
-        next_belief_vec = g + W * noise
-        
-        # 5. Update state for next iteration
-        current_gt_state = next_gt_state
-        current_beliefs = unvec(next_belief_vec, game_template.dims.belief)
-        
         push!(gt_state_history, current_gt_state)
+        push!(all_observations, observations)
         push!(belief_history, current_beliefs)
+        push!(planned_trajectories, [sols[ii][1] for ii in 1:dims.n])
     end
 
-    @save "exp/hockey/outputs/receding_horizon_$(robust ? "robust" : "non_robust").jld2" gt_state_history belief_history planned_trajectories goal_position robust
+    @save "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories goal_position robust
     
     # 6. Visualize
     visualize_receding_horizon_solution(
