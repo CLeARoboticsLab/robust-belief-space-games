@@ -68,20 +68,20 @@ function Base.:-(b1::Belief, b2::Belief)
     return vec(b1) - vec(b2)
 end
 
-struct BeliefCost
-    non_terminal_cost::Function
-    terminal_cost::Function
+struct BeliefCost{N, T}
+    non_terminal_cost::N
+    terminal_cost::T
 end
 
-struct BeliefEnvironment
-    dynamics::Function
+struct BeliefEnvironment{D, S}
+    dynamics::D
     gt_states::BlockVector
-    sensor_models::Function
+    sensor_models::S
 end
 
-struct BeliefGame
-    environment::BeliefEnvironment
-    costs::Vector{BeliefCost}
+struct BeliefGame{E, C}
+    environment::E
+    costs::C
     initial_beliefs::Beliefs
     horizon::Int
     dims::NamedTuple{(:n, :states, :controls, :belief, :sensor)}
@@ -102,28 +102,22 @@ function dual_round(x; kwargs...)
     x isa Dual ? x : round(x; kwargs...)
 end
 
-function rollout_strategy(game::BeliefGame, strategy::Vector{<:Function})
-    beliefs = [deepcopy(game.initial_beliefs)]
-    controls::Vector{BlockVector} = []
-    for i in eachindex(strategy)
-        push!(controls, strategy[i](beliefs[end]))
-        if DEBUG
-            open(DEBUG_FILE, "a") do f
-                println(f, "\n[Rollout] time: $i")
-                println(f, "Controls: $(controls[end])")
-                println(f, "Belief means: $(means(beliefs[end]))")
-                println(f, "Belief covariances:")
-                for (i, cov) in enumerate(covs(beliefs[end]))
-                    println(f, "Agent $i covariance:")
-                    display_matrix = IOContext(f, :limit=>false)
-                    show(display_matrix, "text/plain", cov)
-                    println(f)
-                end
-                println(f, "Control: $(controls[end])")
-            end
+function rollout_strategy(game::BeliefGame, strategy::Vector)
+    H = length(strategy)
+    beliefs = Vector{Beliefs}(undef, H + 1)
+    controls = Vector{BlockVector}(undef, H)
+    
+    # Manually copy initial beliefs to avoid expensive deepcopy
+    initial_beliefs_vec = [Belief(copy(b.belief_mean), copy(b.belief_covariance)) for b in game.initial_beliefs.beliefs]
+    beliefs[1] = Beliefs(initial_beliefs_vec)
+
+    for i in 1:H
+        controls[i] = strategy[i](beliefs[i])
+        g, W = ekf_update(beliefs[i], controls[i], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
+        if i < H + 1
+            beliefs[i+1] = unvec(g, game.dims.belief)
         end
-        g, W = ekf_update(beliefs[end], controls[end], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
-        push!(beliefs, unvec(g, game.dims.belief))
     end
+    
     return beliefs, controls
 end

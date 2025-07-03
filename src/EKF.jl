@@ -57,8 +57,8 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
     end
 
     temp = BlockArray(Symmetric(dual_round.(Γ - K * H * Γ, digits=5)), dims(beliefs), dims(beliefs))
-    covs_extraced = mapreduce(vcat, 1:length(beliefs.beliefs)) do dim
-        temp[Block(dim), Block(dim)]
+    covs_extraced = mapreduce(hcat, 1:length(beliefs.beliefs)) do dim
+        @view temp[Block(dim), Block(dim)]
     end
     if is_robust
         disturbed_expected_dynamics = expected_dynamics[Block(1)] + control[Block(length(beliefs.beliefs) + 1)]

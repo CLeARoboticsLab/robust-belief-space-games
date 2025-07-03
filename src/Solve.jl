@@ -15,7 +15,7 @@ function solve(game::MCPGame; debug::Bool = false, warm_start::Bool = false)
     !debug || println("[Solve]  status $(mcp_sol_raw.status)\n\t kkt_error $(mcp_sol_raw.kkt_error)\n\t outer/total iters: $(mcp_sol_raw.outer_iters)/$(mcp_sol_raw.total_iters)\n\t epsilon: $(mcp_sol_raw.ϵ)")
     sol_interpreted = interpret_variables(mcp_sol_raw, game)
 
-    if mcp_sol_raw.status != :solved || debug
+    if mcp_sol_raw.status != :solved && debug
         !debug || println("[Solve] diagnosing...")
         diagnose_problem(mcp_sol_raw, game, sol_interpreted; debug=debug)
     end
