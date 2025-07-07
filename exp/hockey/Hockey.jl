@@ -175,7 +175,7 @@ function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
             mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
             [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
             [0.5*dt^2 0; 0 0.5*dt^2; dt 0; 0 dt] * uᵢ +
-            [.01 0 0 0; 0 .01 0 0; 0 0 .05*uᵢ[1] 0; 0 0 0 .05*uᵢ[2]] * mᵢ
+            [0.01 0 0 0; 0 0.01 0 0; 0 0 0.01 0; 0 0 0 0.01] * mᵢ
         end,
         [4, 4]
     )
@@ -185,7 +185,7 @@ end
 function h(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0 0 0; 0 1 0 0] * xᵢ + [0 0 xᵢ[3]+3 0; 0 0 0 xᵢ[4]+3] * nᵢ
+            [1 0 0 0; 0 1 0 0] * xᵢ + [0.01 0 0 0; 0 0.01 0 0] * nᵢ
         end,
         [2, 2]
     )
@@ -196,19 +196,19 @@ function steal_liklihood(bs::Beliefs)
     sq_vel_dist = dot(bs.beliefs[1].belief_mean[3:4] - bs.beliefs[2].belief_mean[3:4], bs.beliefs[1].belief_mean[3:4] - bs.beliefs[2].belief_mean[3:4])
     dist_uncertainty = dot(bs.beliefs[1].belief_covariance[1, 1:2], bs.beliefs[1].belief_covariance[2, 1:2])
     vel_uncertainty = dot(bs.beliefs[1].belief_covariance[3, 3:4], bs.beliefs[1].belief_covariance[4, 3:4])
-    return 1/(dist_uncertainty + vel_uncertainty + 1e-9) * exp(-5 * sq_dist^2) * exp(-sq_vel_dist)
+    return -(dist_uncertainty + vel_uncertainty) + -0.01 * sq_dist + 0.05 * sq_vel_dist
 end
 function defender_non_terminal_cost(bs::Beliefs, us)
     steal_prob = steal_liklihood(bs)
     # steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
     control_effort = dot(us[Block(1)], us[Block(1)])
-    return -2 * steal_prob + 2 * control_effort + dot(bs.beliefs[2].belief_mean[1:2], bs.beliefs[2].belief_mean[1:2])^6
+    return -0.02 * steal_prob + 0.02 * control_effort + dot(bs.beliefs[2].belief_mean[1:2], bs.beliefs[2].belief_mean[1:2])^2
 end
 function attacker_non_terminal_cost(bs::Beliefs, us)
     steal_prob = steal_liklihood(bs)
     # steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
     control_effort = dot(us[Block(2)], us[Block(2)])
-    return steal_prob + 4 * control_effort + dot(bs.beliefs[1].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2])^6
+    return 0.01 * steal_prob + 0.04 * control_effort + dot(bs.beliefs[1].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2])^2
 end    
 function shot_probability(bs::Beliefs)
     dist_penalty = 0.1
@@ -238,7 +238,7 @@ function shot_probability(bs::Beliefs)
         (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
 
     # Defender's blocking power is reduced by their positional uncertainty
-    block_effectiveness = (block_max * exp(-block_falloff * dist_sq_to_defender)) /
+    block_effectiveness = (block_max * atan(-0.1 * block_falloff * dist_sq_to_defender)) /
                         (1 + defender_uncertainty_penalty * defender_pos_uncertainty)
 
     defender_block_penalty = block_effectiveness * max(0, cos_block_angle)
@@ -251,7 +251,7 @@ function attacker_terminal_cost(bs::Beliefs)
     # Attacker wants to max shot quality, so we min its negative.
     # Don't let attacker get too far away from origin (area of play). This game construction
     #   doesn't allow for hard constraints.
-    return -8 * shot_probability(bs)
+    return -10 * shot_probability(bs)
 end
 function defender_terminal_cost(bs::Beliefs)
     return 10 * shot_probability(bs)
@@ -352,8 +352,8 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_num.jld2") && !override
         println("Loading solution from file")
-        @load "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories goal_position robust
-        visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, goal_position; is_robust=robust)
+        @load "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust 
+        visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, all_observations, goal_position; is_robust=robust)
         return
     end
 
@@ -382,10 +382,9 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
     gt_state_history = [current_gt_state]
     belief_history = [current_beliefs]
     planned_trajectories = []
-    executed_controls = []
 
     Random.seed!(random_seed)
-    normal_distribution = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
+    normal_distribution = MvNormal(zeros(sum(dims.states)), 0.1*I(sum(dims.states)))
     draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
     
     for t in 1:horizon
@@ -395,7 +394,7 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
                 environment,
                 costs[ii],
                 current_beliefs,
-                plotting_horizon,
+                min(plotting_horizon, max(horizon-t, 0)),
                 dims,
                 current_gt_state,
                 robust[ii])
@@ -408,21 +407,21 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
         observations = h(current_gt_state, draw_from_normal())
         current_beliefs = ekf_update_with_observations(current_beliefs, u, environment.dynamics, environment.sensor_models, observations; is_robust=robust)
 
-        push!(executed_controls, u)
         push!(gt_state_history, current_gt_state)
         push!(all_observations, observations)
         push!(belief_history, current_beliefs)
         push!(planned_trajectories, [sols[ii][1] for ii in 1:dims.n])
     end
 
-    @save "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories goal_position robust
+    @save "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust 
     
     # 6. Visualize
     visualize_receding_horizon_solution(
         gt_state_history, 
         belief_history, 
-        planned_trajectories, 
+        planned_trajectories,
+        all_observations,
         goal_position; 
-        is_robust=robust
+        is_robust=any(robust)
     )
 end

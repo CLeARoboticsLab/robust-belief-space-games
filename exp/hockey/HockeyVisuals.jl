@@ -243,7 +243,7 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     save("exp/hockey/outputs/$graph_name.png", fig)
 end
 
-function visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, goal_position; is_robust)
+function visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, observations,goal_position; is_robust)
     fig = Figure()
     
     # --- Top Row: Axis and Legend ---
@@ -267,6 +267,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     # Opacities
     belief_opacity = 0.3
     plan_opacity = 0.8
+    attacker_plan_opacity = Observable(plan_opacity)
+    defender_plan_opacity = Observable(plan_opacity)
     
     # --- Static trajectory plotting ---
     # Plot full ground truth trajectories as static lines
@@ -300,12 +302,27 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     planned_defender_traj = @lift [Point2f(m.beliefs[2].belief_mean[1:2]) for m in planned_trajectories[$current_step][2]]
     
     # --- Planned trajectories for the current step (higher opacity) ---
-    lines!(ax, planned_attacker_traj, color=attacker_color, linestyle=:dash, linewidth=3, alpha=plan_opacity, label="Attacker Plan")
-    lines!(ax, planned_defender_traj, color=defender_color, linestyle=:dot, linewidth=3, alpha=plan_opacity, label="Defender Plan")
+    lines!(ax, planned_attacker_traj, color=attacker_color, linestyle=:dash, linewidth=3, alpha=attacker_plan_opacity, label="Attacker Plan")
+    lines!(ax, planned_defender_traj, color=defender_color, linestyle=:dot, linewidth=3, alpha=defender_plan_opacity, label="Defender Plan")
     
     # --- Current belief positions (as markers) ---
     scatter!(ax, attacker_pos, color=attacker_color, markersize=20, label="Current Attacker Belief")
     scatter!(ax, defender_pos, color=defender_color, markersize=20, label="Current Defender Belief")
+
+    # --- Observations ---
+    # Plot all observations with low opacity
+    attacker_obs_x = [obs[1] for obs in observations]
+    attacker_obs_y = [obs[2] for obs in observations]
+    defender_obs_x = [obs[3] for obs in observations]
+    defender_obs_y = [obs[4] for obs in observations]
+    scatter!(ax, attacker_obs_x, attacker_obs_y, color=attacker_color, markersize=15, alpha=0.3, label="Attacker Observations")
+    scatter!(ax, defender_obs_x, defender_obs_y, color=defender_color, markersize=15, alpha=0.3, label="Defender Observations")
+
+    # Plot current observation with full opacity
+    current_attacker_obs = @lift Point2f(observations[$current_step][1:2])
+    current_defender_obs = @lift Point2f(observations[$current_step][3:4])
+    scatter!(ax, current_attacker_obs, color=attacker_color, markersize=20, label="Current Attacker Observation") 
+    scatter!(ax, current_defender_obs, color=defender_color, markersize=20, label="Current Defender Observation")
     
     # --- Belief uncertainty ellipses ---
     attacker_ellipse_pts = Observable(Point2f[])
@@ -335,6 +352,24 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     
     Label(control_grid[1, 2], "Time:")
     Label(control_grid[1, 3], @lift("$(Int($current_step))"))
+
+    button_grid = control_grid[2, 1:3] = GridLayout(tellwidth = false)
+    highlight_attacker_btn = Button(button_grid[1, 1], label="Highlight Attacker Plan")
+    highlight_defender_btn = Button(button_grid[1, 2], label="Highlight Defender Plan")
+    show_both_btn = Button(button_grid[1, 3], label="Show Both Plans")
+    
+    on(highlight_attacker_btn.clicks) do n
+        attacker_plan_opacity[] = 1.0
+        defender_plan_opacity[] = 0.1
+    end
+    on(highlight_defender_btn.clicks) do n
+        attacker_plan_opacity[] = 0.1
+        defender_plan_opacity[] = 1.0
+    end
+    on(show_both_btn.clicks) do n
+        attacker_plan_opacity[] = 0.8
+        defender_plan_opacity[] = 0.8
+    end
     
     # Put legend in top-right corner without taking too much space
     Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)

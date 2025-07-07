@@ -34,7 +34,7 @@ include("RobustBeliefSpaceSolver.jl")
 export solve
 
 
-DEBUG = false
+DEBUG = true
 DEBUG_FILE = "./exp/hockey/outputs/belief_diagnostics.txt"
 
 ϵ = 1e-7

@@ -11,7 +11,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     dummy_strategy = get_dummy_strategy(game)
     nominal_beliefs, nominal_controls = rollout_strategy(game, dummy_strategy)
     new_cost = map(1:game.dims.n) do ii
-        mapreduce(+, 1:game.horizon - 1) do t
+        mapreduce(+, 1:game.horizon - 1, init=0.0) do t
             game.costs[ii].non_terminal_cost(nominal_beliefs[t], nominal_controls[t])
         end +
         game.costs[ii].terminal_cost(nominal_beliefs[end])
@@ -22,6 +22,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     improvement_iterations = 0
 
     while norm(new_cost - old_cost)/norm(old_cost) > ϵ_converge
+    # while norm(new_cost - old_cost) > ϵ_converge
         old_cost = new_cost
         if DEBUG
             open(DEBUG_FILE, "a") do f
@@ -40,7 +41,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
 
         new_cost = map(1:game.dims.n) do ii
-            mapreduce(+, 1:game.horizon - 1) do t
+            mapreduce(+, 1:game.horizon - 1, init=0.0) do t
                 game.costs[ii].non_terminal_cost(candidate_beliefs[t], candidate_controls[t])
             end +
             game.costs[ii].terminal_cost(candidate_beliefs[end])
@@ -50,6 +51,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             regularizations.control_reg *= 0.9
             !DEBUG || println("[solve] error: $(norm(new_cost - old_cost)/norm(old_cost))")
+            !DEBUG || println("[solve] error (unnormalized): $(norm(new_cost - old_cost))")
             !DEBUG || println("[solve] old_cost: $old_cost")
             !DEBUG || println("[solve] new_cost: $new_cost")
             improvement_iterations += 1
