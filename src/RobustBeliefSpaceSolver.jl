@@ -55,7 +55,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         if new_feed_forward_norm < feed_forward_norm 
             feed_forward_norm = new_feed_forward_norm
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
-            regularizations.control_reg = max(regularizations.control_reg * 0.75, 0.05)
+            regularizations.control_reg = max(regularizations.control_reg * 0.9, 0.05)
             push!(intermediate_beliefs, candidate_beliefs)
             improvement_iterations += 1 # TODO from trust regoin method, shrink and enlarge step size based on prediction error
         else
