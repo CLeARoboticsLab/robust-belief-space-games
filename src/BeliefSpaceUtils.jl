@@ -111,7 +111,8 @@ function rollout_strategy(game::BeliefGame, strategy::Vector)
     beliefs[1] = Beliefs(initial_beliefs_vec)
 
     for i in 1:H
-        controls[i] = strategy[i](beliefs[i])
+        controls[i] = BlockVector(strategy[i](beliefs[i]),
+            game.is_robust ? vcat(game.dims.controls..., game.dims.belief[1]) : game.dims.controls)
         g, W = ekf_update(beliefs[i], controls[i], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
         beliefs[i+1] = unvec(g, game.dims.belief)
     end

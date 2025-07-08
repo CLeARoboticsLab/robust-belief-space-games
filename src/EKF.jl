@@ -102,14 +102,16 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
             unvec(x[1:total_size(beliefs)], dims(beliefs)),
             BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control))),
             dynamics,
-            sensor_model)[1]
+            sensor_model;
+            is_robust=is_robust)[1]
     end
     function cov_grad(x)
         return ekf_update(
             unvec(x[1:total_size(beliefs)], dims(beliefs)), 
             BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control))),
             dynamics,
-            sensor_model)[2]
+            sensor_model;
+            is_robust=is_robust)[2]
     end
     x = vcat(vec(beliefs), vec(control))
     g_s = ForwardDiff.jacobian(mean_grad, x)
@@ -135,7 +137,7 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
     return g_s_val, reshape(W_s_val,
         (total_size(beliefs),
         sum(dims(beliefs)),
-        total_size(beliefs)+length(control)+(is_robust ? dims(beliefs)[1] : 0)))
+        total_size(beliefs)+length(control)))
 end
 
 function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dynamics::Function, sensor_model::Function, observations::BlockVector; is_robust=false)

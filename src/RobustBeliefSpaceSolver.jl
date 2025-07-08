@@ -21,9 +21,9 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     iterations = 0    
     improvement_iterations = 0
     intermediate_beliefs = [nominal_beliefs]
+    feed_forward_norm = Inf
 
-    while norm(new_cost - old_cost)/norm(old_cost) > ϵ_converge
-    # while norm(new_cost - old_cost) > ϵ_converge
+    while feed_forward_norm > ϵ_converge
         old_cost = new_cost
         if DEBUG
             open(DEBUG_FILE, "a") do f
@@ -38,7 +38,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
                 println(f)
             end
         end
-        strategy = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; α = α)
+        strategy, new_feed_forward_norm = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; α = α)
         candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
 
         new_cost = map(1:game.dims.n) do ii
@@ -47,18 +47,15 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             end +
             game.costs[ii].terminal_cost(candidate_beliefs[end])
         end
-
-        if any(map(x -> new_cost[x] < old_cost[x], 1:game.dims.n))
+        # @printf("[solver %3d] ff_norm: cur=%10.6f new=%10.6f, reg=%10.6f\n", iterations, feed_forward_norm, new_feed_forward_norm, regularizations.control_reg)
+        if new_feed_forward_norm < feed_forward_norm 
+            feed_forward_norm = new_feed_forward_norm
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
-            regularizations.control_reg *= 0.9
-            # !DEBUG || println("[solve] error: $(norm(new_cost - old_cost)/norm(old_cost))")
-            # !DEBUG || println("[solve] error (unnormalized): $(norm(new_cost - old_cost))")
-            # !DEBUG || println("[solve] old_cost: $old_cost")
-            # !DEBUG || println("[solve] new_cost: $new_cost")
+            regularizations.control_reg = max(regularizations.control_reg * 0.75, 0.05)
             push!(intermediate_beliefs, candidate_beliefs)
-            improvement_iterations += 1
+            improvement_iterations += 1 # TODO from trust regoin method, shrink and enlarge step size based on prediction error
         else
-            regularizations.control_reg *= 1.2
+            regularizations.control_reg *= 1.1
         end
         iterations += 1
     end
@@ -89,9 +86,11 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         push!(V_bb, DiffResults.hessian(terminal_cost_gradient_info))
     end
 
+    max_feed_forward_norm = -1
+
     for t in game.horizon-1:-1:1
-        g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
-        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
+        g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
+        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
         W = real.(W)
         
         for ii in 1:(game.dims.n+game.is_robust)
@@ -144,7 +143,10 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., game.is_robust ? game.dims.states[1] : 0],
                 [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., game.is_robust ? game.dims.states[1] : 0]
             )
-            temp[Block(game.dims.n+1):Block(2*game.dims.n), Block(game.dims.n+1):Block(2*game.dims.n)] += regularizations.control_reg * I
+            u_block_start = game.dims.n+1
+            u_block_end = 2*game.dims.n + game.is_robust
+            u_blocks = Block(u_block_start):Block(u_block_end)
+            temp[u_blocks, u_blocks] += regularizations.control_reg * I
             temp
         end
         if DEBUG
@@ -179,6 +181,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
 
         strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t], game.dims; α = α, is_robust=game.is_robust)
         push!(joint_feedback_strategies, strategy)
+        max_feed_forward_norm = max(max_feed_forward_norm, norm(feed_forward))
 
         u_block_indices = Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)
         b_block_indices = Block(1):Block(game.dims.n)
@@ -209,7 +212,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         end
         V, V_b, V_bb = V_new, V_b_new, V_bb_new
     end
-    return reverse!(joint_feedback_strategies)
+    return reverse!(joint_feedback_strategies), max_feed_forward_norm
 end
 
 function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01, is_robust=false)
@@ -236,14 +239,15 @@ function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_be
         end
     end    
     function (belief::Beliefs)
-        return BlockVector(nominal_control + α * (feed_forward + feed_back * (belief - nominal_belief)), vcat(dims.controls, is_robust ? dims.states[1] : 0))
+        #TODO feed forward = KKT error. So we can do step size control by looking at feed_forrward norm 
+        return BlockVector(nominal_control + α * feed_forward + feed_back * (belief - nominal_belief), vcat(dims.controls, is_robust ? dims.states[1] : 0))
     end, feed_forward, feed_back
 end
 
 function get_dummy_strategy(game::BeliefGame)
     if game.is_robust
-        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.controls) + game.dims.states[1]), vcat(game.dims.controls, game.dims.states[1])) for _ in 1:game.horizon-1]
+        return [(belief::Beliefs) -> BlockVector(fill(-0.01, sum(game.dims.controls) + game.dims.states[1]), vcat(game.dims.controls, game.dims.states[1])) for _ in 1:game.horizon-1]
     else
-        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1]
+        return [(belief::Beliefs) -> BlockVector(fill(-0.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1]
     end
 end

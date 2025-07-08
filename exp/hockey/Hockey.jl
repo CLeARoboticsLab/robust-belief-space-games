@@ -206,7 +206,7 @@ function steal_liklihood(bs::Beliefs)
 
     cos_block_angle = dot(v_attacker_to_goal, v_attacker_to_defender) / (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
     
-    blocking_factor = max(0, cos_block_angle)
+    blocking_factor = log(1 + exp(cos_block_angle))
 
     proximity_factor = exp(-0.5 * sq_dist)
     
@@ -221,14 +221,14 @@ end
 function defender_non_terminal_cost(bs::Beliefs, us)
     steal_prob = steal_liklihood(bs)
     control_effort = dot(us[Block(1)], us[Block(1)])
-    return -2 * steal_prob + 2 * control_effort + dot(bs.beliefs[2].belief_mean[1:2], bs.beliefs[2].belief_mean[1:2])^2
+    return -1 * steal_prob + 2 * control_effort
 end
 function attacker_non_terminal_cost(bs::Beliefs, us)
     steal_prob = steal_liklihood(bs)
     goal_center = (goal_position[1] + goal_position[2]) / 2
     dist_to_goal_sq = dot(bs.beliefs[1].belief_mean[1:2] - goal_center, bs.beliefs[1].belief_mean[1:2] - goal_center)
     control_effort = dot(us[Block(2)], us[Block(2)])
-    return 1 * steal_prob + 4 * control_effort + dot(bs.beliefs[1].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2])^2 + 0.1 * dist_to_goal_sq
+    return 1.0 * steal_prob + 1 * control_effort + 10*dist_to_goal_sq^2
 end    
 function shot_probability(bs::Beliefs)
     dist_penalty = 0.1
@@ -277,11 +277,10 @@ function defender_terminal_cost(bs::Beliefs)
     return 10 * shot_probability(bs)
 end
 function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
-    steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
-    return steal_prob + exp(5 * dot(us[Block(3)], us[Block(3)]))
+    return 10*steal_liklihood(bs) + 10*dot(us[Block(3)], us[Block(3)])
 end
 function nature_terminal_cost(bs::Beliefs)
-    return -defender_terminal_cost(bs)
+    return -10 * shot_probability(bs)
 end
 
 function belief_main(sol_number=2, override_solution=false)
@@ -337,8 +336,7 @@ function belief_main(sol_number=2, override_solution=false)
             horizon,
             (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
             gt_initial_state,
-            false,
-            alpha=0.01,
+            false
         )
         robust_hockey_game = BeliefGame(
             environment,
@@ -347,11 +345,10 @@ function belief_main(sol_number=2, override_solution=false)
             horizon,
             (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
             gt_initial_state,
-            true,
-            alpha=0.2,
+            true
             )
-        non_robust_sol = solve(non_robust_hockey_game; debug=true)
-        robust_sol = solve(robust_hockey_game; debug=true)
+        non_robust_sol = solve(non_robust_hockey_game; debug=true, α=1.0)
+        robust_sol = solve(robust_hockey_game; debug=true, α=1.0)
         println("Saving solution to $solution_filename")
         save_solution(solution_filename, robust_sol, non_robust_sol, goal_position)
     end
