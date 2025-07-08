@@ -106,17 +106,14 @@ function rollout_strategy(game::BeliefGame, strategy::Vector)
     H = length(strategy)
     beliefs = Vector{Beliefs}(undef, H + 1)
     controls = Vector{BlockVector}(undef, H)
-    
-    # Manually copy initial beliefs to avoid expensive deepcopy
+
     initial_beliefs_vec = [Belief(copy(b.belief_mean), copy(b.belief_covariance)) for b in game.initial_beliefs.beliefs]
     beliefs[1] = Beliefs(initial_beliefs_vec)
 
     for i in 1:H
         controls[i] = strategy[i](beliefs[i])
         g, W = ekf_update(beliefs[i], controls[i], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
-        if i < H + 1
-            beliefs[i+1] = unvec(g, game.dims.belief)
-        end
+        beliefs[i+1] = unvec(g, game.dims.belief)
     end
     
     return beliefs, controls

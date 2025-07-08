@@ -20,7 +20,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0    
     improvement_iterations = 0
-    intermediate_beliefs = []
+    intermediate_beliefs = [nominal_beliefs]
 
     while norm(new_cost - old_cost)/norm(old_cost) > ϵ_converge
     # while norm(new_cost - old_cost) > ϵ_converge
@@ -242,8 +242,8 @@ end
 
 function get_dummy_strategy(game::BeliefGame)
     if game.is_robust
-        return [(belief::Beliefs) -> BlockVector(fill(-.01, sum(game.dims.controls) + game.dims.states[1]), vcat(game.dims.controls, game.dims.states[1])) for _ in 1:game.horizon]
+        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.controls) + game.dims.states[1]), vcat(game.dims.controls, game.dims.states[1])) for _ in 1:game.horizon-1]
     else
-        return [(belief::Beliefs) -> BlockVector(fill(-.01, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon]
+        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1]
     end
 end
