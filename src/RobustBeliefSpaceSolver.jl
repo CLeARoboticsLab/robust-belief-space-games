@@ -3,7 +3,7 @@ mutable struct Regularizations
     belief_reg::Float64
 end
 
-function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, α = 0.01)
+function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE)
     if DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
@@ -22,9 +22,13 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     improvement_iterations = 0
     intermediate_beliefs = [nominal_beliefs]
     feed_forward_norm = Inf
+    α = 0.5
 
     while feed_forward_norm > ϵ_converge
         old_cost = new_cost
+        if iterations > 0
+            α = min(1.0, 1 / feed_forward_norm)
+        end
         if DEBUG
             open(DEBUG_FILE, "a") do f
                 println(f, "[solve] beliefs and controls")
@@ -47,7 +51,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             end +
             game.costs[ii].terminal_cost(candidate_beliefs[end])
         end
-        # @printf("[solver %3d] ff_norm: cur=%10.6f new=%10.6f, reg=%10.6f\n", iterations, feed_forward_norm, new_feed_forward_norm, regularizations.control_reg)
+        @printf("[solver %3d] ff_norm: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, feed_forward_norm, new_feed_forward_norm, regularizations.control_reg, α)
         if new_feed_forward_norm < feed_forward_norm 
             feed_forward_norm = new_feed_forward_norm
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
@@ -63,7 +67,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     return nominal_beliefs, nominal_controls, intermediate_beliefs
 end
 
-function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; α = 0.01)
+function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; α)
     T = eltype(nominal_beliefs[1].beliefs[1].belief_mean)
     V = Vector{T}()
     V_b = Vector{Vector{T}}()
@@ -215,7 +219,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     return reverse!(joint_feedback_strategies), max_feed_forward_norm
 end
 
-function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01, is_robust=false)
+function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α, is_robust=false)
     Qh_uu_reg = Qh_uu + ϵ * I
     Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
     feed_forward = -1 * dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)

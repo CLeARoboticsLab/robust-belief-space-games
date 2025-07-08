@@ -347,8 +347,8 @@ function belief_main(sol_number=2, override_solution=false)
             gt_initial_state,
             true
             )
-        non_robust_sol = solve(non_robust_hockey_game; debug=true, α=1.0)
-        robust_sol = solve(robust_hockey_game; debug=true, α=1.0)
+        non_robust_sol = solve(non_robust_hockey_game; debug=true)
+        robust_sol = solve(robust_hockey_game; debug=true)
         println("Saving solution to $solution_filename")
         save_solution(solution_filename, robust_sol, non_robust_sol, goal_position)
     end
