@@ -201,14 +201,14 @@ function steal_liklihood(bs::Beliefs)
     sq_dist = dot(attacker_pos - defender_pos, attacker_pos - defender_pos)
 
     goal_center = (goal_position[1] + goal_position[2]) / 2
-    v_attacker_to_goal = goal_center - attacker_pos
-    v_attacker_to_defender = defender_pos - attacker_pos
+    v_attacker_to_goal = attacker_pos - goal_center
+    v_attacker_to_defender = attacker_pos - defender_pos
 
     cos_block_angle = dot(v_attacker_to_goal, v_attacker_to_defender) / (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
     
     blocking_factor = max(0, cos_block_angle)
 
-    proximity_factor = exp(-0.1 * sq_dist)
+    proximity_factor = exp(-0.5 * sq_dist)
     
     geometric_bonus = blocking_factor * proximity_factor
     
@@ -221,14 +221,14 @@ end
 function defender_non_terminal_cost(bs::Beliefs, us)
     steal_prob = steal_liklihood(bs)
     control_effort = dot(us[Block(1)], us[Block(1)])
-    return -0.02 * steal_prob + 0.02 * control_effort + dot(bs.beliefs[2].belief_mean[1:2], bs.beliefs[2].belief_mean[1:2])^2
+    return -2 * steal_prob + 2 * control_effort + dot(bs.beliefs[2].belief_mean[1:2], bs.beliefs[2].belief_mean[1:2])^2
 end
 function attacker_non_terminal_cost(bs::Beliefs, us)
     steal_prob = steal_liklihood(bs)
     goal_center = (goal_position[1] + goal_position[2]) / 2
     dist_to_goal_sq = dot(bs.beliefs[1].belief_mean[1:2] - goal_center, bs.beliefs[1].belief_mean[1:2] - goal_center)
     control_effort = dot(us[Block(2)], us[Block(2)])
-    return 0.01 * steal_prob + 0.04 * control_effort + dot(bs.beliefs[1].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2])^2 + 0.1 * dist_to_goal_sq
+    return 1 * steal_prob + 4 * control_effort + dot(bs.beliefs[1].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2])^2 + 0.1 * dist_to_goal_sq
 end    
 function shot_probability(bs::Beliefs)
     dist_penalty = 0.1
@@ -278,7 +278,7 @@ function defender_terminal_cost(bs::Beliefs)
 end
 function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
     steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
-    return steal_prob + exp(dot(us[Block(3)], us[Block(3)]))
+    return steal_prob + exp(5 * dot(us[Block(3)], us[Block(3)]))
 end
 function nature_terminal_cost(bs::Beliefs)
     return -defender_terminal_cost(bs)
@@ -410,7 +410,7 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
     normal_distribution = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
     draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
 
-    αs = [0.5, 0.5]
+    αs = [1.0, 1.0]
     
     for t in 1:horizon-1
         println("--- Receding Horizon Step $t / $horizon ---")
