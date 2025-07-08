@@ -20,6 +20,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0    
     improvement_iterations = 0
+    intermediate_beliefs = []
 
     while norm(new_cost - old_cost)/norm(old_cost) > ϵ_converge
     # while norm(new_cost - old_cost) > ϵ_converge
@@ -50,10 +51,11 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         if any(map(x -> new_cost[x] < old_cost[x], 1:game.dims.n))
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             regularizations.control_reg *= 0.9
-            !DEBUG || println("[solve] error: $(norm(new_cost - old_cost)/norm(old_cost))")
-            !DEBUG || println("[solve] error (unnormalized): $(norm(new_cost - old_cost))")
-            !DEBUG || println("[solve] old_cost: $old_cost")
-            !DEBUG || println("[solve] new_cost: $new_cost")
+            # !DEBUG || println("[solve] error: $(norm(new_cost - old_cost)/norm(old_cost))")
+            # !DEBUG || println("[solve] error (unnormalized): $(norm(new_cost - old_cost))")
+            # !DEBUG || println("[solve] old_cost: $old_cost")
+            # !DEBUG || println("[solve] new_cost: $new_cost")
+            push!(intermediate_beliefs, candidate_beliefs)
             improvement_iterations += 1
         else
             regularizations.control_reg *= 1.2
@@ -61,7 +63,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         iterations += 1
     end
     println("Converged in $improvement_iterations / $iterations iterations")
-    return nominal_beliefs, nominal_controls
+    return nominal_beliefs, nominal_controls, intermediate_beliefs
 end
 
 function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; α = 0.01)
