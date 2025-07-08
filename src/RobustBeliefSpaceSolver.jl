@@ -215,8 +215,8 @@ end
 function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01, is_robust=false)
     Qh_uu_reg = Qh_uu + ϵ * I
     Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
-    feed_forward = dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)
-    feed_back = dual_round.(clip(Qh_uu_inv * Qh_ub, clip_norm), digits=5)
+    feed_forward = -1 * dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)
+    feed_back = -1 * dual_round.(clip(Qh_uu_inv * Qh_ub, clip_norm), digits=5)
     if DEBUG
         open(DEBUG_FILE, "a") do f
             println(f, "[joint_feedback_strategy]")
