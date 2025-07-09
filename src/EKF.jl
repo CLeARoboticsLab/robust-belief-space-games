@@ -135,7 +135,7 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
     return g_s_val, reshape(W_s_val,
         (total_size(beliefs),
         sum(dims(beliefs)),
-        total_size(beliefs)+length(control)+(is_robust ? dims(beliefs)[1] : 0)))
+        total_size(beliefs)+length(control)))
 end
 
 function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dynamics::Function, sensor_model::Function, observations::BlockVector; is_robust=false)

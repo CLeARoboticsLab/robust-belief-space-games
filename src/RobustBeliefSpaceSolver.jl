@@ -51,14 +51,10 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         if any(map(x -> new_cost[x] < old_cost[x], 1:game.dims.n))
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             regularizations.control_reg *= 0.9
-            # !DEBUG || println("[solve] error: $(norm(new_cost - old_cost)/norm(old_cost))")
-            # !DEBUG || println("[solve] error (unnormalized): $(norm(new_cost - old_cost))")
-            # !DEBUG || println("[solve] old_cost: $old_cost")
-            # !DEBUG || println("[solve] new_cost: $new_cost")
             push!(intermediate_beliefs, candidate_beliefs)
             improvement_iterations += 1
         else
-            regularizations.control_reg *= 1.2
+            regularizations.control_reg *= 1.3
         end
         iterations += 1
     end
@@ -90,8 +86,8 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     end
 
     for t in game.horizon-1:-1:1
-        g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
-        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
+        g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
+        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
         W = real.(W)
         
         for ii in 1:(game.dims.n+game.is_robust)
@@ -215,8 +211,8 @@ end
 function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01, is_robust=false)
     Qh_uu_reg = Qh_uu + ϵ * I
     Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
-    feed_forward = dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)
-    feed_back = dual_round.(clip(Qh_uu_inv * Qh_ub, clip_norm), digits=5)
+    feed_forward = -1 * dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)
+    feed_back = -1 * dual_round.(clip(Qh_uu_inv * Qh_ub, clip_norm), digits=5)
     if DEBUG
         open(DEBUG_FILE, "a") do f
             println(f, "[joint_feedback_strategy]")

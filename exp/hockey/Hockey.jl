@@ -7,8 +7,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-# using CairoMakie
-using GLMakie
+using CairoMakie
+# using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -221,14 +221,14 @@ end
 function defender_non_terminal_cost(bs::Beliefs, us)
     steal_prob = steal_liklihood(bs)
     control_effort = dot(us[Block(1)], us[Block(1)])
-    return -0.02 * steal_prob + 0.02 * control_effort + dot(bs.beliefs[2].belief_mean[1:2], bs.beliefs[2].belief_mean[1:2])^2
+    return -2 * steal_prob + 2 * control_effort + 0.1*dot(bs.beliefs[2].belief_mean[1:2], bs.beliefs[2].belief_mean[1:2])
 end
 function attacker_non_terminal_cost(bs::Beliefs, us)
     steal_prob = steal_liklihood(bs)
     goal_center = (goal_position[1] + goal_position[2]) / 2
     dist_to_goal_sq = dot(bs.beliefs[1].belief_mean[1:2] - goal_center, bs.beliefs[1].belief_mean[1:2] - goal_center)
     control_effort = dot(us[Block(2)], us[Block(2)])
-    return 0.01 * steal_prob + 0.04 * control_effort + dot(bs.beliefs[1].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2])^2 + 0.1 * dist_to_goal_sq
+    return 1 * steal_prob + 4 * control_effort + 0.1*dot(bs.beliefs[1].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2]) + 10 * dist_to_goal_sq
 end    
 function shot_probability(bs::Beliefs)
     dist_penalty = 0.1
@@ -261,7 +261,7 @@ function shot_probability(bs::Beliefs)
     block_effectiveness = (block_max * atan(-0.1 * block_falloff * dist_sq_to_defender)) /
                         (1 + defender_uncertainty_penalty * defender_pos_uncertainty)
 
-    defender_block_penalty = block_effectiveness * max(0, cos_block_angle)
+    defender_block_penalty = block_effectiveness * log(1 + exp(cos_block_angle))
 
     # Final score calculation
     final_score = 1.0 - distance_penalty - attacker_uncertainty_penalty_term - defender_block_penalty
@@ -271,10 +271,10 @@ function attacker_terminal_cost(bs::Beliefs)
     # Attacker wants to max shot quality, so we min its negative.
     # Don't let attacker get too far away from origin (area of play). This game construction
     #   doesn't allow for hard constraints.
-    return -10 * shot_probability(bs)
+    return -100 * shot_probability(bs)
 end
 function defender_terminal_cost(bs::Beliefs)
-    return 10 * shot_probability(bs)
+    return 100 * shot_probability(bs)
 end
 function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
     steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
@@ -297,7 +297,7 @@ function belief_main(sol_number=2, override_solution=false)
         !override_solution && println("No solution file found. Running solver...")
         override_solution && println("Overriding solution...")
         # Game Params
-        horizon = 5 # Reduced from 20 to make the problem smaller
+        horizon = 10
 
         # Initial States/Beliefs
         gt_initial_state = mortar([ # gt = ground truth
@@ -338,7 +338,6 @@ function belief_main(sol_number=2, override_solution=false)
             (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
             gt_initial_state,
             false,
-            alpha=0.01,
         )
         robust_hockey_game = BeliefGame(
             environment,
@@ -348,10 +347,9 @@ function belief_main(sol_number=2, override_solution=false)
             (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
             gt_initial_state,
             true,
-            alpha=0.2,
             )
-        non_robust_sol = solve(non_robust_hockey_game; debug=true)
-        robust_sol = solve(robust_hockey_game; debug=true)
+        non_robust_sol = solve(non_robust_hockey_game; debug=true, α=1.0)
+        robust_sol = solve(robust_hockey_game; debug=true, α=1.0)
         println("Saving solution to $solution_filename")
         save_solution(solution_filename, robust_sol, non_robust_sol, goal_position)
     end
