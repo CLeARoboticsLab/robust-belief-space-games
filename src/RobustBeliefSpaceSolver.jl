@@ -21,6 +21,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     iterations = 0    
     improvement_iterations = 0
     intermediate_beliefs = [nominal_beliefs]
+    feed_forward_norms_history = Vector{Vector{Float64}}()
 
     while norm(new_cost - old_cost)/norm(old_cost) > ϵ_converge
     # while norm(new_cost - old_cost) > ϵ_converge
@@ -38,7 +39,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
                 println(f)
             end
         end
-        strategy = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; α = α)
+        strategy, feed_forward_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; α = α)
         candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
 
         new_cost = map(1:game.dims.n) do ii
@@ -48,23 +49,30 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             game.costs[ii].terminal_cost(candidate_beliefs[end])
         end
 
-        if any(map(x -> new_cost[x] < old_cost[x], 1:game.dims.n))
+        # @printf("[s %3d]ff: new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, max(feed_forward_norms...), regularizations.control_reg, α)
+        # println("\tOld costs: ", join([@sprintf("%.3f", c) for c in old_cost], ", "))
+        # println("\tNew costs: ", join([@sprintf("%.3f", c) for c in new_cost], ", "))
+        # improvements = map(1:game.dims.n) do i
+        #     (old_cost[i] - new_cost[i]) / abs(old_cost[i])
+        # end
+        # println("\tImprovements: ", join([@sprintf("%.3f%%", 100*imp) for imp in improvements], ", "))
+
+        push!(feed_forward_norms_history, feed_forward_norms)
+        if any(map(x -> new_cost[x] < old_cost[x], 1:game.dims.n)) # TODO not sure if a player is bettering their strategy v worsening (to other's benefit)
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             regularizations.control_reg *= 0.9
-            # !DEBUG || println("[solve] error: $(norm(new_cost - old_cost)/norm(old_cost))")
-            # !DEBUG || println("[solve] error (unnormalized): $(norm(new_cost - old_cost))")
-            # !DEBUG || println("[solve] old_cost: $old_cost")
-            # !DEBUG || println("[solve] new_cost: $new_cost")
             push!(intermediate_beliefs, candidate_beliefs)
             improvement_iterations += 1
         else
-            regularizations.control_reg *= 1.2
+            regularizations.control_reg *= 1.3
         end
         iterations += 1
     end
     println("Converged in $improvement_iterations / $iterations iterations")
-    return nominal_beliefs, nominal_controls, intermediate_beliefs
+    return nominal_beliefs, nominal_controls, intermediate_beliefs, feed_forward_norms_history
 end
+
+# TODO: take a gradient step on one player's control (IBR style)
 
 function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; α = 0.01)
     T = eltype(nominal_beliefs[1].beliefs[1].belief_mean)
@@ -75,6 +83,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:(game.dims.n+game.is_robust)]
 
     joint_feedback_strategies = Vector{Any}()
+    feed_forward_norms = Vector{Float64}()
 
     # Initialize gradient helpers
     x_val = vec(nominal_beliefs[end])
@@ -90,8 +99,8 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     end
 
     for t in game.horizon-1:-1:1
-        g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
-        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models)
+        g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
+        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
         W = real.(W)
         
         for ii in 1:(game.dims.n+game.is_robust)
@@ -179,6 +188,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
 
         strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t], game.dims; α = α, is_robust=game.is_robust)
         push!(joint_feedback_strategies, strategy)
+        push!(feed_forward_norms, norm(feed_forward))
 
         u_block_indices = Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)
         b_block_indices = Block(1):Block(game.dims.n)
@@ -209,7 +219,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         end
         V, V_b, V_bb = V_new, V_b_new, V_bb_new
     end
-    return reverse!(joint_feedback_strategies)
+    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms)
 end
 
 function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01, is_robust=false)
@@ -236,7 +246,7 @@ function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_be
         end
     end    
     function (belief::Beliefs)
-        return BlockVector(nominal_control + α * (feed_forward + feed_back * (belief - nominal_belief)), vcat(dims.controls, is_robust ? dims.states[1] : 0))
+        return BlockVector(nominal_control + α * feed_forward + feed_back * (belief - nominal_belief), vcat(dims.controls, is_robust ? dims.states[1] : 0))
     end, feed_forward, feed_back
 end
 

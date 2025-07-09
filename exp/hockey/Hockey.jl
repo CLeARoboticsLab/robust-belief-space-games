@@ -7,8 +7,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-# using CairoMakie
-using GLMakie
+using CairoMakie
+# using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -152,15 +152,6 @@ function main()
     save("exp/hockey/outputs/hockey_solution.png", fig)
 end
 
-function save_solution(filename, robust_sol, non_robust_sol, goal_position)  
-    @save filename robust_sol non_robust_sol goal_position
-end
-
-function load_solution(filename)
-    @load filename robust_sol non_robust_sol goal_position
-    return robust_sol, non_robust_sol, goal_position
-end
-
 dt = 0.3
 dt = 0.3
 n=2
@@ -259,7 +250,7 @@ function shot_probability(belief_over_attacker::Belief, belief_over_defender::Be
     block_effectiveness = (block_max * atan(-0.1 * block_falloff * dist_sq_to_defender)) /
                         (1 + defender_uncertainty_penalty * defender_pos_uncertainty)
 
-    defender_block_penalty = block_effectiveness * max(0, cos_block_angle)
+    defender_block_penalty = block_effectiveness * log(1 + exp(cos_block_angle))
 
     # Final score calculation
     final_score = 1.0 - distance_penalty - attacker_uncertainty_penalty_term - defender_block_penalty
@@ -290,12 +281,12 @@ function belief_main(sol_number=2, override_solution=false)
 
     if isfile(solution_filename) && !override_solution
         println("Loading solution from $solution_filename")
-        robust_sol, non_robust_sol, goal_position = load_solution(solution_filename)
+        @load solution_filename robust_sol non_robust_sol goal_position
     else
         !override_solution && println("No solution file found. Running solver...")
         override_solution && println("Overriding solution...")
         # Game Params
-        horizon = 5 # Reduced from 20 to make the problem smaller
+        horizon = 5
 
         # Initial States/Beliefs
         gt_initial_state = mortar([ # gt = ground truth
@@ -336,7 +327,6 @@ function belief_main(sol_number=2, override_solution=false)
             (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
             gt_initial_state,
             false,
-            alpha=0.01,
         )
         robust_hockey_game = BeliefGame(
             environment,
@@ -346,14 +336,13 @@ function belief_main(sol_number=2, override_solution=false)
             (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
             gt_initial_state,
             true,
-            alpha=0.2,
             )
-        non_robust_sol = solve(non_robust_hockey_game; debug=true)
-        robust_sol = solve(robust_hockey_game; debug=true)
+        non_robust_sol = solve(non_robust_hockey_game; debug=true, α=1.0)
+        robust_sol = solve(robust_hockey_game; debug=true, α=1.0)
         println("Saving solution to $solution_filename")
-        save_solution(solution_filename, robust_sol, non_robust_sol, goal_position)
+        @save solution_filename robust_sol non_robust_sol goal_position
     end
-    
+    plot_feed_forward_norms(robust_sol[4])
     visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
 end
 
