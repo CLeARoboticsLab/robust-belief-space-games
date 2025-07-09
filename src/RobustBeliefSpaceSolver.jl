@@ -40,7 +40,6 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             end
         end
         strategy, feed_forward_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; α = α)
-        push!(feed_forward_norms_history, feed_forward_norms)
         candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
 
         new_cost = map(1:game.dims.n) do ii
@@ -50,7 +49,16 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             game.costs[ii].terminal_cost(candidate_beliefs[end])
         end
 
-        if any(map(x -> new_cost[x] < old_cost[x], 1:game.dims.n))
+        # @printf("[s %3d]ff: new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, max(feed_forward_norms...), regularizations.control_reg, α)
+        # println("\tOld costs: ", join([@sprintf("%.3f", c) for c in old_cost], ", "))
+        # println("\tNew costs: ", join([@sprintf("%.3f", c) for c in new_cost], ", "))
+        # improvements = map(1:game.dims.n) do i
+        #     (old_cost[i] - new_cost[i]) / abs(old_cost[i])
+        # end
+        # println("\tImprovements: ", join([@sprintf("%.3f%%", 100*imp) for imp in improvements], ", "))
+
+        push!(feed_forward_norms_history, feed_forward_norms)
+        if any(map(x -> new_cost[x] < old_cost[x], 1:game.dims.n)) # TODO not sure if a player is bettering their strategy v worsening (to other's benefit)
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             regularizations.control_reg *= 0.9
             push!(intermediate_beliefs, candidate_beliefs)
@@ -63,6 +71,8 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     println("Converged in $improvement_iterations / $iterations iterations")
     return nominal_beliefs, nominal_controls, intermediate_beliefs, feed_forward_norms_history
 end
+
+# TODO: take a gradient step on one player's control (IBR style)
 
 function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; α = 0.01)
     T = eltype(nominal_beliefs[1].beliefs[1].belief_mean)

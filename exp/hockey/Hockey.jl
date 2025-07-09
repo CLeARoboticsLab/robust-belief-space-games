@@ -152,15 +152,6 @@ function main()
     save("exp/hockey/outputs/hockey_solution.png", fig)
 end
 
-function save_solution(filename, robust_sol, non_robust_sol, goal_position)  
-    @save filename robust_sol non_robust_sol goal_position
-end
-
-function load_solution(filename)
-    @load filename robust_sol non_robust_sol goal_position
-    return robust_sol, non_robust_sol, goal_position
-end
-
 dt = 0.3
 dt = 0.3
 n=2
@@ -292,12 +283,12 @@ function belief_main(sol_number=2, override_solution=false)
 
     if isfile(solution_filename) && !override_solution
         println("Loading solution from $solution_filename")
-        robust_sol, non_robust_sol, goal_position = load_solution(solution_filename)
+        @load solution_filename robust_sol non_robust_sol goal_position
     else
         !override_solution && println("No solution file found. Running solver...")
         override_solution && println("Overriding solution...")
         # Game Params
-        horizon = 10
+        horizon = 5
 
         # Initial States/Beliefs
         gt_initial_state = mortar([ # gt = ground truth
@@ -351,10 +342,9 @@ function belief_main(sol_number=2, override_solution=false)
         non_robust_sol = solve(non_robust_hockey_game; debug=true, α=1.0)
         robust_sol = solve(robust_hockey_game; debug=true, α=1.0)
         println("Saving solution to $solution_filename")
-        save_solution(solution_filename, robust_sol, non_robust_sol, goal_position)
+        @save solution_filename robust_sol non_robust_sol goal_position
     end
-    
-    plot = plot_feed_forward_norms(robust_sol[4])
+    plot_feed_forward_norms(robust_sol[4])
     visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
 end
 
