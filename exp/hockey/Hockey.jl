@@ -354,6 +354,7 @@ function belief_main(sol_number=2, override_solution=false)
         save_solution(solution_filename, robust_sol, non_robust_sol, goal_position)
     end
     
+    plot = plot_feed_forward_norms(robust_sol[4])
     visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
 end
 
@@ -408,7 +409,7 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
     normal_distribution = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
     draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
 
-    αs = [0.5, 0.5]
+    αs = [1.0, 1.0]
     
     for t in 1:horizon-1
         println("--- Receding Horizon Step $t / $horizon ---")

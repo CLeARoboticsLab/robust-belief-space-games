@@ -33,6 +33,9 @@ export ekf_update, ekf_update_gradient, ekf_update_with_observations
 include("RobustBeliefSpaceSolver.jl")
 export solve
 
+include("Plotting.jl")
+export plot_feed_forward_norms
+
 
 DEBUG = true
 DEBUG_FILE = "./exp/hockey/outputs/belief_diagnostics.txt"
