@@ -76,9 +76,12 @@ end
 
 function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; α = 0.01)
     T = eltype(nominal_beliefs[1].beliefs[1].belief_mean)
-    V = Vector{T}()
-    V_b = Vector{Vector{T}}()
-    V_bb = Vector{Matrix{T}}()
+    n_players = game.dims.n + game.is_robust
+    belief_size = total_size(nominal_beliefs[end])
+    
+    V = Vector{T}(undef, n_players)
+    V_b = [Vector{T}(undef, belief_size) for _ in 1:n_players]
+    V_bb = [Matrix{T}(undef, belief_size, belief_size) for _ in 1:n_players]
 
     cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:(game.dims.n+game.is_robust)]
 
@@ -93,9 +96,9 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             terminal_cost_gradient_info,
             (x) -> game.costs[ii].terminal_cost(unvec(x, game.dims.belief)),
             x_val)
-        push!(V, DiffResults.value(terminal_cost_gradient_info))
-        push!(V_b, DiffResults.gradient(terminal_cost_gradient_info))
-        push!(V_bb, DiffResults.hessian(terminal_cost_gradient_info))
+        V[ii] = DiffResults.value(terminal_cost_gradient_info)
+        V_b[ii] = DiffResults.gradient(terminal_cost_gradient_info)
+        V_bb[ii] = DiffResults.hessian(terminal_cost_gradient_info)
     end
 
     for t in game.horizon-1:-1:1
@@ -127,6 +130,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             end
         end
         Q = map(1:(game.dims.n+game.is_robust)) do ii
+            @infiltrate
             clip(DiffResults.value(cost_gradient_info[ii]) +
             V[ii] +
             only(0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj

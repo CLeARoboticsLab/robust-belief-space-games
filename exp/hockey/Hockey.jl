@@ -168,7 +168,7 @@ function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
             [1 0; 0 1] * uᵢ +
             [0.1 0; 0 0.1] * mᵢ
         end,
-        [2, 2]
+        [2, 2, 2,2]
     )
 end
 
@@ -178,7 +178,7 @@ function h(xs::BlockVector, ns::BlockVector)
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
             [1 0; 0 1] * xᵢ + [0.1 0; 0 0.1] * nᵢ
         end,
-        [2, 2]
+        [2, 2, 2, 2]
     )
 end
 # Cost
@@ -383,7 +383,7 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
 
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
     robust = [false, true]
-    dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2])
+    dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
 
     current_beliefs = initial_beliefs
     current_gt_state = gt_initial_state
