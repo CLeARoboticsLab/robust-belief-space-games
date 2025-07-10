@@ -79,9 +79,9 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     n_players = game.dims.n + game.is_robust
     belief_size = total_size(nominal_beliefs[end])
     
-    V = Vector{T}(undef, n_players)
-    V_b = [Vector{T}(undef, belief_size) for _ in 1:n_players]
-    V_bb = [Matrix{T}(undef, belief_size, belief_size) for _ in 1:n_players]
+    V = Vector{T}(undef, n_players+game.is_robust)
+    V_b = [Vector{T}(undef, belief_size) for _ in 1:n_players+game.is_robust]
+    V_bb = [Matrix{T}(undef, belief_size, belief_size) for _ in 1:n_players+game.is_robust]
 
     cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:(game.dims.n+game.is_robust)]
 
@@ -111,7 +111,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             cost_gradient_info[ii],
             x -> game.costs[ii].non_terminal_cost(
                 unvec(x[1:total_size(nominal_beliefs[t])], game.dims.belief),
-                BlockVector(x[total_size(nominal_beliefs[t])+1:end], game.is_robust ? vcat(game.dims.controls..., game.dims.states[1]) : game.dims.controls)
+                BlockVector(x[total_size(nominal_beliefs[t])+1:end], game.is_robust ? vcat(game.dims.controls, sum(game.dims.states)) : game.dims.controls)
                     ),
                 vcat(vec(nominal_beliefs[t]), vec(nominal_controls[t]))
                 )
@@ -130,13 +130,13 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             end
         end
         Q = map(1:(game.dims.n+game.is_robust)) do ii
-            @infiltrate
             clip(DiffResults.value(cost_gradient_info[ii]) +
             V[ii] +
             only(0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                 W[:, jj, :]' *V_bb[ii] * W[:, jj]
             end), clip_norm)
         end
+        belief_size = game.is_robust ? [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., sum(game.dims.states)] : [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls...]
         Q_s = map(1:(game.dims.n+game.is_robust)) do ii
             BlockVector(
                 clip(DiffResults.gradient(cost_gradient_info[ii]) +
@@ -144,7 +144,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                     W_s[:,jj,:]' *V_bb[ii] * W[:,jj]
                 end, clip_norm), 
-                [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., game.is_robust ? game.dims.states[1] : 0]
+                belief_size
             )
         end
         Q_ss = map(1:(game.dims.n+game.is_robust)) do ii
@@ -154,8 +154,8 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                     W_s[:,jj,:]' * (V_bb[ii]+regularizations.belief_reg * I) * W_s[:,jj,:]
                 end, clip_norm),
-                [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., game.is_robust ? game.dims.states[1] : 0],
-                [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., game.is_robust ? game.dims.states[1] : 0]
+                belief_size,
+                belief_size
             )
             temp[Block(game.dims.n+1):Block(2*game.dims.n), Block(game.dims.n+1):Block(2*game.dims.n)] += regularizations.control_reg * I
             temp
@@ -165,28 +165,16 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 println(f, "[backward_pass]")
                 println(f, "control reg: $(regularizations.control_reg)")
                 println(f, "belief reg: $(regularizations.belief_reg)")
-                # println(f, "\nQ:")
-                # display_matrix = IOContext(f, :limit=>false)
-                # show(display_matrix, "text/plain", Q)
-                # println(f)
-                # println(f, "\nQ_s:")
-                # display_matrix = IOContext(f, :limit=>false)
-                # show(display_matrix, "text/plain", Q_s)
-                # println(f)
-                # println(f, "\nQ_ss:")
-                # display_matrix = IOContext(f, :limit=>false)
-                # show(display_matrix, "text/plain", Q_ss)
-                # println(f)
             end
         end
         Qh_u = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_s[ii][Block(ii+game.dims.n)] # skip the first n belief blocks of Q_s
+            @view Q_s[ii][Block(ii+game.dims.n^2)] # skip the belief blocks of Q_s
         end
         Qh_uu = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_ss[ii][Block(ii+game.dims.n), Block(1+game.dims.n):Block(game.dims.n+game.dims.n+game.is_robust)]
+            @view Q_ss[ii][Block(ii+game.dims.n^2), Block(1+game.dims.n^2):Block(game.dims.n^2+game.dims.n+game.is_robust)]
         end
         Qh_ub = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_ss[ii][Block(ii+game.dims.n), Block(1):Block(game.dims.n)]
+            @view Q_ss[ii][Block(ii+game.dims.n^2), Block(1):Block(game.dims.n^2)]
         end
 
 
@@ -197,32 +185,26 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         u_block_indices = Block(1+game.dims.n^2):Block(game.dims.n^2+game.dims.n+game.is_robust)
         b_block_indices = Block(1):Block(game.dims.n^2)
 
-        V_new = Vector{eltype(V)}(undef, game.dims.n + game.is_robust)
-        V_b_new = Vector{eltype(V_b)}(undef, game.dims.n + game.is_robust)
-        V_bb_new = Vector{eltype(V_bb)}(undef, game.dims.n + game.is_robust)
-
         for ii in 1:(game.dims.n + game.is_robust)
             Q_u = @view Q_s[ii][u_block_indices]
             Q_uu = @view Q_ss[ii][u_block_indices, u_block_indices]
             Q_b = @view Q_s[ii][b_block_indices]
             Q_ub = @view Q_ss[ii][u_block_indices, b_block_indices]
             Q_bb = @view Q_ss[ii][b_block_indices, b_block_indices]
-            @infiltrate
 
-            V_new[ii] = clip(Q[ii] + Q_u' * feed_forward +
+            V[ii] = clip(Q[ii] + Q_u' * feed_forward +
                              0.5 * feed_forward' * Q_uu * feed_forward, clip_norm)
             
-            V_b_new[ii] = clip(Q_b + # Q_b
+            V_b[ii] = clip(Q_b + # Q_b
                                 feed_back' * Q_uu * feed_forward + # Q_uu
                                 feed_back' * Q_u + # Q_u
                                 Q_ub' * feed_forward, clip_norm)# Q_ub
             
-            V_bb_new[ii] = clip(Q_bb + # Q_bb
+            V_bb[ii] = clip(Q_bb + # Q_bb
                                  feed_back' * Q_uu * feed_back + # Q_uu
                                  feed_back' * Q_ub + # Q_ub
                                  Q_ub' * feed_back, clip_norm) # Q_ub
         end
-        V, V_b, V_bb = V_new, V_b_new, V_bb_new
     end
     return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms)
 end
@@ -251,13 +233,14 @@ function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_be
         end
     end    
     function (belief::Beliefs)
-        return BlockVector(nominal_control + α * feed_forward + feed_back * (belief - nominal_belief), vcat(dims.controls, is_robust ? dims.states[1] : 0))
+        block_sizes = is_robust ? vcat(dims.controls, sum(dims.states)) : dims.controls
+        return BlockVector(nominal_control + α * feed_forward + feed_back * (belief - nominal_belief), block_sizes)
     end, feed_forward, feed_back
 end
 
 function get_dummy_strategy(game::BeliefGame)
     if game.is_robust
-        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.controls) + game.dims.states[1]), vcat(game.dims.controls, game.dims.states[1])) for _ in 1:game.horizon-1]
+        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.controls) + sum(game.dims.states)), vcat(game.dims.controls, sum(game.dims.states))) for _ in 1:game.horizon-1]
     else
         return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1]
     end

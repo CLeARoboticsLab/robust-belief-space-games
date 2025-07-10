@@ -112,6 +112,19 @@ function rollout_strategy(game::BeliefGame, strategy::Vector)
 
     for i in 1:H
         controls[i] = strategy[i](beliefs[i])
+        if DEBUG
+            open(DEBUG_FILE, "a") do f
+                println(f, "[rollout_strategy]")
+                println(f, "beliefs[$i]:")
+                display_matrix = IOContext(f, :limit=>false)
+                show(display_matrix, "text/plain", beliefs[i])
+                println(f)
+                println(f, "controls[$i]:")
+                display_matrix = IOContext(f, :limit=>false)
+                show(display_matrix, "text/plain", controls[i])
+                println(f)
+            end
+        end
         g, W = ekf_update(beliefs[i], controls[i], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
         beliefs[i+1] = unvec(g, game.dims.belief)
     end

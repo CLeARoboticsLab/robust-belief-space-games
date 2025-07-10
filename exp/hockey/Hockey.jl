@@ -168,7 +168,7 @@ function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
             [1 0; 0 1] * uᵢ +
             [0.1 0; 0 0.1] * mᵢ
         end,
-        [2, 2, 2,2]
+        length.(xs.blocks)
     )
 end
 
@@ -178,7 +178,7 @@ function h(xs::BlockVector, ns::BlockVector)
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
             [1 0; 0 1] * xᵢ + [0.1 0; 0 0.1] * nᵢ
         end,
-        [2, 2, 2, 2]
+        length.(xs.blocks)
     )
 end
 # Cost
@@ -360,7 +360,7 @@ end
 function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, override=false, random_seed=1)
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_num.jld2") && !override
-        println("Loading solution from file")
+        println("Loading solution from exp/hockey/outputs/rh_$file_num.jld2")
         @load "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories
         visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, all_observations, goal_position; is_robust=any(robust), intermediate_planned_trajectories=intermediate_planned_trajectories)
         return
@@ -421,8 +421,8 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
         current_gt_state = f(current_gt_state, u, draw_from_normal())
 
         # TODO different sensor models per player
-        observations = h(current_gt_state, draw_from_normal())
-        current_beliefs = ekf_update_with_observations(current_beliefs, u, environment.dynamics, environment.sensor_models, observations; is_robust=robust)
+        observations = mortar([h(current_gt_state, draw_from_normal()) for ii in 1:dims.n])
+        current_beliefs = ekf_update_with_observations(current_beliefs, u, environment.dynamics, environment.sensor_models, observations)
 
         push!(gt_state_history, current_gt_state)
         push!(all_observations, observations)
