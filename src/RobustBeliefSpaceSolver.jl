@@ -194,8 +194,8 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         push!(joint_feedback_strategies, strategy)
         push!(feed_forward_norms, norm(feed_forward))
 
-        u_block_indices = Block(1+game.dims.n):Block(2*game.dims.n+game.is_robust)
-        b_block_indices = Block(1):Block(game.dims.n)
+        u_block_indices = Block(1+game.dims.n^2):Block(game.dims.n^2+game.dims.n+game.is_robust)
+        b_block_indices = Block(1):Block(game.dims.n^2)
 
         V_new = Vector{eltype(V)}(undef, game.dims.n + game.is_robust)
         V_b_new = Vector{eltype(V_b)}(undef, game.dims.n + game.is_robust)
@@ -207,6 +207,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             Q_b = @view Q_s[ii][b_block_indices]
             Q_ub = @view Q_ss[ii][u_block_indices, b_block_indices]
             Q_bb = @view Q_ss[ii][b_block_indices, b_block_indices]
+            @infiltrate
 
             V_new[ii] = clip(Q[ii] + Q_u' * feed_forward +
                              0.5 * feed_forward' * Q_uu * feed_forward, clip_norm)
