@@ -267,7 +267,7 @@ function defender_terminal_cost(bs::Beliefs)
 end
 function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
     steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
-    return steal_prob + exp(5 * dot(us[Block(3)], us[Block(3)]))
+    return steal_prob + 1000*dot(us[Block(3)], us[Block(3)])
 end
 function nature_terminal_cost(bs::Beliefs)
     return -defender_terminal_cost(bs)
