@@ -57,11 +57,11 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         cost_decreased = any(improvements .> 0)
         feed_forward_norm_decreased = any(feed_forward_norms .< feed_forward_norms_history[end])
 
-        @printf("[s %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, max(feed_forward_norms_history[end]...), max(feed_forward_norms...), regularizations.control_reg, α)
-        println("\tOld costs: ", join([@sprintf("%.3f", c) for c in old_cost], ", "))
-        println("\tNew costs: ", join([@sprintf("%.3f", c) for c in new_cost], ", "))
-        println("\tImprovements: ", join([@sprintf("%.3f", imp) for imp in improvements], ", "))
-        println("\tCost decr: $cost_decreased, ff_norm decr: $feed_forward_norm_decreased")
+        # @printf("[s %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, max(feed_forward_norms_history[end]...), max(feed_forward_norms...), regularizations.control_reg, α)
+        # println("\tOld costs: ", join([@sprintf("%.3f", c) for c in old_cost], ", "))
+        # println("\tNew costs: ", join([@sprintf("%.3f", c) for c in new_cost], ", "))
+        # println("\tImprovements: ", join([@sprintf("%.3f", imp) for imp in improvements], ", "))
+        # println("\tCost decr: $cost_decreased, ff_norm decr: $feed_forward_norm_decreased")
         if cost_decreased
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             if all(improvements .< ϵ_converge) && all(feed_forward_norms .< ϵ_converge)
@@ -142,7 +142,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         end
         Q = map(1:(game.dims.n+game.is_robust)) do ii
             clip(DiffResults.value(cost_gradient_info[ii]) +
-            V[ii] + 0.9 * 
+            V[ii] + 
             only(0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                 W[:, jj, :]' *V_bb[ii] * W[:, jj]
             end), clip_norm)
@@ -151,7 +151,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         Q_s = map(1:(game.dims.n+game.is_robust)) do ii
             BlockVector(
                 clip(DiffResults.gradient(cost_gradient_info[ii]) +
-                g_s' * V_b[ii] + 0.9 *
+                g_s' * V_b[ii] + 
                 0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                     W_s[:,jj,:]' *V_bb[ii] * W[:,jj]
                 end, clip_norm), 
@@ -161,7 +161,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         Q_ss = map(1:(game.dims.n+game.is_robust)) do ii
             temp = BlockArray(
                 clip(DiffResults.hessian(cost_gradient_info[ii]) +
-                g_s' * (V_bb[ii]+regularizations.belief_reg * I) * g_s + 0.9 *
+                g_s' * (V_bb[ii]+regularizations.belief_reg * I) * g_s +
                 0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
                     W_s[:,jj,:]' * (V_bb[ii]+regularizations.belief_reg * I) * W_s[:,jj,:]
                 end, clip_norm),
