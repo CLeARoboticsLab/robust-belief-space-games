@@ -7,8 +7,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-using CairoMakie
-# using GLMakie
+# using CairoMakie
+using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -207,17 +207,21 @@ function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Bel
     
     return 5.0 * geometric_bonus - 0.5 * total_pos_uncertainty
 end
-function defender_non_terminal_cost(bs::Beliefs, us)
-    steal_prob = steal_liklihood(bs.beliefs[3], bs.beliefs[4])
-    control_effort = dot(us[Block(1)], us[Block(1)])
-    return -2 * steal_prob + 2 * control_effort + dot(bs.beliefs[4].belief_mean, bs.beliefs[4].belief_mean)^2
+function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
+    # The defender's cost is based on their own belief about the world.
+    # Here, we assume the defender is player 2.
+    steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
+    control_effort = dot(us[Block(2)], us[Block(2)]) # Defender is player 2
+    return -2 * steal_prob + 2 * control_effort
 end
-function attacker_non_terminal_cost(bs::Beliefs, us)
-    steal_prob = steal_liklihood(bs.beliefs[1], bs.beliefs[2])
+function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
+    # The attacker's cost is based on their own belief about the world.
+    # Here, we assume the attacker is player 1.
+    steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
     goal_center = (goal_position[1] + goal_position[2]) / 2
-    dist_to_goal_sq = dot(bs.beliefs[1].belief_mean - goal_center, bs.beliefs[1].belief_mean - goal_center)
-    control_effort = dot(us[Block(2)], us[Block(2)])
-    return 1 * steal_prob + 4 * control_effort + dot(bs.beliefs[1].belief_mean, bs.beliefs[1].belief_mean)^2 + 0.1 * dist_to_goal_sq
+    dist_to_goal_sq = dot(belief_over_attacker.belief_mean - goal_center, belief_over_attacker.belief_mean - goal_center)
+    control_effort = dot(us[Block(1)], us[Block(1)]) # Attacker is player 1
+    return 1 * steal_prob + 4 * control_effort + 0.1 * dist_to_goal_sq
 end    
 function shot_probability(belief_over_attacker::Belief, belief_over_defender::Belief)
     dist_penalty = 0.1
@@ -256,21 +260,20 @@ function shot_probability(belief_over_attacker::Belief, belief_over_defender::Be
     final_score = 1.0 - distance_penalty - attacker_uncertainty_penalty_term - defender_block_penalty
     return final_score
 end
-function attacker_terminal_cost(bs::Beliefs)
-    # Attacker wants to max shot quality, so we min its negative.
-    # Don't let attacker get too far away from origin (area of play). This game construction
-    #   doesn't allow for hard constraints.
-    return -10 * shot_probability(bs.beliefs[1], bs.beliefs[2])
+function attacker_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
+
+    return -10 * shot_probability(belief_over_attacker, belief_over_defender)
 end
-function defender_terminal_cost(bs::Beliefs)
-    return 10 * shot_probability(bs.beliefs[3], bs.beliefs[4])
+function defender_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
+
+    return 10 * shot_probability(belief_over_attacker, belief_over_defender)
 end
-function nature_non_terminal_cost(bs::Beliefs, us::BlockVector)
-    steal_prob = dot(bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2], bs.beliefs[1].belief_mean[1:2] - bs.beliefs[2].belief_mean[1:2])
+function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector)
+    steal_prob = dot(belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2], belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2])
     return steal_prob + 1000*dot(us[Block(3)], us[Block(3)])
 end
-function nature_terminal_cost(bs::Beliefs)
-    return -defender_terminal_cost(bs)
+function nature_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
+    return -defender_terminal_cost(belief_over_attacker, belief_over_defender)
 end
 
 function belief_main(sol_number=2, override_solution=false)
@@ -374,11 +377,24 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
         [0.1 0; 0 0.1],
         [0.1 0; 0 0.1],
     ]
-    initial_beliefs = Beliefs([Belief(gt_initial_state[Block(i % 2 + 1)], initial_belief_covariance[i % 2 + 1]) for i in 1:4])
-
-    attacker_cost = BeliefCost(attacker_non_terminal_cost, attacker_terminal_cost)
-    defender_cost = BeliefCost(defender_non_terminal_cost, defender_terminal_cost)
-    nature_cost = BeliefCost(nature_non_terminal_cost, nature_terminal_cost)
+    initial_beliefs = Beliefs([
+        Belief(gt_initial_state[Block(1)], initial_belief_covariance[1]), # Attacker's belief of attacker
+        Belief(gt_initial_state[Block(2)], initial_belief_covariance[2]), # Attacker's belief of defender
+        Belief(gt_initial_state[Block(1)], initial_belief_covariance[1]), # Defender's belief of attacker
+        Belief(gt_initial_state[Block(2)], initial_belief_covariance[2]), # Defender's belief of defender
+    ])
+    attacker_cost = BeliefCost(
+            (bs, us) -> attacker_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us),
+            (bs) -> attacker_terminal_cost(bs.beliefs[1], bs.beliefs[2]),
+        )
+        defender_cost = BeliefCost(
+            (bs, us) -> defender_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us),
+            (bs) -> defender_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
+        )
+        nature_cost = BeliefCost(
+            (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us),
+            (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
+        )
     environment = BeliefEnvironment(f, gt_initial_state, h)
 
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
@@ -394,8 +410,9 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
     intermediate_planned_trajectories = []
 
     Random.seed!(random_seed)
-    normal_distribution = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
-    draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
+    # normal_distribution = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
+    # draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
+    draw_from_normal = () -> BlockVector(zeros(sum(dims.states)), dims.states)
 
     αs = [1.0, 1.0]
     
@@ -423,7 +440,6 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
         # TODO different sensor models per player
         observations = mortar([h(current_gt_state, draw_from_normal()) for ii in 1:dims.n])
         current_beliefs = ekf_update_with_observations(current_beliefs, u, environment.dynamics, environment.sensor_models, observations)
-
         push!(gt_state_history, current_gt_state)
         push!(all_observations, observations)
         push!(belief_history, current_beliefs)

@@ -279,8 +279,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     
     attacker_belief_x = [b.beliefs[1].belief_mean[1] for b in belief_history]
     attacker_belief_y = [b.beliefs[1].belief_mean[2] for b in belief_history]
-    defender_belief_x = [b.beliefs[2].belief_mean[1] for b in belief_history]
-    defender_belief_y = [b.beliefs[2].belief_mean[2] for b in belief_history]
+    defender_belief_x = [b.beliefs[4].belief_mean[1] for b in belief_history]
+    defender_belief_y = [b.beliefs[4].belief_mean[2] for b in belief_history]
 
     lines!(ax, attacker_belief_x, attacker_belief_y, color=attacker_color, linewidth=2, label="Attacker Belief Trajectory", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
     lines!(ax, defender_belief_x, defender_belief_y, color=defender_color, linewidth=2, label="Defender Belief Trajectory", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
@@ -291,13 +291,13 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     # --- Current belief means and planned trajectory (observables) ---
     current_belief_state = @lift belief_history[$current_step]
     attacker_pos = @lift Point2f($current_belief_state.beliefs[1].belief_mean[1:2])
-    defender_pos = @lift Point2f($current_belief_state.beliefs[2].belief_mean[1:2])
+    defender_pos = @lift Point2f($current_belief_state.beliefs[4].belief_mean[1:2])
     
     # Planned trajectories from both non-robust and robust solves
     non_robust_attacker_plan = @lift isempty($non_robust_plan) ? Point2f[] : [Point2f(m.beliefs[1].belief_mean[1:2]) for m in $non_robust_plan]
     non_robust_defender_plan = @lift isempty($non_robust_plan) ? Point2f[] : [Point2f(m.beliefs[2].belief_mean[1:2]) for m in $non_robust_plan]
     robust_attacker_plan = @lift isempty($robust_plan) ? Point2f[] : [Point2f(m.beliefs[1].belief_mean[1:2]) for m in $robust_plan]
-    robust_defender_plan = @lift isempty($robust_plan) ? Point2f[] : [Point2f(m.beliefs[2].belief_mean[1:2]) for m in $robust_plan]
+    robust_defender_plan = @lift isempty($robust_plan) ? Point2f[] : [Point2f(m.beliefs[4].belief_mean[1:2]) for m in $robust_plan]
 
     lines!(ax, non_robust_attacker_plan, color=non_robust_plan_color, linestyle=:dash, linewidth=3, alpha=non_robust_plan_opacity, label="Non-Robust Attacker Plan")
     scatter!(ax, non_robust_attacker_plan, color=non_robust_plan_color, markersize=10, alpha=non_robust_plan_opacity)
@@ -335,7 +335,7 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     on(current_step) do val
         current_belief = belief_history[val]
         attacker_ellipse_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[1].belief_mean[1:2], current_belief.beliefs[1].belief_covariance)
-        defender_ellipse_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[2].belief_mean[1:2], current_belief.beliefs[2].belief_covariance)
+        defender_ellipse_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[4].belief_mean[1:2], current_belief.beliefs[4].belief_covariance)
         
     end
     
