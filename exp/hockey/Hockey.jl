@@ -7,8 +7,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-# using CairoMakie
-using GLMakie
+using CairoMakie
+# using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -360,7 +360,7 @@ function safe_eigen(A)
     # end
 end
 
-function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, override=false, random_seed=1)
+function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, override=false, random_seed=1, ff_cond=false)
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_num.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_num.jld2")
@@ -449,7 +449,7 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
                 dims,
                 current_gt_state,
                 robust[ii])
-            nominal_beliefs, nominal_controls, intermediate_beliefs = solve(game; debug=false, α=αs[ii], warm_start=warm_starts[ii])
+            nominal_beliefs, nominal_controls, intermediate_beliefs = solve(game; debug=false, α=αs[ii], warm_start=warm_starts[ii], ff_cond=ff_cond)
             warm_starts[ii] = (nominal_beliefs, nominal_controls)
             push!(intermediate_sols_at_t, intermediate_beliefs)
             sols[ii] = (nominal_beliefs, nominal_controls)

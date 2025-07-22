@@ -3,7 +3,7 @@ mutable struct Regularizations
     belief_reg::Float64
 end
 
-function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, α = 0.01, warm_start=nothing)
+function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, α = 0.01, warm_start=nothing, ff_cond=false)
     if DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
@@ -59,14 +59,16 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         
         improvements = (old_cost .- new_cost)./abs.(old_cost)
         cost_decreased = any(improvements .> 0)
-        feed_forward_norm_decreased = any(feed_forward_norms .< feed_forward_norms_history[end])
+        feed_forward_norm_decreased = mean(feed_forward_norms) .< mean(feed_forward_norms_history[end])
+        select = cost_decreased if !ff_cond else feed_forward_norm_decreased
+
 
         # @printf("[s %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, max(feed_forward_norms_history[end]...), max(feed_forward_norms...), regularizations.control_reg, α)
         # println("\tOld costs: ", join([@sprintf("%.3f", c) for c in old_cost], ", "))
         # println("\tNew costs: ", join([@sprintf("%.3f", c) for c in new_cost], ", "))
         # println("\tImprovements: ", join([@sprintf("%.3f", imp) for imp in improvements], ", "))
         # println("\tCost decr: $cost_decreased, ff_norm decr: $feed_forward_norm_decreased")
-        if cost_decreased
+        if select
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             if all(improvements .< ϵ_converge) && all(feed_forward_norms .< ϵ_converge)
                 break
