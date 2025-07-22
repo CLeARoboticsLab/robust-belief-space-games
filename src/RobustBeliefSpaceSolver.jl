@@ -3,13 +3,17 @@ mutable struct Regularizations
     belief_reg::Float64
 end
 
-function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, α = 0.01)
+function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, α = 0.01, warm_start=nothing)
     if DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
     end
-    dummy_strategy = get_dummy_strategy(game)
-    nominal_beliefs, nominal_controls = rollout_strategy(game, dummy_strategy)
+    if isnothing(warm_start)
+        dummy_strategy = get_dummy_strategy(game)
+        nominal_beliefs, nominal_controls = rollout_strategy(game, dummy_strategy)
+    else
+        nominal_beliefs, nominal_controls = warm_start
+    end
     new_cost = map(1:game.dims.n) do ii
         mapreduce(+, 1:game.horizon - 1, init=0.0) do t
             game.costs[ii].non_terminal_cost(nominal_beliefs[t], nominal_controls[t])
@@ -80,6 +84,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         iterations += 1
     end
     println("Converged in $improvement_iterations / $iterations iterations")
+    println("Feed forward norms: max: ", round(max(feed_forward_norms_history[end]...), digits=3), " min: ", round(min(feed_forward_norms_history[end]...), digits=3), " mean: ", round(mean(feed_forward_norms_history[end]), digits=3), " std: ", round(std(feed_forward_norms_history[end]), digits=3), " median: ", round(median(feed_forward_norms_history[end]), digits=3))
     return nominal_beliefs, nominal_controls, intermediate_beliefs, feed_forward_norms_history[2:end]
 end
 

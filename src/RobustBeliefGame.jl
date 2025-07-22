@@ -12,6 +12,7 @@ using CairoMakie
 using Printf
 using ForwardDiff
 using FiniteDifferences
+using Statistics
 
 using Infiltrator
 

@@ -364,8 +364,19 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_num.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_num.jld2")
-        @load "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories
-        visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, all_observations, goal_position; is_robust=any(robust), intermediate_planned_trajectories=intermediate_planned_trajectories)
+        @load "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories us_history nature_us_history planned_us_history
+        visualize_receding_horizon_solution(
+            gt_state_history, 
+            belief_history, 
+            planned_trajectories, 
+            all_observations, 
+            goal_position; 
+            is_robust=any(robust), 
+            intermediate_planned_trajectories=intermediate_planned_trajectories, 
+            us_history=us_history, 
+            nature_us_history=nature_us_history,
+            planned_us_history=planned_us_history
+        )
         return
     end
 
@@ -408,6 +419,10 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
     belief_history = [current_beliefs]
     planned_trajectories = []
     intermediate_planned_trajectories = []
+    us_history = []
+    nature_us_history = []
+    planned_us_history = []
+    warm_starts = Vector{Any}([nothing, nothing])
 
     Random.seed!(random_seed)
     # normal_distribution = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
@@ -420,21 +435,33 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
         println("--- Receding Horizon Step $t / $horizon ---")
         
         intermediate_sols_at_t = []
+        # graph all beliefs
+        # no rh, j do 1 solve.
+        # graph nature's actions.
 
-        sols = map(1:dims.n) do ii
+        sols = Vector{Any}(undef, dims.n)
+        for ii in 1:dims.n
             game = BeliefGame(
                 environment,
                 costs[ii],
                 current_beliefs,
-                min(plotting_horizon, horizon-t+1),
+                10,
                 dims,
                 current_gt_state,
                 robust[ii])
-            nominal_beliefs, nominal_controls, intermediate_beliefs = solve(game; debug=false, α=αs[ii])
+            nominal_beliefs, nominal_controls, intermediate_beliefs = solve(game; debug=false, α=αs[ii], warm_start=warm_starts[ii])
+            warm_starts[ii] = (nominal_beliefs, nominal_controls)
             push!(intermediate_sols_at_t, intermediate_beliefs)
-            (nominal_beliefs, nominal_controls)
+            sols[ii] = (nominal_beliefs, nominal_controls)
         end
+        push!(planned_us_history, [sols[ii][2] for ii in 1:dims.n])
         u = mortar([sols[ii][2][1][Block(ii)] for ii in 1:dims.n])
+        push!(us_history, u)
+        
+        robust_sol_controls = sols[2][2]
+        nature_u = robust_sol_controls[1][Block(3)]
+        push!(nature_us_history, nature_u)
+
         current_gt_state = f(current_gt_state, u, draw_from_normal())
 
         # TODO different sensor models per player
@@ -447,7 +474,7 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
         push!(intermediate_planned_trajectories, intermediate_sols_at_t)
     end
 
-    @save "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories
+    @save "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories us_history nature_us_history planned_us_history
     
     # 6. Visualize
     visualize_receding_horizon_solution(
@@ -457,6 +484,9 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
         all_observations,
         goal_position; 
         is_robust=any(robust),
-        intermediate_planned_trajectories=intermediate_planned_trajectories
+        intermediate_planned_trajectories=intermediate_planned_trajectories,
+        us_history=us_history,
+        nature_us_history=nature_us_history,
+        planned_us_history=planned_us_history
     )
 end
