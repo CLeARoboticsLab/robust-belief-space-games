@@ -277,21 +277,32 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     lines!(ax, attacker_gt_x, attacker_gt_y, color=gt_color, linewidth=3, label="Attacker Ground Truth", alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
     lines!(ax, defender_gt_x, defender_gt_y, color=gt_color, linewidth=3, linestyle=:dash, label="Defender Ground Truth", alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
     
-    attacker_belief_x = [b.beliefs[1].belief_mean[1] for b in belief_history]
-    attacker_belief_y = [b.beliefs[1].belief_mean[2] for b in belief_history]
-    defender_belief_x = [b.beliefs[4].belief_mean[1] for b in belief_history]
-    defender_belief_y = [b.beliefs[4].belief_mean[2] for b in belief_history]
+    # Beliefs from Attacker's perspective
+    attacker_belief_self_x = [b.beliefs[1].belief_mean[1] for b in belief_history]
+    attacker_belief_self_y = [b.beliefs[1].belief_mean[2] for b in belief_history]
+    attacker_belief_other_x = [b.beliefs[2].belief_mean[1] for b in belief_history]
+    attacker_belief_other_y = [b.beliefs[2].belief_mean[2] for b in belief_history]
+    
+    # Beliefs from Defender's perspective
+    defender_belief_other_x = [b.beliefs[3].belief_mean[1] for b in belief_history]
+    defender_belief_other_y = [b.beliefs[3].belief_mean[2] for b in belief_history]
+    defender_belief_self_x = [b.beliefs[4].belief_mean[1] for b in belief_history]
+    defender_belief_self_y = [b.beliefs[4].belief_mean[2] for b in belief_history]
 
-    lines!(ax, attacker_belief_x, attacker_belief_y, color=attacker_color, linewidth=2, label="Attacker Belief Trajectory", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    lines!(ax, defender_belief_x, defender_belief_y, color=defender_color, linewidth=2, label="Defender Belief Trajectory", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, attacker_belief_self_x, attacker_belief_self_y, color=attacker_color, linewidth=2, label="Attacker's Belief (self)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, attacker_belief_other_x, attacker_belief_other_y, color=attacker_color, linewidth=2, linestyle=:dash, label="Attacker's Belief (other)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, defender_belief_other_x, defender_belief_other_y, color=defender_color, linewidth=2, linestyle=:dash, label="Defender's Belief (other)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, defender_belief_self_x, defender_belief_self_y, color=defender_color, linewidth=2, label="Defender's Belief (self)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
     
     # --- Goal ---
     lines!(ax, [p[1] for p in goal_position], [p[2] for p in goal_position], color=:green, linewidth=5, label="Goal")
     
     # --- Current belief means and planned trajectory (observables) ---
     current_belief_state = @lift belief_history[$current_step]
-    attacker_pos = @lift Point2f($current_belief_state.beliefs[1].belief_mean[1:2])
-    defender_pos = @lift Point2f($current_belief_state.beliefs[4].belief_mean[1:2])
+    attacker_pos_self = @lift Point2f($current_belief_state.beliefs[1].belief_mean[1:2])
+    attacker_pos_other = @lift Point2f($current_belief_state.beliefs[2].belief_mean[1:2])
+    defender_pos_other = @lift Point2f($current_belief_state.beliefs[3].belief_mean[1:2])
+    defender_pos_self = @lift Point2f($current_belief_state.beliefs[4].belief_mean[1:2])
     
     # Planned trajectories from both non-robust and robust solves
     non_robust_attacker_plan = @lift isempty($non_robust_plan) ? Point2f[] : [Point2f(m.beliefs[1].belief_mean[1:2]) for m in $non_robust_plan]
@@ -309,8 +320,10 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     scatter!(ax, robust_defender_plan, color=robust_plan_color, marker=:xcross, markersize=10, alpha=robust_plan_opacity)
 
     # --- Current belief positions (as markers) ---
-    scatter!(ax, attacker_pos, color=attacker_color, markersize=20, label="Current Attacker Belief")
-    scatter!(ax, defender_pos, color=defender_color, markersize=20, label="Current Defender Belief")
+    scatter!(ax, attacker_pos_self, color=attacker_color, markersize=20)
+    scatter!(ax, attacker_pos_other, color=attacker_color, marker=:xcross, markersize=20)
+    scatter!(ax, defender_pos_other, color=defender_color, marker=:xcross, markersize=20)
+    scatter!(ax, defender_pos_self, color=defender_color, markersize=20)
 
     # --- Observations ---
     attacker_obs_x = [obs[1] for obs in observations]
@@ -326,16 +339,22 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     scatter!(ax, current_defender_obs, color=defender_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Defender Observation")
     
     # --- Belief uncertainty ellipses ---
-    attacker_ellipse_pts = Observable(Point2f[])
-    defender_ellipse_pts = Observable(Point2f[])
+    attacker_ellipse_self_pts = Observable(Point2f[])
+    attacker_ellipse_other_pts = Observable(Point2f[])
+    defender_ellipse_other_pts = Observable(Point2f[])
+    defender_ellipse_self_pts = Observable(Point2f[])
 
-    poly!(ax, attacker_ellipse_pts, color=(attacker_color, 0.2), strokecolor=(attacker_color, 0.2), strokewidth=2)
-    poly!(ax, defender_ellipse_pts, color=(defender_color, 0.2), strokecolor=(defender_color, 0.2), strokewidth=2)
+    poly!(ax, attacker_ellipse_self_pts, color=(attacker_color, 0.2), strokecolor=(attacker_color, 0.2), strokewidth=2)
+    poly!(ax, attacker_ellipse_other_pts, color=(attacker_color, 0.2), strokecolor=(attacker_color, 0.2), strokewidth=2)
+    poly!(ax, defender_ellipse_other_pts, color=(defender_color, 0.2), strokecolor=(defender_color, 0.2), strokewidth=2)
+    poly!(ax, defender_ellipse_self_pts, color=(defender_color, 0.2), strokecolor=(defender_color, 0.2), strokewidth=2)
 
     on(current_step) do val
         current_belief = belief_history[val]
-        attacker_ellipse_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[1].belief_mean[1:2], current_belief.beliefs[1].belief_covariance)
-        defender_ellipse_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[4].belief_mean[1:2], current_belief.beliefs[4].belief_covariance)
+        attacker_ellipse_self_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[1].belief_mean[1:2], current_belief.beliefs[1].belief_covariance)
+        attacker_ellipse_other_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[2].belief_mean[1:2], current_belief.beliefs[2].belief_covariance)
+        defender_ellipse_other_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[3].belief_mean[1:2], current_belief.beliefs[3].belief_covariance)
+        defender_ellipse_self_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[4].belief_mean[1:2], current_belief.beliefs[4].belief_covariance)
         
     end
     
