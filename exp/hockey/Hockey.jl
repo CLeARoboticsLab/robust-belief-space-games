@@ -7,8 +7,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-using CairoMakie
-# using GLMakie
+# using CairoMakie
+using GLMakie
 using JLD2
 using FileIO
 using Distributions
