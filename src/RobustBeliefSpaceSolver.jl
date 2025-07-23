@@ -60,7 +60,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         improvements = (old_cost .- new_cost)./abs.(old_cost)
         cost_decreased = any(improvements .> 0)
         feed_forward_norm_decreased = mean(feed_forward_norms) .< mean(feed_forward_norms_history[end])
-        select = cost_decreased if !ff_cond else feed_forward_norm_decreased
+        select = !ff_cond ? cost_decreased : feed_forward_norm_decreased
 
 
         # @printf("[s %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, max(feed_forward_norms_history[end]...), max(feed_forward_norms...), regularizations.control_reg, α)
