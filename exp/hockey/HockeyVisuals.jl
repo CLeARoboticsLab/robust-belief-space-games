@@ -335,22 +335,48 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     arrows!(ax, robust_defender_plan_other, robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
 
     # --- Nature's actions on robust plan
-    nature_actions_on_robust_plan = @lift begin
+    nature_actions_on_robust_plan_split = @lift begin
         if $robust_plan_opacity > 0.1 && $current_step <= length(solution_history)
             sols = solution_history[$current_step]
             if length(sols) >= 2
                 robust_us = sols[2][2] # us
-                map(u -> Point2f(u[Block(3)]), robust_us)
+                nature_us = [u[Block(3)] for u in robust_us]
+                # Assuming nature_us is a vector of 4-element vectors
+                actions_on_attacker = [Point2f(nu[1:2]) for nu in nature_us]
+                actions_on_defender = [Point2f(nu[3:4]) for nu in nature_us]
+                (actions_on_attacker, actions_on_defender)
             else
-                Point2f[]
+                (Point2f[], Point2f[])
             end
+        else
+            (Point2f[], Point2f[])
+        end
+    end
+
+    nature_actions_on_attacker_plan = @lift $nature_actions_on_robust_plan_split[1]
+    nature_actions_on_defender_plan = @lift $nature_actions_on_robust_plan_split[2]
+
+    nature_start_pos_attacker_plan = @lift begin
+        plan = $robust_attacker_plan
+        actions = $robust_attacker_actions
+        if !isempty(actions) && length(plan) > length(actions)
+            plan[1:length(actions)] .+ actions
         else
             Point2f[]
         end
     end
-    arrows!(ax, robust_attacker_plan, nature_actions_on_robust_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
-    arrows!(ax, robust_defender_plan_other, nature_actions_on_robust_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
-
+    nature_start_pos_defender_plan = @lift begin
+        plan = $robust_attacker_plan_other
+        actions = $robust_defender_actions
+        if !isempty(actions) && length(plan) > length(actions)
+            plan[1:length(actions)] .+ actions
+        else
+            Point2f[]
+        end
+    end
+    
+    arrows!(ax, nature_start_pos_attacker_plan, nature_actions_on_attacker_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
+    arrows!(ax, nature_start_pos_defender_plan, nature_actions_on_defender_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
 
 
     lines!(ax, robust_attacker_plan_other, color=attacker_color, linestyle=:dash, linewidth=2, alpha=robust_plan_opacity, label="Robust Attacker Plan (other)")

@@ -270,7 +270,7 @@ function defender_terminal_cost(belief_over_attacker::Belief, belief_over_defend
 end
 function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector)
     steal_prob = dot(belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2], belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2])
-    return steal_prob + 1000*dot(us[Block(3)], us[Block(3)])
+    return steal_prob + 2_000*dot(us[Block(3)], us[Block(3)])
 end
 function nature_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
     return -defender_terminal_cost(belief_over_attacker, belief_over_defender)
@@ -360,7 +360,7 @@ function safe_eigen(A)
     # end
 end
 
-function receding_horizon_main(file_id::String=""; horizon=20, plotting_horizon=10, override=false, random_seed=1, ff_cond=false)
+function receding_horizon_main(file_id::String=""; horizon=5, override=false, random_seed=1, ff_cond=false)
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2") # TODO handle missing solution history
@@ -427,9 +427,9 @@ function receding_horizon_main(file_id::String=""; horizon=20, plotting_horizon=
     warm_starts = Vector{Any}([nothing, nothing])
 
     Random.seed!(random_seed)
-    # normal_distribution = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
-    # draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
-    draw_from_normal = () -> BlockVector(zeros(sum(dims.states)), dims.states)
+    normal_distribution = MvNormal(zeros(sum(dims.states)), 0.1 * I(sum(dims.states)))
+    draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
+    # draw_from_normal = () -> BlockVector(zeros(sum(dims.states)), dims.states)
 
     αs = [1.0, 1.0]
     
