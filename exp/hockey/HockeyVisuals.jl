@@ -105,8 +105,8 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     # Plotting Vars
     robust_attacker_color = :blue
     robust_defender_color = :red
-    non_robust_attacker_color = :darkblue
-    non_robust_defender_color = :darkred
+    non_robust_attacker_color = :purple
+    non_robust_defender_color = :purple
 
     robust_attacker_means = [bs.beliefs[1].belief_mean for bs in robust_beliefs]
     robust_defender_means = [bs.beliefs[2].belief_mean for bs in robust_beliefs]
@@ -132,8 +132,8 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
 
     lines!(ax, [m[1] for m in robust_attacker_means], [m[2] for m in robust_attacker_means], label="Robust Attacker", color=robust_attacker_color, linewidth=3, alpha=robust_opacity)
     lines!(ax, [m[1] for m in robust_defender_means], [m[2] for m in robust_defender_means], label="Robust Defender", color=robust_defender_color, linewidth=3, alpha=robust_opacity)
-    lines!(ax, [m[1] for m in non_robust_attacker_means], [m[2] for m in non_robust_attacker_means], label="Non-Robust Attacker", color=non_robust_attacker_color, linewidth=2, alpha=non_robust_opacity)
-    lines!(ax, [m[1] for m in non_robust_defender_means], [m[2] for m in non_robust_defender_means], label="Non-Robust Defender", color=non_robust_defender_color, linewidth=2, alpha=non_robust_opacity)
+    lines!(ax, [m[1] for m in non_robust_attacker_means], [m[2] for m in non_robust_attacker_means], label="Non-Robust", color=non_robust_attacker_color, linewidth=2, alpha=non_robust_opacity)
+    lines!(ax, [m[1] for m in non_robust_defender_means], [m[2] for m in non_robust_defender_means], color=non_robust_defender_color, linewidth=2, alpha=non_robust_opacity)
 
     robust_attacker_pos = @lift(Point2f(robust_attacker_means[$current_step][1:2]))
     robust_defender_pos = @lift(Point2f(robust_defender_means[$current_step][1:2]))
@@ -191,7 +191,7 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     save("exp/hockey/outputs/$graph_name.png", fig)
 end
 
-function visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, observations, goal_position; is_robust, intermediate_planned_trajectories, us_history, nature_us_history, planned_us_history)
+function visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, observations, goal_position; is_robust, intermediate_planned_trajectories, us_history, nature_us_history, planned_us_history, solution_history)
     fig = Figure()
     
     # --- Top Row: Axis and Legend ---
@@ -208,15 +208,15 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     horizon = length(gt_state_history) - 1
     
     # Colors
-    attacker_color = :blue
-    defender_color = :red
+    attacker_color = :red
+    defender_color = :blue
     gt_color = :black
     nature_color = :green
     non_robust_plan_color = :purple
     robust_plan_color = :orange
 
     # Opacities & Visibilities
-    plan_opacity = 0.8
+    plan_opacity = 1.0
     gt_opacity = Observable(1.0)
     belief_opacity = Observable(1.0)
     non_robust_plan_opacity = Observable(plan_opacity)
@@ -275,8 +275,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     defender_gt_x = [s[Block(2)][1] for s in gt_state_history]
     defender_gt_y = [s[Block(2)][2] for s in gt_state_history]
     
-    lines!(ax, attacker_gt_x, attacker_gt_y, color=gt_color, linewidth=3, label="Attacker Ground Truth", alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    lines!(ax, defender_gt_x, defender_gt_y, color=gt_color, linewidth=3, linestyle=:dash, label="Defender Ground Truth", alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, attacker_gt_x, attacker_gt_y, color=gt_color, linewidth=3, alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, defender_gt_x, defender_gt_y, color=gt_color, linewidth=3, alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
     
     # Beliefs from Attacker's perspective
     attacker_belief_self_x = [b.beliefs[1].belief_mean[1] for b in belief_history]
@@ -290,10 +290,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     defender_belief_self_x = [b.beliefs[4].belief_mean[1] for b in belief_history]
     defender_belief_self_y = [b.beliefs[4].belief_mean[2] for b in belief_history]
 
-    lines!(ax, attacker_belief_self_x, attacker_belief_self_y, color=attacker_color, linewidth=2, label="Attacker's Belief (self)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    lines!(ax, attacker_belief_other_x, attacker_belief_other_y, color=attacker_color, linewidth=2, linestyle=:dash, label="Attacker's Belief (other)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    lines!(ax, defender_belief_other_x, defender_belief_other_y, color=defender_color, linewidth=2, linestyle=:dash, label="Defender's Belief (other)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    lines!(ax, defender_belief_self_x, defender_belief_self_y, color=defender_color, linewidth=2, label="Defender's Belief (self)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, attacker_belief_self_x, attacker_belief_self_y, color=attacker_color, linewidth=2, label="Attacker's Belief (executed)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, defender_belief_self_x, defender_belief_self_y, color=defender_color, linewidth=2, label="Defender's Belief (executed)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
     
     # --- Goal ---
     lines!(ax, [p[1] for p in goal_position], [p[2] for p in goal_position], color=:green, linewidth=5, label="Goal")
@@ -310,6 +308,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     non_robust_defender_plan = @lift isempty($non_robust_plan) ? Point2f[] : [Point2f(m.beliefs[2].belief_mean[1:2]) for m in $non_robust_plan]
     robust_attacker_plan = @lift isempty($robust_plan) ? Point2f[] : [Point2f(m.beliefs[1].belief_mean[1:2]) for m in $robust_plan]
     robust_defender_plan = @lift isempty($robust_plan) ? Point2f[] : [Point2f(m.beliefs[4].belief_mean[1:2]) for m in $robust_plan]
+    robust_attacker_plan_other = @lift isempty($robust_plan) ? Point2f[] : [Point2f(m.beliefs[2].belief_mean[1:2]) for m in $robust_plan]
+    robust_defender_plan_other = @lift isempty($robust_plan) ? Point2f[] : [Point2f(m.beliefs[3].belief_mean[1:2]) for m in $robust_plan]
 
     # Planned actions
     planned_us = @lift $current_step <= length(planned_us_history) ? planned_us_history[$current_step] : []
@@ -318,30 +318,59 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     non_robust_attacker_actions = @lift isempty($non_robust_planned_us) ? Point2f[] : [Point2f(u[Block(1)]) for u in $non_robust_planned_us]
     non_robust_defender_actions = @lift isempty($non_robust_planned_us) ? Point2f[] : [Point2f(u[Block(2)]) for u in $non_robust_planned_us]
     
-    arrows!(ax, non_robust_attacker_plan, non_robust_attacker_actions, color=non_robust_plan_color, linewidth=2, arrowsize=10, alpha=non_robust_plan_opacity)
-    arrows!(ax, non_robust_defender_plan, non_robust_defender_actions, color=non_robust_plan_color, linewidth=2, arrowsize=10, alpha=non_robust_plan_opacity)
+    arrows!(ax, non_robust_attacker_plan, non_robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($non_robust_plan_opacity > 0.1))
+    arrows!(ax, non_robust_defender_plan, non_robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($non_robust_plan_opacity > 0.1))
 
     robust_planned_us = @lift isempty($planned_us) || length($planned_us) < 2 ? [] : $planned_us[2]
     robust_attacker_actions = @lift isempty($robust_planned_us) ? Point2f[] : [Point2f(u[Block(1)]) for u in $robust_planned_us]
     robust_defender_actions = @lift isempty($robust_planned_us) ? Point2f[] : [Point2f(u[Block(2)]) for u in $robust_planned_us]
     
-    arrows!(ax, robust_attacker_plan, robust_attacker_actions, color=robust_plan_color, linewidth=2, arrowsize=10, alpha=robust_plan_opacity)
-    arrows!(ax, robust_defender_plan, robust_defender_actions, color=robust_plan_color, linewidth=2, arrowsize=10, alpha=robust_plan_opacity)
+    arrows!(ax, robust_attacker_plan, robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
+    arrows!(ax, robust_defender_plan, robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
+
+    # --- Arrows on attacker's belief of other plan
+    arrows!(ax, robust_attacker_plan_other, robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
+
+    # --- Arrows on defender's belief of other plan
+    arrows!(ax, robust_defender_plan_other, robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
+
+    # --- Nature's actions on robust plan
+    nature_actions_on_robust_plan = @lift begin
+        if $robust_plan_opacity > 0.1 && $current_step <= length(solution_history)
+            sols = solution_history[$current_step]
+            if length(sols) >= 2
+                robust_us = sols[2][2] # us
+                map(u -> Point2f(u[Block(3)]), robust_us)
+            else
+                Point2f[]
+            end
+        else
+            Point2f[]
+        end
+    end
+    arrows!(ax, robust_attacker_plan, nature_actions_on_robust_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
+    arrows!(ax, robust_defender_plan_other, nature_actions_on_robust_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
 
 
-    lines!(ax, non_robust_attacker_plan, color=non_robust_plan_color, linestyle=:dash, linewidth=3, alpha=non_robust_plan_opacity, label="Non-Robust Attacker Plan")
-    scatter!(ax, non_robust_attacker_plan, color=non_robust_plan_color, markersize=10, alpha=non_robust_plan_opacity)
-    lines!(ax, non_robust_defender_plan, color=non_robust_plan_color, linestyle=:dot, linewidth=3, alpha=non_robust_plan_opacity, label="Non-Robust Defender Plan")
-    scatter!(ax, non_robust_defender_plan, color=non_robust_plan_color, marker=:xcross, markersize=10, alpha=non_robust_plan_opacity)
-    lines!(ax, robust_attacker_plan, color=robust_plan_color, linestyle=:dash, linewidth=3, alpha=robust_plan_opacity, label="Robust Attacker Plan")
-    scatter!(ax, robust_attacker_plan, color=robust_plan_color, markersize=10, alpha=robust_plan_opacity)
-    lines!(ax, robust_defender_plan, color=robust_plan_color, linestyle=:dot, linewidth=3, alpha=robust_plan_opacity, label="Robust Defender Plan")
-    scatter!(ax, robust_defender_plan, color=robust_plan_color, marker=:xcross, markersize=10, alpha=robust_plan_opacity)
+
+    lines!(ax, robust_attacker_plan_other, color=attacker_color, linestyle=:dash, linewidth=2, alpha=robust_plan_opacity, label="Robust Attacker Plan (other)")
+    scatter!(ax, robust_attacker_plan_other, color=attacker_color, marker=:xcross, markersize=8, alpha=robust_plan_opacity)
+
+    lines!(ax, robust_defender_plan_other, color=defender_color, linestyle=:dash, linewidth=2, alpha=robust_plan_opacity, label="Robust Defender Plan (other)")
+    scatter!(ax, robust_defender_plan_other, color=defender_color, marker=:cross, markersize=8, alpha=robust_plan_opacity)
+
+
+    lines!(ax, non_robust_attacker_plan, color=attacker_color, linewidth=3, alpha=non_robust_plan_opacity, label="Non-Robust Attacker Plan")
+    scatter!(ax, non_robust_attacker_plan, color=attacker_color, markersize=10, alpha=non_robust_plan_opacity)
+    lines!(ax, non_robust_defender_plan, color=defender_color, linewidth=3, alpha=non_robust_plan_opacity, label="Non-Robust Defender Plan")
+    scatter!(ax, non_robust_defender_plan, color=defender_color, marker=:xcross, markersize=10, alpha=non_robust_plan_opacity)
+    lines!(ax, robust_attacker_plan, color=attacker_color, linestyle=:dash, linewidth=3, alpha=robust_plan_opacity, label="Robust Attacker Plan (self)")
+    scatter!(ax, robust_attacker_plan, color=attacker_color, markersize=10, alpha=robust_plan_opacity)
+    lines!(ax, robust_defender_plan, color=defender_color, linestyle=:dash, linewidth=3, alpha=robust_plan_opacity, label="Robust Defender Plan (self)")
+    scatter!(ax, robust_defender_plan, color=defender_color, marker=:xcross, markersize=10, alpha=robust_plan_opacity)
 
     # --- Current belief positions (as markers) ---
     scatter!(ax, attacker_pos_self, color=attacker_color, markersize=20)
-    scatter!(ax, attacker_pos_other, color=attacker_color, marker=:xcross, markersize=20)
-    scatter!(ax, defender_pos_other, color=defender_color, marker=:xcross, markersize=20)
     scatter!(ax, defender_pos_self, color=defender_color, markersize=20)
 
     # --- Player Actions ---
@@ -349,16 +378,32 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     attacker_action = @lift Point2f($current_us[Block(1)])
     defender_action = @lift Point2f($current_us[Block(2)])
     
-    arrows!(ax, @lift([$attacker_pos_self]), @lift([$attacker_action]), color=attacker_color, linewidth=3, arrowsize=15, label="Attacker Action")
-    arrows!(ax, @lift([$defender_pos_self]), @lift([$defender_action]), color=defender_color, linewidth=3, arrowsize=15, label="Defender Action")
+    arrows!(ax, @lift([$attacker_pos_self]), @lift([$attacker_action]), color=attacker_color, linewidth=3, arrowsize=15, label="Attacker Action", alpha=0.7)
+    arrows!(ax, @lift([$defender_pos_self]), @lift([$defender_action]), color=defender_color, linewidth=3, arrowsize=15, label="Defender Action", alpha=0.7)
 
     if is_robust
-        nature_action = @lift Point2f(nature_us_history[$current_step])
-        gt_state = @lift gt_state_history[$current_step]
-        attacker_gt_pos = @lift Point2f($gt_state[Block(1)])
-        defender_gt_pos = @lift Point2f($gt_state[Block(2)])
-        center_pos = @lift ($attacker_gt_pos + $defender_gt_pos) / 2
-        arrows!(ax, @lift([$center_pos]), @lift([$nature_action]), color=nature_color, linewidth=3, arrowsize=15, label="Nature Action")
+        nature_action_on_attacker = @lift Point2f(nature_us_history[$current_step][1:2])
+        nature_action_on_defender = @lift Point2f(nature_us_history[$current_step][3:4])
+
+        nature_start_pos_attacker = @lift begin
+            if !isempty($robust_attacker_plan) && !isempty($robust_attacker_actions)
+                $robust_attacker_plan[1] + $robust_attacker_actions[1]
+            else
+                gt_s = gt_state_history[$current_step]
+                Point2f(gt_s[Block(1)])
+            end
+        end
+        nature_start_pos_defender = @lift begin
+            if !isempty($robust_defender_plan) && !isempty($robust_defender_actions)
+                $robust_defender_plan[1] + $robust_defender_actions[1]
+            else
+                gt_s = gt_state_history[$current_step]
+                Point2f(gt_s[Block(2)])
+            end
+        end
+
+        arrows!(ax, @lift([$nature_start_pos_attacker]), @lift([$nature_action_on_attacker]), color=nature_color, linewidth=3, arrowsize=15, alpha=0.7, visible=@lift($robust_plan_opacity > 0.1))
+        arrows!(ax, @lift([$nature_start_pos_defender]), @lift([$nature_action_on_defender]), color=nature_color, linewidth=3, arrowsize=15, label="Nature", alpha=0.7, visible=@lift($robust_plan_opacity > 0.1))
     end
 
     # --- Observations ---
