@@ -360,11 +360,11 @@ function safe_eigen(A)
     # end
 end
 
-function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, override=false, random_seed=1, ff_cond=false)
+function receding_horizon_main(file_id::String=""; horizon=20, plotting_horizon=10, override=false, random_seed=1, ff_cond=false)
     global goal_position
-    if isfile("exp/hockey/outputs/rh_$file_num.jld2") && !override
-        println("Loading solution from exp/hockey/outputs/rh_$file_num.jld2") # TODO handle missing solution history
-        @load "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories us_history nature_us_history planned_us_history solution_history
+    if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
+        println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2") # TODO handle missing solution history
+        @load "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories us_history nature_us_history planned_us_history solution_history
         visualize_receding_horizon_solution(
             gt_state_history, 
             belief_history, 
@@ -478,7 +478,7 @@ function receding_horizon_main(file_num=1; horizon=20, plotting_horizon=10, over
         push!(intermediate_planned_trajectories, intermediate_sols_at_t)
     end
 
-    @save "exp/hockey/outputs/rh_$file_num.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories us_history nature_us_history planned_us_history solution_history
+    @save "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories us_history nature_us_history planned_us_history solution_history
     
     # 6. Visualize
     visualize_receding_horizon_solution(
