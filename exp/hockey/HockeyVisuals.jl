@@ -222,6 +222,7 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     non_robust_plan_opacity = Observable(plan_opacity)
     robust_plan_opacity = Observable(plan_opacity)
     observation_opacity = Observable(1.0)
+    nature_opacity = Observable(1.0)
     
     # --- Solver Iteration Controls ---
     show_solver_iterations = Observable(false)
@@ -326,13 +327,9 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     robust_defender_actions = @lift isempty($robust_planned_us) ? Point2f[] : [Point2f(u[Block(2)]) for u in $robust_planned_us]
     
     arrows!(ax, robust_attacker_plan, robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
-    arrows!(ax, robust_defender_plan, robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
 
     # --- Arrows on attacker's belief of other plan
     arrows!(ax, robust_attacker_plan_other, robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
-
-    # --- Arrows on defender's belief of other plan
-    arrows!(ax, robust_defender_plan_other, robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
 
     # --- Nature's actions on robust plan
     nature_actions_on_robust_plan_split = @lift begin
@@ -375,8 +372,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
         end
     end
     
-    arrows!(ax, nature_start_pos_attacker_plan, nature_actions_on_attacker_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
-    arrows!(ax, nature_start_pos_defender_plan, nature_actions_on_defender_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
+    arrows!(ax, nature_start_pos_attacker_plan, nature_actions_on_attacker_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $nature_opacity > 0.1))
+    arrows!(ax, nature_start_pos_defender_plan, nature_actions_on_defender_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $nature_opacity > 0.1))
 
 
     lines!(ax, robust_attacker_plan_other, color=attacker_color, linestyle=:dash, linewidth=2, alpha=robust_plan_opacity, label="Robust Attacker Plan (other)")
@@ -428,8 +425,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
             end
         end
 
-        arrows!(ax, @lift([$nature_start_pos_attacker]), @lift([$nature_action_on_attacker]), color=nature_color, linewidth=3, arrowsize=15, alpha=0.7, visible=@lift($robust_plan_opacity > 0.1))
-        arrows!(ax, @lift([$nature_start_pos_defender]), @lift([$nature_action_on_defender]), color=nature_color, linewidth=3, arrowsize=15, label="Nature", alpha=0.7, visible=@lift($robust_plan_opacity > 0.1))
+        arrows!(ax, @lift([$nature_start_pos_attacker]), @lift([$nature_action_on_attacker]), color=nature_color, linewidth=3, arrowsize=15, alpha=0.7, visible=@lift($robust_plan_opacity > 0.1 && $nature_opacity > 0.1))
+        arrows!(ax, @lift([$nature_start_pos_defender]), @lift([$nature_action_on_defender]), color=nature_color, linewidth=3, arrowsize=15, label="Nature", alpha=0.7, visible=@lift($robust_plan_opacity > 0.1 && $nature_opacity > 0.1))
     end
 
     # --- Observations ---
@@ -513,6 +510,10 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     obs_toggle = Toggle(toggle_grid[6, 2], active=true)
     Label(toggle_grid[6, 1], "Observations")
     on(obs_toggle.active) do active; observation_opacity[] = active ? 1.0 : 0.0; end
+
+    nature_toggle = Toggle(toggle_grid[7, 2], active=true)
+    Label(toggle_grid[7, 1], "Nature")
+    on(nature_toggle.active) do active; nature_opacity[] = active ? 1.0 : 0.0; end
 
     Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
     
