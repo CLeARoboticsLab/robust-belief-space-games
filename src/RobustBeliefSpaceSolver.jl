@@ -14,12 +14,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     else
         nominal_beliefs, nominal_controls = warm_start
     end
-    new_cost = map(1:game.dims.n) do ii
-        mapreduce(+, 1:game.horizon - 1, init=0.0) do t
-            game.costs[ii].non_terminal_cost(nominal_beliefs[t], nominal_controls[t])
-        end +
-        game.costs[ii].terminal_cost(nominal_beliefs[end])
-    end 
+    new_cost = calculate_costs(game, nominal_beliefs, nominal_controls)    
     old_cost = 1/ϵ_converge^2 * new_cost
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0    
@@ -46,12 +41,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         strategy, feed_forward_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; α = α)
         candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
 
-        new_cost = map(1:game.dims.n) do ii
-            mapreduce(+, 1:game.horizon - 1, init=0.0) do t
-                game.costs[ii].non_terminal_cost(candidate_beliefs[t], candidate_controls[t])
-            end +
-            game.costs[ii].terminal_cost(candidate_beliefs[end])
-        end
+        new_cost = calculate_costs(game, candidate_beliefs, candidate_controls)
 
         
 
