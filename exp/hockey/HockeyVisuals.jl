@@ -126,7 +126,7 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     control_grid = fig[2, 1:2] = GridLayout(tellheight=false)
     
     # Observables
-    current_step = Observable(1)
+    current_timestep = Observable(1)
     robust_opacity = Observable(1.0)
     non_robust_opacity = Observable(0.3)
 
@@ -135,10 +135,10 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     lines!(ax, [m[1] for m in non_robust_attacker_means], [m[2] for m in non_robust_attacker_means], label="Non-Robust", color=non_robust_attacker_color, linewidth=2, alpha=non_robust_opacity)
     lines!(ax, [m[1] for m in non_robust_defender_means], [m[2] for m in non_robust_defender_means], color=non_robust_defender_color, linewidth=2, alpha=non_robust_opacity)
 
-    robust_attacker_pos = @lift(Point2f(robust_attacker_means[$current_step][1:2]))
-    robust_defender_pos = @lift(Point2f(robust_defender_means[$current_step][1:2]))
-    non_robust_attacker_pos = @lift(Point2f(non_robust_attacker_means[$current_step][1:2]))
-    non_robust_defender_pos = @lift(Point2f(non_robust_defender_means[$current_step][1:2]))
+    robust_attacker_pos = @lift(Point2f(robust_attacker_means[$current_timestep][1:2]))
+    robust_defender_pos = @lift(Point2f(robust_defender_means[$current_timestep][1:2]))
+    non_robust_attacker_pos = @lift(Point2f(non_robust_attacker_means[$current_timestep][1:2]))
+    non_robust_defender_pos = @lift(Point2f(non_robust_defender_means[$current_timestep][1:2]))
     
     scatter!(ax, robust_attacker_pos, color=robust_attacker_color, markersize=20, alpha=robust_opacity)
     scatter!(ax, robust_defender_pos, color=robust_defender_color, markersize=20, alpha=robust_opacity)
@@ -163,10 +163,10 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
     
     slider = Slider(control_grid[1, 1], range=1:length(robust_attacker_means), startvalue=1)
-    on(slider.value) do val; current_step[] = val; end
+    on(slider.value) do val; current_timestep[] = val; end
     
     Label(control_grid[1, 2], "Time:")
-    Label(control_grid[1, 3], @lift("$(Int($current_step))"))
+    Label(control_grid[1, 3], @lift("$(Int($current_timestep))"))
 
     button_grid = control_grid[2, 1:3] = GridLayout(tellwidth = false)
     focus_robust_btn = Button(button_grid[1, 1], label="Focus Robust")
@@ -176,7 +176,7 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     on(focus_robust_btn.clicks) do n; robust_opacity[] = 1.0; non_robust_opacity[] = 0.1; end
     on(focus_non_robust_btn.clicks) do n; robust_opacity[] = 0.1; non_robust_opacity[] = 1.0; end
     on(show_both_btn.clicks) do n; robust_opacity[] = 0.7; non_robust_opacity[] = 0.7; end
-    on(current_step) do val
+    on(current_timestep) do val
         # Update position uncertainty ellipses
         rob_att_ellipse_pts[] = get_position_uncertainty_ellipse(robust_attacker_pos[], robust_beliefs[val].beliefs[1].belief_covariance)
         rob_def_ellipse_pts[] = get_position_uncertainty_ellipse(robust_defender_pos[], robust_beliefs[val].beliefs[2].belief_covariance)
@@ -191,7 +191,7 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     save("exp/hockey/outputs/$graph_name.png", fig)
 end
 
-function visualize_receding_horizon_solution(gt_state_history, belief_history, planned_trajectories, observations, goal_position; is_robust, intermediate_planned_trajectories, us_history, nature_us_history, planned_us_history, solution_history)
+function visualize_receding_horizon_solution(gt_state_history, observations, goal_position, solution_history; dims = (; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2]))
     fig = Figure()
     
     # --- Top Row: Axis and Legend ---
@@ -204,7 +204,7 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     # --- Bottom Row: Controls ---
     control_grid = fig[2, 1:2] = GridLayout(tellheight=false)
     
-    current_step = Observable(1)
+    current_timestep = Observable(1)
     horizon = length(gt_state_history) - 1
     
     # Colors
@@ -226,47 +226,36 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     
     # --- Solver Iteration Controls ---
     show_solver_iterations = Observable(false)
-    
-    num_iterations = @lift begin
-        if $current_step <= length(intermediate_planned_trajectories)
-            sols_at_t = intermediate_planned_trajectories[$current_step]
-            if length(sols_at_t) >= 2 && !isempty(sols_at_t[1]) && !isempty(sols_at_t[2])
-                min(length(sols_at_t[1]), length(sols_at_t[2]))
-            else
-                0
-            end
-        else
-            0
-        end
-    end
-
     current_iteration = Observable(1)
+
+    intermediate_planned_trajectories = [(sols[1][3], sols[2][3]) for sols in solution_history]
+    belief_history = [sols[1][1] for sols in solution_history]
+    
 
     non_robust_plan = @lift begin
         if $show_solver_iterations
             if $num_iterations > 0
-                iter_idx = clamp($current_iteration, 1, $num_iterations)
-                intermediate_planned_trajectories[$current_step][1][iter_idx]
+                # iter_idx = clamp($current_iteration, 1, $num_iterations)
+                iter_idx = round(Int, $current_iteration * length(intermediate_planned_trajectories[$current_timestep][1]))
+                intermediate_planned_trajectories[$current_timestep][1][iter_idx]
             else
                 []
             end
         else
-            # Ensure we don't error if planned_trajectories is short
-            $current_step <= length(planned_trajectories) ? planned_trajectories[$current_step][1] : []
+            intermediate_planned_trajectories[$current_timestep][1][end]
         end
     end
     
     robust_plan = @lift begin
         if $show_solver_iterations
             if $num_iterations > 0
-                iter_idx = clamp($current_iteration, 1, $num_iterations)
-                intermediate_planned_trajectories[$current_step][2][iter_idx]
+                iter_idx = round(Int, $current_iteration * length(intermediate_planned_trajectories[$current_timestep][2]))
+                intermediate_planned_trajectories[$current_timestep][2][iter_idx]
             else
                 []
             end
         else
-            # Ensure we don't error if planned_trajectories is short
-            $current_step <= length(planned_trajectories) && length(planned_trajectories[$current_step]) > 1 ? planned_trajectories[$current_step][2] : []
+            intermediate_planned_trajectories[$current_timestep][2][end]
         end
     end
 
@@ -280,25 +269,28 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     lines!(ax, defender_gt_x, defender_gt_y, color=gt_color, linewidth=3, alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
     
     # Beliefs from Attacker's perspective
-    attacker_belief_self_x = [b.beliefs[1].belief_mean[1] for b in belief_history]
-    attacker_belief_self_y = [b.beliefs[1].belief_mean[2] for b in belief_history]
-    attacker_belief_other_x = [b.beliefs[2].belief_mean[1] for b in belief_history]
-    attacker_belief_other_y = [b.beliefs[2].belief_mean[2] for b in belief_history]
+    attacker_executed_belief_self_x = [b.beliefs[1].belief_mean[1] for b in belief_history]
+    attacker_executed_belief_self_y = [b.beliefs[1].belief_mean[2] for b in belief_history]
+    attacker_executed_belief_other_x = [b.beliefs[2].belief_mean[1] for b in belief_history]
+    attacker_executed_belief_other_y = [b.beliefs[2].belief_mean[2] for b in belief_history]
     
     # Beliefs from Defender's perspective
-    defender_belief_other_x = [b.beliefs[3].belief_mean[1] for b in belief_history]
-    defender_belief_other_y = [b.beliefs[3].belief_mean[2] for b in belief_history]
-    defender_belief_self_x = [b.beliefs[4].belief_mean[1] for b in belief_history]
-    defender_belief_self_y = [b.beliefs[4].belief_mean[2] for b in belief_history]
+    defender_executed_belief_other_x = [b.beliefs[3].belief_mean[1] for b in belief_history]
+    defender_executed_belief_other_y = [b.beliefs[3].belief_mean[2] for b in belief_history]
+    defender_executed_belief_self_x = [b.beliefs[4].belief_mean[1] for b in belief_history]
+    defender_executed_belief_self_y = [b.beliefs[4].belief_mean[2] for b in belief_history]
 
-    lines!(ax, attacker_belief_self_x, attacker_belief_self_y, color=attacker_color, linewidth=2, label="Attacker's Belief (executed)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    lines!(ax, defender_belief_self_x, defender_belief_self_y, color=defender_color, linewidth=2, label="Defender's Belief (executed)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    
+    lines!(ax, attacker_executed_belief_self_x, attacker_executed_belief_self_y, color=attacker_color, linewidth=2, label="Attacker's Belief (executed)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    # lines!(ax, attacker_executed_belief_other_x, attacker_executed_belief_other_y, color=attacker_color, linewidth=2, label="Attacker's Belief (executed)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, defender_executed_belief_self_x, defender_executed_belief_self_y, color=defender_color, linewidth=2, label="Defender's Belief (executed)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    # lines!(ax, defender_executed_belief_other_x, defender_executed_belief_other_y, color=defender_color, linewidth=2, label="Defender's Belief (executed)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    # Attacker other = Defender self, and vice versa.
+
     # --- Goal ---
     lines!(ax, [p[1] for p in goal_position], [p[2] for p in goal_position], color=:green, linewidth=5, label="Goal")
     
     # --- Current belief means and planned trajectory (observables) ---
-    current_belief_state = @lift belief_history[$current_step]
+    current_belief_state = @lift belief_history[$current_timestep]
     attacker_pos_self = @lift Point2f($current_belief_state.beliefs[1].belief_mean[1:2])
     attacker_pos_other = @lift Point2f($current_belief_state.beliefs[2].belief_mean[1:2])
     defender_pos_other = @lift Point2f($current_belief_state.beliefs[3].belief_mean[1:2])
@@ -313,7 +305,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     robust_defender_plan_other = @lift isempty($robust_plan) ? Point2f[] : [Point2f(m.beliefs[3].belief_mean[1:2]) for m in $robust_plan]
 
     # Planned actions
-    planned_us = @lift $current_step <= length(planned_us_history) ? planned_us_history[$current_step] : []
+    planned_us_history = [(sols[1][2], sols[2][2]) for sols in solution_history]
+    planned_us = @lift $current_timestep <= length(planned_us_history) ? planned_us_history[$current_timestep] : []
     
     non_robust_planned_us = @lift isempty($planned_us) ? [] : $planned_us[1]
     non_robust_attacker_actions = @lift isempty($non_robust_planned_us) ? Point2f[] : [Point2f(u[Block(1)]) for u in $non_robust_planned_us]
@@ -333,18 +326,14 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
 
     # --- Nature's actions on robust plan
     nature_actions_on_robust_plan_split = @lift begin
-        if $robust_plan_opacity > 0.1 && $current_step <= length(solution_history)
-            sols = solution_history[$current_step]
-            if length(sols) >= 2
-                robust_us = sols[2][2] # us
-                nature_us = [u[Block(3)] for u in robust_us]
-                # Assuming nature_us is a vector of 4-element vectors
-                actions_on_attacker = [Point2f(nu[1:2]) for nu in nature_us]
-                actions_on_defender = [Point2f(nu[3:4]) for nu in nature_us]
-                (actions_on_attacker, actions_on_defender)
-            else
-                (Point2f[], Point2f[])
-            end
+        if $robust_plan_opacity > 0.1 && $current_timestep <= length(solution_history)
+            sols = solution_history[$current_timestep]
+
+            robust_controls = sols[2][2]
+            nature_controls = [u[Block(3)] for u in robust_controls]
+            actions_on_attacker = [Point2f(nature_control[1:dims.belief[1]]) for nature_control in nature_controls]
+            actions_on_defender = [Point2f(nature_control[dims.belief[1] + 1:end]) for nature_control in nature_controls]
+            (actions_on_attacker, actions_on_defender)
         else
             (Point2f[], Point2f[])
         end
@@ -397,22 +386,23 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     scatter!(ax, defender_pos_self, color=defender_color, markersize=20)
 
     # --- Player Actions ---
-    current_us = @lift us_history[$current_step]
+    executed_us_history = [(sols[1][2][1], sols[2][2][1]) for sols in solution_history]
+    current_us = @lift executed_us_history[$current_timestep]
     attacker_action = @lift Point2f($current_us[Block(1)])
     defender_action = @lift Point2f($current_us[Block(2)])
     
-    arrows!(ax, @lift([$attacker_pos_self]), @lift([$attacker_action]), color=attacker_color, linewidth=3, arrowsize=15, label="Attacker Action", alpha=0.7)
-    arrows!(ax, @lift([$defender_pos_self]), @lift([$defender_action]), color=defender_color, linewidth=3, arrowsize=15, label="Defender Action", alpha=0.7)
+    arrows!(ax, @lift([$attacker_pos_self]), @lift([$attacker_action]), color=attacker_color, linewidth=3, arrowsize=15, label="Executed Attacker Action", alpha=0.5)
+    arrows!(ax, @lift([$defender_pos_self]), @lift([$defender_action]), color=defender_color, linewidth=3, arrowsize=15, label="Executed Defender Action", alpha=0.5)
 
     if is_robust
-        nature_action_on_attacker = @lift Point2f(nature_us_history[$current_step][1:2])
-        nature_action_on_defender = @lift Point2f(nature_us_history[$current_step][3:4])
+        nature_action_on_attacker = @lift Point2f(nature_us_history[$current_timestep][1:2])
+        nature_action_on_defender = @lift Point2f(nature_us_history[$current_timestep][3:4])
 
         nature_start_pos_attacker = @lift begin
             if !isempty($robust_attacker_plan) && !isempty($robust_attacker_actions)
                 $robust_attacker_plan[1] + $robust_attacker_actions[1]
             else
-                gt_s = gt_state_history[$current_step]
+                gt_s = gt_state_history[$current_timestep]
                 Point2f(gt_s[Block(1)])
             end
         end
@@ -420,7 +410,7 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
             if !isempty($robust_defender_plan) && !isempty($robust_defender_actions)
                 $robust_defender_plan[1] + $robust_defender_actions[1]
             else
-                gt_s = gt_state_history[$current_step]
+                gt_s = gt_state_history[$current_timestep]
                 Point2f(gt_s[Block(2)])
             end
         end
@@ -437,8 +427,8 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     scatter!(ax, attacker_obs_x, attacker_obs_y, color=attacker_color, markersize=15, alpha=@lift(0.3 * $observation_opacity), label="Attacker Observations")
     scatter!(ax, defender_obs_x, defender_obs_y, color=defender_color, markersize=15, alpha=@lift(0.3 * $observation_opacity), label="Defender Observations")
 
-    current_attacker_obs = @lift Point2f(observations[$current_step][1:2])
-    current_defender_obs = @lift Point2f(observations[$current_step][3:4])
+    current_attacker_obs = @lift Point2f(observations[$current_timestep][1:2])
+    current_defender_obs = @lift Point2f(observations[$current_timestep][3:4])
     scatter!(ax, current_attacker_obs, color=attacker_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Attacker Observation") 
     scatter!(ax, current_defender_obs, color=defender_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Defender Observation")
     
@@ -453,7 +443,7 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     poly!(ax, defender_ellipse_other_pts, color=(defender_color, 0.2), strokecolor=(defender_color, 0.2), strokewidth=2)
     poly!(ax, defender_ellipse_self_pts, color=(defender_color, 0.2), strokecolor=(defender_color, 0.2), strokewidth=2)
 
-    on(current_step) do val
+    on(current_timestep) do val
         current_belief = belief_history[val]
         attacker_ellipse_self_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[1].belief_mean[1:2], current_belief.beliefs[1].belief_covariance)
         attacker_ellipse_other_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[2].belief_mean[1:2], current_belief.beliefs[2].belief_covariance)
@@ -465,9 +455,9 @@ function visualize_receding_horizon_solution(gt_state_history, belief_history, p
     # --- Controls ---
     time_slider_grid = control_grid[1, 1] = GridLayout(tellwidth=false)
     time_slider = Slider(time_slider_grid[1, 2], range=1:horizon, startvalue=1)
-    on(time_slider.value) do val; current_step[] = val; end
+    on(time_slider.value) do val; current_timestep[] = val; end
     Label(time_slider_grid[1, 1], "Time:")
-    Label(time_slider_grid[1, 3], @lift("$(Int($current_step))"))
+    Label(time_slider_grid[1, 3], @lift("$(Int($current_timestep))"))
 
     iteration_slider_grid = control_grid[2, 1] = GridLayout(tellwidth=false)
     iteration_slider = Slider(iteration_slider_grid[1, 2], range=1:101, startvalue=1)

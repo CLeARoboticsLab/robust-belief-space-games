@@ -13,6 +13,7 @@ using JLD2
 using FileIO
 using Distributions
 using Random
+using Statistics
 
 struct DummyEnvironment end
 
@@ -363,20 +364,14 @@ end
 function receding_horizon_main(file_id::String=""; horizon=5, override=false, random_seed=1, ff_cond=false)
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
-        println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2") # TODO handle missing solution history
-        @load "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories us_history nature_us_history planned_us_history solution_history
+        println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
+        @load "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history
         visualize_receding_horizon_solution(
             gt_state_history, 
-            belief_history, 
-            planned_trajectories, 
             all_observations, 
-            goal_position; 
-            is_robust=any(robust), 
-            intermediate_planned_trajectories=intermediate_planned_trajectories, 
-            us_history=us_history, 
-            nature_us_history=nature_us_history,
-            planned_us_history=planned_us_history,
-            solution_history=solution_history
+            goal_position,
+            solution_history;
+            dims=dims
         )
         return
     end
@@ -417,17 +412,12 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
     current_gt_state = gt_initial_state
     all_observations = []
     gt_state_history = [current_gt_state]
-    belief_history = [current_beliefs]
     planned_trajectories = []
-    intermediate_planned_trajectories = []
-    us_history = []
-    nature_us_history = []
-    planned_us_history = []
     solution_history = []
     warm_starts = Vector{Any}([nothing, nothing])
 
     Random.seed!(random_seed)
-    normal_distribution = MvNormal(zeros(sum(dims.states)), 0.1 * I(sum(dims.states)))
+    normal_distribution = MvNormal(zeros(sum(dims.states)), 0.3*I(sum(dims.states)))
     draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
     # draw_from_normal = () -> BlockVector(zeros(sum(dims.states)), dims.states)
 
@@ -436,11 +426,6 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
     for t in 1:horizon-1
         println("--- Receding Horizon Step $t / $horizon ---")
         
-        intermediate_sols_at_t = []
-        # graph all beliefs
-        # no rh, j do 1 solve.
-        # graph nature's actions.
-
         # NAture has too much power?
         sols = Vector{Any}(undef, dims.n)
         for ii in 1:dims.n
@@ -452,20 +437,12 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
                 dims,
                 current_gt_state,
                 robust[ii])
-            nominal_beliefs, nominal_controls, intermediate_beliefs = solve(game; debug=false, α=αs[ii], warm_start=warm_starts[ii], ff_cond=ff_cond)
+            nominal_beliefs, nominal_controls, intermediate_solutions = solve(game; debug=false, α=αs[ii], warm_start=warm_starts[ii], ff_cond=ff_cond)
             warm_starts[ii] = (nominal_beliefs, nominal_controls)
-            push!(intermediate_sols_at_t, intermediate_beliefs)
-            sols[ii] = (nominal_beliefs, nominal_controls)
+            sols[ii] = (nominal_beliefs, nominal_controls, intermediate_solutions)
         end
         push!(solution_history, sols)
-        push!(planned_us_history, [sols[ii][2] for ii in 1:dims.n])
         u = mortar([sols[ii][2][1][Block(ii)] for ii in 1:dims.n])
-        push!(us_history, u)
-        
-        robust_sol_controls = sols[2][2]
-        nature_u = robust_sol_controls[1][Block(3)]
-        push!(nature_us_history, nature_u)
-
         current_gt_state = f(current_gt_state, u, draw_from_normal())
 
         # TODO different sensor models per player
@@ -473,25 +450,16 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
         current_beliefs = ekf_update_with_observations(current_beliefs, u, environment.dynamics, environment.sensor_models, observations)
         push!(gt_state_history, current_gt_state)
         push!(all_observations, observations)
-        push!(belief_history, current_beliefs)
-        push!(planned_trajectories, [sols[ii][1] for ii in 1:dims.n])
-        push!(intermediate_planned_trajectories, intermediate_sols_at_t)
     end
 
-    @save "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history belief_history planned_trajectories all_observations goal_position robust intermediate_planned_trajectories us_history nature_us_history planned_us_history solution_history
+    @save "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history
     
     # 6. Visualize
     visualize_receding_horizon_solution(
         gt_state_history, 
-        belief_history, 
-        planned_trajectories,
         all_observations,
-        goal_position; 
-        is_robust=any(robust),
-        intermediate_planned_trajectories=intermediate_planned_trajectories,
-        us_history=us_history,
-        nature_us_history=nature_us_history,
-        planned_us_history=planned_us_history,
-        solution_history=solution_history
+        goal_position,
+        solution_history;
+        dims=dims
     )
 end
