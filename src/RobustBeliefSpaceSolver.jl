@@ -19,7 +19,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     regularizations = Regularizations(1.0, 1.0)
     iterations = 0    
     improvement_iterations = 0
-    intermediate_beliefs = [nominal_beliefs]
+    intermediate_solutions = [(nominal_beliefs, nominal_controls)]
     feed_forward_norms_history = Vector{Vector{Float64}}()
     push!(feed_forward_norms_history, [Inf])
 
@@ -65,7 +65,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             end
             old_cost = new_cost
             regularizations.control_reg *= 0.9
-            push!(intermediate_beliefs, candidate_beliefs)
+            push!(intermediate_solutions, (candidate_beliefs, candidate_controls))
             improvement_iterations += 1
         else
             if regularizations.control_reg > 1000
@@ -77,7 +77,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     end
     println("Converged in $improvement_iterations / $iterations iterations")
     println("Feed forward norms: max: ", round(max(feed_forward_norms_history[end]...), digits=3), " min: ", round(min(feed_forward_norms_history[end]...), digits=3), " mean: ", round(mean(feed_forward_norms_history[end]), digits=3), " std: ", round(std(feed_forward_norms_history[end]), digits=3), " median: ", round(median(feed_forward_norms_history[end]), digits=3))
-    return nominal_beliefs, nominal_controls, intermediate_beliefs, feed_forward_norms_history[2:end]
+    return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end]
 end
 
 # TODO: take a gradient step on one player's control (IBR style)
