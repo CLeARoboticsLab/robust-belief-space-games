@@ -371,7 +371,7 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
             all_observations, 
             goal_position,
             solution_history;
-            dims=dims
+            dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
         )
         return
     end
