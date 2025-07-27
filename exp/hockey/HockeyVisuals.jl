@@ -239,29 +239,30 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     end
 
     non_robust_plan = @lift begin
-        if $show_solver_iterations
-            if $num_iterations > 0
-                # iter_idx = clamp($current_iteration, 1, $num_iterations)
-                iter_idx = clamp(round(Int, $current_iteration * length(intermediate_planned_trajectories[$current_timestep][1])), 1, length(intermediate_planned_trajectories[$current_timestep][1]))
-                intermediate_planned_trajectories[$current_timestep][1][iter_idx]
-            else
-                []
-            end
+        non_robust_iters = intermediate_planned_trajectories[$current_timestep][1]
+        if isempty(non_robust_iters)
+            []
+        elseif $show_solver_iterations
+            num_iters = length(non_robust_iters)
+            iter_idx = round(Int, $current_iteration * (num_iters - 1) + 1)
+            iter_idx = clamp(iter_idx, 1, num_iters) # Safety clamp
+            non_robust_iters[iter_idx]
         else
-            intermediate_planned_trajectories[$current_timestep][1][end]
+            non_robust_iters[end]
         end
     end
     
     robust_plan = @lift begin
-        if $show_solver_iterations
-            if $num_iterations > 0
-                iter_idx = clamp(round(Int, $current_iteration * length(intermediate_planned_trajectories[$current_timestep][2])), 1, length(intermediate_planned_trajectories[$current_timestep][2]))
-                intermediate_planned_trajectories[$current_timestep][2][iter_idx]
-            else
-                []
-            end
+        robust_iters = intermediate_planned_trajectories[$current_timestep][2]
+        if isempty(robust_iters)
+            []
+        elseif $show_solver_iterations
+            num_iters = length(robust_iters)
+            iter_idx = round(Int, $current_iteration * (num_iters - 1) + 1)
+            iter_idx = clamp(iter_idx, 1, num_iters) # Safety clamp
+            robust_iters[iter_idx]
         else
-            intermediate_planned_trajectories[$current_timestep][2][end]
+            robust_iters[end]
         end
     end
 
@@ -435,19 +436,14 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     Label(time_slider_grid[1, 3], @lift("$(Int($current_timestep))"))
 
     iteration_slider_grid = control_grid[2, 1] = GridLayout(tellwidth=false)
-    iteration_slider = Slider(iteration_slider_grid[1, 2], range=1:101, startvalue=1)
+    iteration_slider = Slider(iteration_slider_grid[1, 2], range=0:1, startvalue=1)
 
-    on(lift(tuple, iteration_slider.value, num_iterations)) do (slider_val, n_iter)
-        if n_iter > 0
-            percent = (slider_val - 1) / 100.0
-            current_iteration[] = percent
-        else
-            current_iteration[] = 1
-        end
+    on(iteration_slider.value) do val
+        current_iteration[] = val
     end
 
     Label(iteration_slider_grid[1, 1], "Iteration:")
-    Label(iteration_slider_grid[1, 3], @lift("$(show_solver_iterations[] ? ($num_iterations > 0 ? string($current_iteration) : "N/A") : "Final")"))
+    Label(iteration_slider_grid[1, 3], @lift("$(show_solver_iterations[] ? ($num_iterations > 0 ? string(round($current_iteration, digits=2)) : "N/A") : "Final")"))
 
     toggle_grid = control_grid[1:2, 2] = GridLayout(tellwidth=false)
 
