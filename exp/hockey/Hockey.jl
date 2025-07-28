@@ -7,8 +7,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-# using CairoMakie
-using GLMakie
+using CairoMakie
+# using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -177,7 +177,8 @@ end
 function h(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0; 0 1] * xᵢ + [0.1 0; 0 0.1] * nᵢ
+            # [1 0; 0 1] * xᵢ + [0.1 0; 0 0.1] * nᵢ
+            [1 0; 0 1] * xᵢ + 0.01 * norm(xᵢ[1:2]) * [0.1 0; 0 0.1] * nᵢ
         end,
         length.(xs.blocks)
     )
@@ -190,23 +191,24 @@ function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Bel
 
     sq_dist = dot(attacker_pos - defender_pos, attacker_pos - defender_pos)
 
-    goal_center = (goal_position[1] + goal_position[2]) / 2
-    v_attacker_to_goal = attacker_pos - goal_center
-    v_attacker_to_defender = attacker_pos - defender_pos
+    # goal_center = (goal_position[1] + goal_position[2]) / 2
+    # v_attacker_to_goal = attacker_pos - goal_center
+    # v_attacker_to_defender = attacker_pos - defender_pos
 
-    cos_block_angle = dot(v_attacker_to_goal, v_attacker_to_defender) / (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
+    # cos_block_angle = dot(v_attacker_to_goal, v_attacker_to_defender) / (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
     
-    blocking_factor = max(0, cos_block_angle)
+    # blocking_factor = max(0, cos_block_angle)
 
-    proximity_factor = exp(-0.5 * sq_dist)
+    # proximity_factor = exp(-0.5 * sq_dist)
     
-    geometric_bonus = blocking_factor * proximity_factor
+    # geometric_bonus = blocking_factor * proximity_factor
     
-    attacker_pos_uncertainty = tr(belief_over_attacker.belief_covariance)
-    defender_pos_uncertainty = tr(belief_over_defender.belief_covariance)
-    total_pos_uncertainty = attacker_pos_uncertainty + defender_pos_uncertainty
+    # attacker_pos_uncertainty = tr(belief_over_attacker.belief_covariance)
+    # defender_pos_uncertainty = tr(belief_over_defender.belief_covariance)
+    # total_pos_uncertainty = attacker_pos_uncertainty + defender_pos_uncertainty
     
-    return 5.0 * geometric_bonus - 0.5 * total_pos_uncertainty
+    # return 5.0 * geometric_bonus - 0.5 * total_pos_uncertainty
+    return 5.0 * sq_dist
 end
 function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
     # The defender's cost is based on their own belief about the world.
@@ -240,26 +242,27 @@ function shot_probability(belief_over_attacker::Belief, belief_over_defender::Be
     # Term 1: Base score, penalized by distance to goal and attacker's own uncertainty.
     dist_sq_to_goal = dot(attacker_pos - goal_center, attacker_pos - goal_center)
     distance_penalty = dist_penalty * atan(dist_sq_to_goal)
-    attacker_uncertainty_penalty_term = attacker_uncertainty_penalty * attacker_pos_uncertainty
+    # attacker_uncertainty_penalty_term = attacker_uncertainty_penalty * attacker_pos_uncertainty
 
-    # Term 2: Defender blocking penalty, hindered by defender's own uncertainty.
-    v_attacker_to_goal = goal_center - attacker_pos
-    v_attacker_to_defender = defender_pos - attacker_pos
-    dist_sq_to_defender = dot(v_attacker_to_defender, v_attacker_to_defender)
+    # # Term 2: Defender blocking penalty, hindered by defender's own uncertainty.
+    # v_attacker_to_goal = goal_center - attacker_pos
+    # v_attacker_to_defender = defender_pos - attacker_pos
+    # dist_sq_to_defender = dot(v_attacker_to_defender, v_attacker_to_defender)
 
-    cos_block_angle =
-        dot(v_attacker_to_goal, v_attacker_to_defender) /
-        (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
+    # cos_block_angle =
+    #     dot(v_attacker_to_goal, v_attacker_to_defender) /
+    #     (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
 
-    # Defender's blocking power is reduced by their positional uncertainty
-    block_effectiveness = (block_max * atan(-0.1 * block_falloff * dist_sq_to_defender)) /
-                        (1 + defender_uncertainty_penalty * defender_pos_uncertainty)
+    # # Defender's blocking power is reduced by their positional uncertainty
+    # block_effectiveness = (block_max * atan(-0.1 * block_falloff * dist_sq_to_defender)) /
+    #                     (1 + defender_uncertainty_penalty * defender_pos_uncertainty)
 
-    defender_block_penalty = block_effectiveness * log(1 + exp(cos_block_angle))
+    # defender_block_penalty = block_effectiveness * log(1 + exp(cos_block_angle))
 
-    # Final score calculation
-    final_score = 1.0 - distance_penalty - attacker_uncertainty_penalty_term - defender_block_penalty
-    return final_score
+    # # Final score calculation
+    # final_score = 1.0 - distance_penalty - attacker_uncertainty_penalty_term - defender_block_penalty
+    # return final_score
+    return 10.0 - 10 * distance_penalty
 end
 function attacker_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
 
@@ -361,7 +364,7 @@ function safe_eigen(A)
     # end
 end
 
-function receding_horizon_main(file_id::String=""; horizon=5, override=false, random_seed=1, ff_cond=false)
+function receding_horizon_main(file_id::String=""; horizon=5, override=false, random_seed=1)
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
@@ -437,7 +440,7 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
                 dims,
                 current_gt_state,
                 robust[ii])
-            nominal_beliefs, nominal_controls, intermediate_solutions = solve(game; debug=false, α=αs[ii], warm_start=warm_starts[ii], ff_cond=ff_cond)
+            nominal_beliefs, nominal_controls, intermediate_solutions = solve(game; debug=false, warm_start=warm_starts[ii])
             warm_starts[ii] = (nominal_beliefs, nominal_controls)
             sols[ii] = (nominal_beliefs, nominal_controls, intermediate_solutions)
         end

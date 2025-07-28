@@ -3,7 +3,7 @@ mutable struct Regularizations
     belief_reg::Float64
 end
 
-function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, α = 0.01, warm_start=nothing, ff_cond=false)
+function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, warm_start=nothing)
     if DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
@@ -16,11 +16,12 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     end
     new_cost = calculate_costs(game, nominal_beliefs, nominal_controls)    
     old_cost = 1/ϵ_converge^2 * new_cost
-    regularizations = Regularizations(1.0, 1.0)
+    regularizations = Regularizations(100.0, 1.0)
     iterations = 0    
     improvement_iterations = 0
     intermediate_solutions = [(nominal_beliefs, nominal_controls)]
     feed_forward_norms_history = Vector{Vector{Float64}}()
+    cur_ff_norm = 1
     push!(feed_forward_norms_history, [Inf])
 
     while true
@@ -38,40 +39,41 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
                 println(f)
             end
         end
-        strategy, feed_forward_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; α = α)
-        candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
+        feedback_terms, feed_forward_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations)
+        candidate_beliefs, candidate_controls, new_cost, feed_forward_norms, α = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, regularizations, iterations, old_cost, feed_forward_norms)
 
-        new_cost = calculate_costs(game, candidate_beliefs, candidate_controls)
-
-        
 
         push!(feed_forward_norms_history, feed_forward_norms)
         
         improvements = (old_cost .- new_cost)./abs.(old_cost)
         cost_decreased = any(improvements .> 0)
-        feed_forward_norm_decreased = mean(feed_forward_norms) .< mean(feed_forward_norms_history[end])
-        select = !ff_cond ? cost_decreased : feed_forward_norm_decreased
+        feed_forward_norm_decreased = mean(feed_forward_norms) .< mean(feed_forward_norms_history[cur_ff_norm])
+        
+        # A step is accepted if it reduces the KKT error (feed_forward_norm), or if all players' cost improvements exceed the increase in feed_forward_norm
+        step_accepted = feed_forward_norm_decreased || all(improvements .> (mean(feed_forward_norms) - mean(feed_forward_norms_history[cur_ff_norm])./ mean(feed_forward_norms_history[cur_ff_norm])))
 
-
-        # @printf("[s %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, max(feed_forward_norms_history[end]...), max(feed_forward_norms...), regularizations.control_reg, α)
+        # @printf("[s %3d / %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, improvement_iterations, mean(feed_forward_norms_history[cur_ff_norm]), mean(feed_forward_norms), regularizations.control_reg, α)
         # println("\tOld costs: ", join([@sprintf("%.3f", c) for c in old_cost], ", "))
         # println("\tNew costs: ", join([@sprintf("%.3f", c) for c in new_cost], ", "))
         # println("\tImprovements: ", join([@sprintf("%.3f", imp) for imp in improvements], ", "))
         # println("\tCost decr: $cost_decreased, ff_norm decr: $feed_forward_norm_decreased")
-        if select
+        if step_accepted
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             if all(improvements .< ϵ_converge) && all(feed_forward_norms .< ϵ_converge)
                 break
             end
             old_cost = new_cost
-            regularizations.control_reg *= 0.9
+            regularizations.control_reg *= 0.98
+            regularizations.belief_reg *= 0.98
             push!(intermediate_solutions, (candidate_beliefs, candidate_controls))
             improvement_iterations += 1
+            cur_ff_norm = length(feed_forward_norms_history)
         else
-            if regularizations.control_reg > 1000
+            if regularizations.control_reg > 10_000
                 break
             end
             regularizations.control_reg *= 1.3
+            regularizations.belief_reg *= 1.3
         end
         iterations += 1
     end
@@ -82,7 +84,7 @@ end
 
 # TODO: take a gradient step on one player's control (IBR style)
 
-function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; α = 0.01)
+function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int)
     T = eltype(nominal_beliefs[1].beliefs[1].belief_mean)
     n_players = game.dims.n + game.is_robust
     belief_size = total_size(nominal_beliefs[end])
@@ -186,8 +188,8 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         end
 
 
-        strategy, feed_forward, feed_back = joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_controls[t], nominal_beliefs[t], game.dims; α = α, is_robust=game.is_robust)
-        push!(joint_feedback_strategies, strategy)
+        feed_forward, feed_back = calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
+        push!(joint_feedback_strategies, (feed_forward, feed_back))
         push!(feed_forward_norms, norm(feed_forward))
 
         u_block_indices = Block(1+game.dims.n^2):Block(game.dims.n^2+game.dims.n+game.is_robust)
@@ -217,14 +219,14 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms)
 end
 
-function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01, is_robust=false)
+function calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
     Qh_uu_reg = Qh_uu + ϵ * I
     Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
     feed_forward = -1 * dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)
     feed_back = -1 * dual_round.(clip(Qh_uu_inv * Qh_ub, clip_norm), digits=5)
     if DEBUG
         open(DEBUG_FILE, "a") do f
-            println(f, "[joint_feedback_strategy]")
+            println(f, "[calculate_feedback_terms]")
             println(f, "Qh_uu:")
             display_matrix = IOContext(f, :limit=>false)
             show(display_matrix, "text/plain", Qh_uu)
@@ -240,11 +242,54 @@ function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_be
             println(f)
         end
     end    
+    return feed_forward, feed_back
+end
+
+
+function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α = 0.01, is_robust=false)
+    feed_forward, feed_back = calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
     function (belief::Beliefs)
         block_sizes = is_robust ? vcat(dims.controls, sum(dims.states)) : dims.controls
         return BlockVector(nominal_control + α * feed_forward + feed_back * (belief - nominal_belief), block_sizes)
-    end, feed_forward, feed_back
+    end
 end
+
+function build_strategy(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, α)
+    map(1:game.horizon-1) do t
+        function (belief::Beliefs)
+            block_sizes = game.is_robust ? vcat(game.dims.controls, sum(game.dims.states)) : game.dims.controls
+            return BlockVector(nominal_controls[t] + α * feedback_terms[t][1] + feedback_terms[t][2] * (belief - nominal_beliefs[t]), block_sizes)
+        end
+    end
+end
+
+function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, regularizations, iteration, old_cost, nominal_ff_norms; αs = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1])
+    best_beliefs, best_controls, best_costs = nominal_beliefs, nominal_controls, old_cost
+    best_ff_norms = nominal_ff_norms
+    best_α = 0.0
+    best_ff_norm_mean = mean(nominal_ff_norms)
+
+    for α in αs
+        strategy = build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α)
+        candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
+        
+        # This is the expensive part: running a backward pass for each alpha.
+        _ , candidate_ff_norms = backward_pass(game, candidate_beliefs, candidate_controls, regularizations, iteration)
+        
+        current_ff_norm_mean = mean(candidate_ff_norms)
+
+        if current_ff_norm_mean < best_ff_norm_mean
+            best_ff_norm_mean = current_ff_norm_mean
+            best_ff_norms = candidate_ff_norms
+            costs = calculate_costs(game, candidate_beliefs, candidate_controls)
+            best_beliefs, best_controls, best_costs = candidate_beliefs, candidate_controls, costs
+            best_α = α
+        end
+    end
+
+    return best_beliefs, best_controls, best_costs, best_ff_norms, best_α
+end
+
 
 function get_dummy_strategy(game::BeliefGame)
     if game.is_robust
