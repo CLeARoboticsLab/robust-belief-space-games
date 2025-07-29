@@ -403,10 +403,10 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     scatter!(ax, attacker_obs_x, attacker_obs_y, color=attacker_color, markersize=15, alpha=@lift(0.3 * $observation_opacity), label="Attacker Observations")
     scatter!(ax, defender_obs_x, defender_obs_y, color=defender_color, markersize=15, alpha=@lift(0.3 * $observation_opacity), label="Defender Observations")
 
-    current_attacker_obs = @lift Point2f(observations[$current_timestep][1:2])
-    current_defender_obs = @lift Point2f(observations[$current_timestep][3:4])
-    scatter!(ax, current_attacker_obs, color=attacker_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Attacker Observation") 
-    scatter!(ax, current_defender_obs, color=defender_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Defender Observation")
+    # current_attacker_obs = @lift Point2f(observations[$current_timestep][1:2])
+    # current_defender_obs = @lift Point2f(observations[$current_timestep][3:4])
+    # scatter!(ax, current_attacker_obs, color=attacker_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Attacker Observation") 
+    # scatter!(ax, current_defender_obs, color=defender_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Defender Observation")
     
     # --- Belief uncertainty ellipses ---
     attacker_ellipse_self_pts = Observable(Point2f[])
