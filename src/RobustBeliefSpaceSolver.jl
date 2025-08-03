@@ -39,8 +39,8 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
                 println(f)
             end
         end
-        feedback_terms, feed_forward_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations)
-        candidate_beliefs, candidate_controls, new_cost, feed_forward_norms, α = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, regularizations, iterations, old_cost, feed_forward_norms)
+        feedback_terms, feed_forward_norms, Q_suite = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations)
+        candidate_beliefs, candidate_controls, new_cost = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, Q_suite)
 
 
         push!(feed_forward_norms_history, feed_forward_norms)
@@ -97,6 +97,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
 
     joint_feedback_strategies = Vector{Any}()
     feed_forward_norms = Vector{Float64}()
+    Q_suite = Vector{Any}()
 
     # Initialize gradient helpers
     x_val = vec(nominal_beliefs[end])
@@ -189,8 +190,9 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
 
 
         feed_forward, feed_back = calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
-        push!(joint_feedback_strategies, (feed_forward, feed_back))
+        push!(joint_feedback_strategies, (;feed_forward, feed_back))
         push!(feed_forward_norms, norm(feed_forward))
+        push!(Q_suite, (;Qh_uu, Qh_ub, Qh_u))
 
         u_block_indices = Block(1+game.dims.n^2):Block(game.dims.n^2+game.dims.n+game.is_robust)
         b_block_indices = Block(1):Block(game.dims.n^2)
@@ -216,7 +218,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                                  Q_ub' * feed_back, clip_norm) # Q_ub
         end
     end
-    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms)
+    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms), reverse!(Q_suite)
 end
 
 function calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
@@ -263,31 +265,37 @@ function build_strategy(game::BeliefGame, nominal_beliefs, nominal_controls, fee
     end
 end
 
-function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, regularizations, iteration, old_cost, nominal_ff_norms; αs = [1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1])
-    best_beliefs, best_controls, best_costs = nominal_beliefs, nominal_controls, old_cost
-    best_ff_norms = nominal_ff_norms
-    best_α = 0.0
-    best_ff_norm_mean = mean(nominal_ff_norms)
-
-    for α in αs
-        strategy = build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α)
-        candidate_beliefs, candidate_controls = rollout_strategy(game, strategy)
-        
-        # This is the expensive part: running a backward pass for each alpha.
-        _ , candidate_ff_norms = backward_pass(game, candidate_beliefs, candidate_controls, regularizations, iteration)
-        
-        current_ff_norm_mean = mean(candidate_ff_norms)
-
-        if current_ff_norm_mean < best_ff_norm_mean
-            best_ff_norm_mean = current_ff_norm_mean
-            best_ff_norms = candidate_ff_norms
-            costs = calculate_costs(game, candidate_beliefs, candidate_controls)
-            best_beliefs, best_controls, best_costs = candidate_beliefs, candidate_controls, costs
-            best_α = α
+function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, Q_suite)
+    α = 1.0
+    ρ = 0.9
+    c = 1e-4
+    current_costs = calculate_costs(game, nominal_beliefs, nominal_controls)
+    
+    n_players = game.dims.n + game.is_robust
+    expected_improvements = zeros(n_players)
+    
+    for t in 1:game.horizon-1
+        for ii in 1:n_players
+            player_gradient = Q_suite[t].Qh_u[2 * (ii-1) + 1: 2 * ii]
+            player_search_dir = feedback_terms[t].feed_forward[2 * (ii-1) + 1: 2 * ii]
+            expected_improvements[ii] += player_gradient' * player_search_dir
         end
     end
+    
+    expected_improvements = c * expected_improvements
 
-    return best_beliefs, best_controls, best_costs, best_ff_norms, best_α
+    candidate_costs = current_costs .+ 2 * expected_improvements
+    candidate_beliefs, candidate_controls = rollout_strategy(game, build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α))
+
+    iters = 0
+    while any(current_costs .+ α * expected_improvements .< candidate_costs)
+        α = ρ * α
+        candidate_beliefs, candidate_controls = rollout_strategy(game, build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α))
+        candidate_costs = calculate_costs(game, candidate_beliefs, candidate_controls)
+        iters += 1
+    end
+
+    return candidate_beliefs, candidate_controls, candidate_costs
 end
 
 
