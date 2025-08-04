@@ -26,31 +26,25 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
 
     while true
     # while max(feed_forward_norms_history[end]...) > ϵ_converge
-        if DEBUG
-            open(DEBUG_FILE, "a") do f
-                println(f, "[solve] beliefs and controls")
-                println(f, "Initial nominal beliefs:")
-                display_matrix = IOContext(f, :limit=>false)
-                show(display_matrix, "text/plain", nominal_beliefs)
-                println(f)
-                println(f, "Initial nominal controls:")
-                display_matrix = IOContext(f, :limit=>false)
-                show(display_matrix, "text/plain", nominal_controls)
-                println(f)
-            end
-        end
+        # if DEBUG
+        #     open(DEBUG_FILE, "a") do f
+        #         println(f, "[solve] beliefs and controls")
+        #         println(f, "Initial nominal beliefs:")
+        #         display_matrix = IOContext(f, :limit=>false)
+        #         show(display_matrix, "text/plain", nominal_beliefs)
+        #         println(f)
+        #         println(f, "Initial nominal controls:")
+        #         display_matrix = IOContext(f, :limit=>false)
+        #         show(display_matrix, "text/plain", nominal_controls)
+        #         println(f)
+        #     end
+        # end
         feedback_terms, feed_forward_norms, Q_suite = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations)
-        candidate_beliefs, candidate_controls, new_cost = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, Q_suite)
-
+        candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, Q_suite, feed_forward_norms, regularizations)
 
         push!(feed_forward_norms_history, feed_forward_norms)
         
         improvements = (old_cost .- new_cost)./abs.(old_cost)
-        cost_decreased = any(improvements .> 0)
-        feed_forward_norm_decreased = mean(feed_forward_norms) .< mean(feed_forward_norms_history[cur_ff_norm])
-        
-        # A step is accepted if it reduces the KKT error (feed_forward_norm), or if all players' cost improvements exceed the increase in feed_forward_norm
-        step_accepted = feed_forward_norm_decreased || all(improvements .> (mean(feed_forward_norms) - mean(feed_forward_norms_history[cur_ff_norm])./ mean(feed_forward_norms_history[cur_ff_norm])))
 
         # @printf("[s %3d / %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, improvement_iterations, mean(feed_forward_norms_history[cur_ff_norm]), mean(feed_forward_norms), regularizations.control_reg, α)
         # println("\tOld costs: ", join([@sprintf("%.3f", c) for c in old_cost], ", "))
@@ -265,37 +259,44 @@ function build_strategy(game::BeliefGame, nominal_beliefs, nominal_controls, fee
     end
 end
 
-function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, Q_suite)
+function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, Q_suite, feed_forward_norms, regularizations)
     α = 1.0
-    ρ = 0.9
+    ρ = 0.5
     c = 1e-4
-    current_costs = calculate_costs(game, nominal_beliefs, nominal_controls)
     
-    n_players = game.dims.n + game.is_robust
-    expected_improvements = zeros(n_players)
+    current_ff_norm = mean(feed_forward_norms)
     
-    for t in 1:game.horizon-1
-        for ii in 1:n_players
-            player_gradient = Q_suite[t].Qh_u[2 * (ii-1) + 1: 2 * ii]
-            player_search_dir = feedback_terms[t].feed_forward[2 * (ii-1) + 1: 2 * ii]
-            expected_improvements[ii] += player_gradient' * player_search_dir
-        end
+    function loss(α_scalar)
+        strategy = build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α_scalar)
+        b, u = rollout_strategy(game, strategy)
+        _, candidate_feed_forward_norms, _ = backward_pass(game, b, u, regularizations, 0) # TODO: fix this iteration thing
+        return mean(candidate_feed_forward_norms)
     end
     
-    expected_improvements = c * expected_improvements
+    directional_derivative = grad(central_fdm(5, 1), loss, 0.0)[1]
 
-    candidate_costs = current_costs .+ 2 * expected_improvements
+    if directional_derivative > 0
+        println("Warning: positive directional derivative. Skipping line search and increasing regularization.")
+        return nominal_beliefs, nominal_controls, calculate_costs(game, nominal_beliefs, nominal_controls), false
+    end
+
     candidate_beliefs, candidate_controls = rollout_strategy(game, build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α))
+    candidate_ff_norm = loss(α)
 
     iters = 0
-    while any(current_costs .+ α * expected_improvements .< candidate_costs)
+    while candidate_ff_norm > current_ff_norm + c * α * directional_derivative
         α = ρ * α
+        if α < 1e-8
+            break
+        end
         candidate_beliefs, candidate_controls = rollout_strategy(game, build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α))
-        candidate_costs = calculate_costs(game, candidate_beliefs, candidate_controls)
+        candidate_ff_norm = loss(α)
         iters += 1
     end
+    
+    new_costs = calculate_costs(game, candidate_beliefs, candidate_controls)
 
-    return candidate_beliefs, candidate_controls, candidate_costs
+    return candidate_beliefs, candidate_controls, new_costs, true
 end
 
 
