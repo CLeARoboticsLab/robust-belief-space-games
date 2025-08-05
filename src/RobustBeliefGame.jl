@@ -38,7 +38,7 @@ include("Plotting.jl")
 export plot_feed_forward_norms
 
 
-DEBUG = true
+DEBUG = false
 DEBUG_FILE = "./exp/hockey/outputs/belief_diagnostics.txt"
 
 ϵ = 1e-7
