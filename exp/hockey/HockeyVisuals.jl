@@ -223,6 +223,10 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     robust_plan_opacity = Observable(plan_opacity)
     observation_opacity = Observable(1.0)
     nature_opacity = Observable(1.0)
+    show_arrows = Observable(true)
+
+    attacker_belief_opacity = Observable(1.0)
+    defender_belief_opacity = Observable(0.1)
     
     # --- Solver Iteration Controls ---
     show_solver_iterations = Observable(false)
@@ -313,17 +317,19 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     non_robust_attacker_actions = @lift isempty($non_robust_planned_us) ? Point2f[] : [Point2f(u[Block(1)]) for u in $non_robust_planned_us]
     non_robust_defender_actions = @lift isempty($non_robust_planned_us) ? Point2f[] : [Point2f(u[Block(2)]) for u in $non_robust_planned_us]
     
-    arrows!(ax, non_robust_attacker_plan, non_robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($non_robust_plan_opacity > 0.1))
-    arrows!(ax, non_robust_defender_plan, non_robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($non_robust_plan_opacity > 0.1))
+    arrows!(ax, non_robust_attacker_plan, non_robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($non_robust_plan_opacity > 0.1 && $show_arrows))
+    arrows!(ax, non_robust_defender_plan, non_robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($non_robust_plan_opacity > 0.1 && $show_arrows))
 
     robust_planned_us = @lift isempty($planned_us) || length($planned_us) < 2 ? [] : $planned_us[2]
     robust_attacker_actions = @lift isempty($robust_planned_us) ? Point2f[] : [Point2f(u[Block(1)]) for u in $robust_planned_us]
     robust_defender_actions = @lift isempty($robust_planned_us) ? Point2f[] : [Point2f(u[Block(2)]) for u in $robust_planned_us]
     
-    arrows!(ax, robust_attacker_plan, robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
+    arrows!(ax, robust_attacker_plan, robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $attacker_belief_opacity > 0.1 && $show_arrows))
 
     # --- Arrows on attacker's belief of other plan
-    arrows!(ax, robust_attacker_plan_other, robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1))
+    arrows!(ax, robust_attacker_plan_other, robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $attacker_belief_opacity > 0.1 && $show_arrows))
+    arrows!(ax, robust_defender_plan, robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $defender_belief_opacity > 0.1 && $show_arrows))
+    arrows!(ax, robust_defender_plan_other, robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $defender_belief_opacity > 0.1 && $show_arrows))
 
     # --- Nature's actions on robust plan
     nature_actions_on_robust_plan_split = @lift begin
@@ -362,25 +368,25 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
         end
     end
     
-    arrows!(ax, nature_start_pos_attacker_plan, nature_actions_on_attacker_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $nature_opacity > 0.1))
-    arrows!(ax, nature_start_pos_defender_plan, nature_actions_on_defender_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $nature_opacity > 0.1))
+    arrows!(ax, nature_start_pos_attacker_plan, nature_actions_on_attacker_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $nature_opacity > 0.1 && $attacker_belief_opacity > 0.1 && $show_arrows))
+    arrows!(ax, nature_start_pos_defender_plan, nature_actions_on_defender_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $nature_opacity > 0.1 && $attacker_belief_opacity > 0.1 && $show_arrows))
 
 
-    lines!(ax, robust_attacker_plan_other, color=attacker_color, linestyle=:dash, linewidth=2, alpha=robust_plan_opacity, label="Robust Attacker Plan (other)")
-    scatter!(ax, robust_attacker_plan_other, color=attacker_color, marker=:xcross, markersize=8, alpha=robust_plan_opacity)
+    lines!(ax, robust_attacker_plan_other, color=attacker_color, linestyle=:dash, linewidth=2, alpha=@lift($robust_plan_opacity * $attacker_belief_opacity), label="Robust Attacker Plan (other)")
+    scatter!(ax, robust_attacker_plan_other, color=attacker_color, marker=:xcross, markersize=8, alpha=@lift($robust_plan_opacity * $attacker_belief_opacity))
 
-    lines!(ax, robust_defender_plan_other, color=defender_color, linestyle=:dash, linewidth=2, alpha=robust_plan_opacity, label="Robust Defender Plan (other)")
-    scatter!(ax, robust_defender_plan_other, color=defender_color, marker=:cross, markersize=8, alpha=robust_plan_opacity)
+    lines!(ax, robust_defender_plan_other, color=defender_color, linestyle=:dash, linewidth=2, alpha=@lift($robust_plan_opacity * $defender_belief_opacity), label="Robust Defender Plan (other)")
+    scatter!(ax, robust_defender_plan_other, color=defender_color, marker=:cross, markersize=8, alpha=@lift($robust_plan_opacity * $defender_belief_opacity))
 
 
     lines!(ax, non_robust_attacker_plan, color=attacker_color, linewidth=3, alpha=non_robust_plan_opacity, label="Non-Robust Attacker Plan")
     scatter!(ax, non_robust_attacker_plan, color=attacker_color, markersize=10, alpha=non_robust_plan_opacity)
     lines!(ax, non_robust_defender_plan, color=defender_color, linewidth=3, alpha=non_robust_plan_opacity, label="Non-Robust Defender Plan")
     scatter!(ax, non_robust_defender_plan, color=defender_color, marker=:xcross, markersize=10, alpha=non_robust_plan_opacity)
-    lines!(ax, robust_attacker_plan, color=attacker_color, linestyle=:dash, linewidth=3, alpha=robust_plan_opacity, label="Robust Attacker Plan (self)")
-    scatter!(ax, robust_attacker_plan, color=attacker_color, markersize=10, alpha=robust_plan_opacity)
-    lines!(ax, robust_defender_plan, color=defender_color, linestyle=:dash, linewidth=3, alpha=robust_plan_opacity, label="Robust Defender Plan (self)")
-    scatter!(ax, robust_defender_plan, color=defender_color, marker=:xcross, markersize=10, alpha=robust_plan_opacity)
+    lines!(ax, robust_attacker_plan, color=attacker_color, linestyle=:dash, linewidth=3, alpha=@lift($robust_plan_opacity * $attacker_belief_opacity), label="Robust Attacker Plan (self)")
+    scatter!(ax, robust_attacker_plan, color=attacker_color, markersize=10, alpha=@lift($robust_plan_opacity * $attacker_belief_opacity))
+    lines!(ax, robust_defender_plan, color=defender_color, linestyle=:dash, linewidth=3, alpha=@lift($robust_plan_opacity * $defender_belief_opacity), label="Robust Defender Plan (self)")
+    scatter!(ax, robust_defender_plan, color=defender_color, marker=:xcross, markersize=10, alpha=@lift($robust_plan_opacity * $defender_belief_opacity))
 
     # --- Current belief positions (as markers) ---
     scatter!(ax, attacker_pos_self, color=attacker_color, markersize=20)
@@ -392,8 +398,8 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     attacker_action = @lift Point2f($current_us[1][Block(1)])
     defender_action = @lift Point2f($current_us[2][Block(2)])
     
-    arrows!(ax, @lift([$attacker_pos_self]), @lift([$attacker_action]), color=attacker_color, linewidth=3, arrowsize=15, label="Executed Attacker Action", alpha=0.5)
-    arrows!(ax, @lift([$defender_pos_self]), @lift([$defender_action]), color=defender_color, linewidth=3, arrowsize=15, label="Executed Defender Action", alpha=0.5)
+    arrows!(ax, @lift([$attacker_pos_self]), @lift([$attacker_action]), color=attacker_color, linewidth=3, arrowsize=15, label="Executed Attacker Action", alpha=0.5, visible=show_arrows)
+    arrows!(ax, @lift([$defender_pos_self]), @lift([$defender_action]), color=defender_color, linewidth=3, arrowsize=15, label="Executed Defender Action", alpha=0.5, visible=show_arrows)
 
     # --- Observations ---
     attacker_obs_x = [obs[1] for obs in observations]
@@ -445,7 +451,16 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     Label(iteration_slider_grid[1, 1], "Iteration:")
     Label(iteration_slider_grid[1, 3], @lift("$(show_solver_iterations[] ? ($num_iterations > 0 ? string(round($current_iteration, digits=2)) : "N/A") : "Final")"))
 
-    toggle_grid = control_grid[1:2, 2] = GridLayout(tellwidth=false)
+    belief_focus_grid = control_grid[3, 1] = GridLayout(tellwidth=false)
+    focus_attacker_btn = Button(belief_focus_grid[1, 1], label="Focus Attacker Beliefs")
+    focus_defender_btn = Button(belief_focus_grid[1, 2], label="Focus Defender Beliefs")
+    show_all_beliefs_btn = Button(belief_focus_grid[1, 3], label="Show All Beliefs")
+
+    on(focus_attacker_btn.clicks) do n; attacker_belief_opacity[] = 1.0; defender_belief_opacity[] = 0.1; end
+    on(focus_defender_btn.clicks) do n; attacker_belief_opacity[] = 0.1; defender_belief_opacity[] = 1.0; end
+    on(show_all_beliefs_btn.clicks) do n; attacker_belief_opacity[] = 1.0; defender_belief_opacity[] = 1.0; end
+
+    toggle_grid = control_grid[1:3, 2] = GridLayout(tellwidth=false)
 
     gt_toggle = Toggle(toggle_grid[1, 2], active=true)
     Label(toggle_grid[1, 1], "Ground Truth")
@@ -474,6 +489,10 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     nature_toggle = Toggle(toggle_grid[7, 2], active=true)
     Label(toggle_grid[7, 1], "Nature")
     on(nature_toggle.active) do active; nature_opacity[] = active ? 1.0 : 0.0; end
+
+    arrows_toggle = Toggle(toggle_grid[8, 2], active=true)
+    Label(toggle_grid[8, 1], "Show Arrows")
+    on(arrows_toggle.active) do active; show_arrows[] = active; end
 
     Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
     

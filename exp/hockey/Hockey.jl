@@ -7,8 +7,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-using CairoMakie
-# using GLMakie
+# using CairoMakie
+using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -177,8 +177,8 @@ end
 function h(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            # [1 0; 0 1] * xᵢ + [0.1 0; 0 0.1] * nᵢ
-            [1 0; 0 1] * xᵢ + 0.01 * norm(xᵢ[1:2]) * [0.1 0; 0 0.1] * nᵢ
+            [1 0; 0 1] * xᵢ
+            # [1 0; 0 1] * xᵢ + 0.01 * norm(xᵢ[1:2]) * [0.1 0; 0 0.1] * nᵢ
         end,
         length.(xs.blocks)
     )
@@ -440,7 +440,7 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
                 dims,
                 current_gt_state,
                 robust[ii])
-            nominal_beliefs, nominal_controls, intermediate_solutions = solve(game; debug=false, warm_start=warm_starts[ii])
+            nominal_beliefs, nominal_controls, intermediate_solutions = solve(game; debug=true, warm_start=warm_starts[ii])
             warm_starts[ii] = (nominal_beliefs, nominal_controls)
             sols[ii] = (nominal_beliefs, nominal_controls, intermediate_solutions)
         end
