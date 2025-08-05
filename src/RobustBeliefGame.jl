@@ -34,6 +34,9 @@ export ekf_update, ekf_update_gradient, ekf_update_with_observations
 include("RobustBeliefSpaceSolver.jl")
 export solve
 
+include("IBRSolve.jl")
+export ibr_solve
+
 include("Plotting.jl")
 export plot_feed_forward_norms
 

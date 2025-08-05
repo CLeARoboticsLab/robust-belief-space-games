@@ -500,3 +500,7 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     
     display(fig)
 end
+
+function visualize_ibr_hockey_solution(gt_state_history, all_observations, goal_position, solution_history; dims=nothing)
+    println("Visualizing IBR solution")
+end

@@ -466,3 +466,96 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
         dims=dims
     )
 end
+
+function ibr_main(file_id::String=""; horizon=5, override=false, random_seed=1)
+    global goal_position
+    if isfile("exp/hockey/outputs/ibr_$file_id.jld2") && !override
+        println("Loading solution from exp/hockey/outputs/ibr_$file_id.jld2")
+        @load "exp/hockey/outputs/ibr_$file_id.jld2" gt_state_history all_observations goal_position solution_history
+    end
+
+    gt_initial_state = mortar([
+        [0.75, 5.0],  # Attacker
+        [-0.75, 1.5], # Defender
+    ])
+    initial_belief_covariance = [
+        [0.1 0; 0 0.1],
+        [0.1 0; 0 0.1],
+    ]
+    initial_beliefs = Beliefs([ 
+        Belief(gt_initial_state[Block(1)], initial_belief_covariance[1]), # Attacker's belief of attacker
+        Belief(gt_initial_state[Block(2)], initial_belief_covariance[2]), # Attacker's belief of defender
+        Belief(gt_initial_state[Block(1)], initial_belief_covariance[1]), # Defender's belief of attacker
+        Belief(gt_initial_state[Block(2)], initial_belief_covariance[2]), # Defender's belief of defender
+    ])
+    attacker_cost = BeliefCost(
+        (bs, us) -> attacker_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us),
+        (bs) -> attacker_terminal_cost(bs.beliefs[1], bs.beliefs[2]),
+    )
+    defender_cost = BeliefCost(
+        (bs, us) -> defender_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us),
+        (bs) -> defender_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
+    )
+    nature_cost = BeliefCost(
+        (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us),
+        (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
+    )
+    environment = BeliefEnvironment(f, gt_initial_state, h)
+
+    costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
+    robust = [false, true]
+    dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
+
+    current_beliefs = initial_beliefs
+    current_gt_state = gt_initial_state
+    all_observations = []
+    gt_state_history = [current_gt_state]
+    solution_history = []
+    warm_starts = Vector{Any}([nothing, nothing])
+
+    Random.seed!(random_seed)
+    normal_distribution = MvNormal(zeros(sum(dims.states)), 0.3*I(sum(dims.states)))
+    draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
+    # draw_from_normal = () -> BlockVector(zeros(sum(dims.states)), dims.states)
+
+    αs = [1.0, 1.0]
+    for t in 1:horizon-1
+        println("--- Receding Horizon Step $t / $horizon ---")
+        
+        # NAture has too much power?
+        sols = Vector{Any}(undef, dims.n)
+        for ii in 2:dims.n
+            game = BeliefGame(
+                environment,
+                costs[ii],
+                current_beliefs,
+                10,
+                dims,
+                current_gt_state,
+                robust[ii])
+            nominal_beliefs, nominal_controls, intermediate_solutions = ibr_solve(game; debug=true, warm_start=warm_starts[ii])
+            warm_starts[ii] = (nominal_beliefs, nominal_controls)
+            sols[ii] = (nominal_beliefs, nominal_controls, intermediate_solutions)  
+        end
+        push!(solution_history, sols)
+        u = mortar([sols[ii][2][1][Block(ii)] for ii in 1:dims.n])
+        current_gt_state = f(current_gt_state, u, draw_from_normal())
+
+        # TODO different sensor models per player
+        observations = mortar([h(current_gt_state, draw_from_normal()) for ii in 1:dims.n])
+        current_beliefs = ekf_update_with_observations(current_beliefs, u, environment.dynamics, environment.sensor_models, observations)
+        push!(gt_state_history, current_gt_state)
+        push!(all_observations, observations)
+    end
+
+    @save "exp/hockey/outputs/ibr_$file_id.jld2" gt_state_history all_observations goal_position solution_history
+    
+    # 6. Visualize
+    visualize_ibr_hockey_solution(
+        gt_state_history, 
+        all_observations,
+        goal_position,
+        solution_history;
+        dims=dims
+    )
+end
