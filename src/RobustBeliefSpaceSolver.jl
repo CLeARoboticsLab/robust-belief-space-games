@@ -24,6 +24,8 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     cur_ff_norm = 1
     push!(feed_forward_norms_history, [Inf])
 
+    cond = []
+
     while true
     # while max(feed_forward_norms_history[end]...) > ϵ_converge
         # if DEBUG
@@ -39,8 +41,8 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         #         println(f)
         #     end
         # end
-        feedback_terms, feed_forward_norms, Q_suite = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations)
-        candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, Q_suite, feed_forward_norms, regularizations)
+        feedback_terms, feed_forward_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations)
+        candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, feed_forward_norms, regularizations)
 
         push!(feed_forward_norms_history, feed_forward_norms)
         
@@ -60,6 +62,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             regularizations.control_reg *= 0.98
             regularizations.belief_reg *= 0.98
             push!(intermediate_solutions, (candidate_beliefs, candidate_controls))
+            push!(cond, feedback_terms)
             improvement_iterations += 1
             cur_ff_norm = length(feed_forward_norms_history)
         else
@@ -73,7 +76,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     end
     println("Converged in $improvement_iterations / $iterations iterations")
     println("Feed forward norms: max: ", round(max(feed_forward_norms_history[end]...), digits=3), " min: ", round(min(feed_forward_norms_history[end]...), digits=3), " mean: ", round(mean(feed_forward_norms_history[end]), digits=3), " std: ", round(std(feed_forward_norms_history[end]), digits=3), " median: ", round(median(feed_forward_norms_history[end]), digits=3))
-    return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end]
+    return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], cond
 end
 
 # TODO: take a gradient step on one player's control (IBR style)
@@ -212,7 +215,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                                  Q_ub' * feed_back, clip_norm) # Q_ub
         end
     end
-    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms), reverse!(Q_suite)
+    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms)
 end
 
 function calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
@@ -259,7 +262,7 @@ function build_strategy(game::BeliefGame, nominal_beliefs, nominal_controls, fee
     end
 end
 
-function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, Q_suite, feed_forward_norms, regularizations)
+function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, feed_forward_norms, regularizations)
     α = 1.0
     ρ = 0.5
     c = 1e-4
@@ -269,7 +272,7 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
     function loss(α_scalar)
         strategy = build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α_scalar)
         b, u = rollout_strategy(game, strategy)
-        _, candidate_feed_forward_norms, _ = backward_pass(game, b, u, regularizations, 0) # TODO: fix this iteration thing
+        _, candidate_feed_forward_norms = backward_pass(game, b, u, regularizations, 0) # TODO: fix this iteration thing
         return mean(candidate_feed_forward_norms)
     end
     

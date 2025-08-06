@@ -191,7 +191,7 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     save("exp/hockey/outputs/$graph_name.png", fig)
 end
 
-function visualize_receding_horizon_solution(gt_state_history, observations, goal_position, solution_history; dims = (; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2]))
+function visualize_receding_horizon_solution(gt_state_history, observations, goal_position, solution_history, cond_history; dims = (; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2]))
     fig = Figure()
     
     # --- Top Row: Axis and Legend ---
@@ -202,7 +202,15 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     )
     
     # --- Bottom Row: Controls ---
-    control_grid = fig[2, 1:2] = GridLayout(tellheight=false)
+    control_grid = fig[2, 1] = GridLayout(tellheight=false)
+    
+    # --- Condition Number Plot ---
+    ax_cond = Axis(fig[3, 1],
+        title="Condition Number",
+        xlabel="Time",
+        ylabel="Condition Number",
+    )
+    lines!(ax_cond, 1:length(cond_history), cond_history, color=:purple, linewidth=2)
     
     current_timestep = Observable(1)
     horizon = length(gt_state_history) - 1

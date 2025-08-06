@@ -368,12 +368,13 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
-        @load "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history
+        @load "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history cond_history
         visualize_receding_horizon_solution(
             gt_state_history, 
             all_observations, 
             goal_position,
-            solution_history;
+            solution_history,
+            cond_history;
             dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
         )
         return
@@ -417,6 +418,7 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
     gt_state_history = [current_gt_state]
     planned_trajectories = []
     solution_history = []
+    cond_history = []
     warm_starts = Vector{Any}([nothing, nothing])
 
     Random.seed!(random_seed)
@@ -431,7 +433,7 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
         
         # NAture has too much power?
         sols = Vector{Any}(undef, dims.n)
-        for ii in 1:dims.n
+        for ii in 2:dims.n
             game = BeliefGame(
                 environment,
                 costs[ii],
@@ -440,29 +442,32 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
                 dims,
                 current_gt_state,
                 robust[ii])
-            nominal_beliefs, nominal_controls, intermediate_solutions = solve(game; debug=true, warm_start=warm_starts[ii])
+            nominal_beliefs, nominal_controls, intermediate_solutions, cond = solve(game; debug=true, warm_start=warm_starts[ii])
             warm_starts[ii] = (nominal_beliefs, nominal_controls)
             sols[ii] = (nominal_beliefs, nominal_controls, intermediate_solutions)
+            push!(cond_history, cond)
         end
         push!(solution_history, sols)
-        u = mortar([sols[ii][2][1][Block(ii)] for ii in 1:dims.n])
+        u = mortar([sols[ii][2][1][Block(ii)] for ii in 2:dims.n])
         current_gt_state = f(current_gt_state, u, draw_from_normal())
 
+        
         # TODO different sensor models per player
-        observations = mortar([h(current_gt_state, draw_from_normal()) for ii in 1:dims.n])
+        observations = mortar([h(current_gt_state, draw_from_normal()) for ii in 2:dims.n])
         current_beliefs = ekf_update_with_observations(current_beliefs, u, environment.dynamics, environment.sensor_models, observations)
         push!(gt_state_history, current_gt_state)
         push!(all_observations, observations)
     end
 
-    @save "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history
+    @save "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history cond_history
     
     # 6. Visualize
     visualize_receding_horizon_solution(
         gt_state_history, 
         all_observations,
         goal_position,
-        solution_history;
+        solution_history,
+        cond_history;
         dims=dims
     )
 end
