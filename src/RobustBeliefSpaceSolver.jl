@@ -276,7 +276,9 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
         return mean(candidate_feed_forward_norms)
     end
     
-    directional_derivative = grad(central_fdm(5, 1), loss, 0.0)[1]
+    # directional_derivative = grad(central_fdm(5, 1), loss, 0.0)[1]
+    # Nocedal and Wright, 11.37
+    directional_derivative = -loss(0.0)
 
     if directional_derivative > 0
         # println("Warning: positive directional derivative. Skipping line search and increasing regularization.")
@@ -299,10 +301,10 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
     
     new_costs = calculate_costs(game, candidate_beliefs, candidate_controls)
     # println("[line search] feedforward terms: ")
-    for ii in 1:game.horizon-1
-        println("\t$(feedback_terms[ii][1])")
-    end
     if DEBUG
+        for ii in 1:game.horizon-1
+            println("\t$(feedback_terms[ii][1])")
+        end
         open(DEBUG_FILE, "a") do f
             println(f, "[line search] feedforward terms: ")
             for ii in 1:game.horizon-1
