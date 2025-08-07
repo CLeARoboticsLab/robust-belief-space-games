@@ -184,6 +184,13 @@ function h(xs::BlockVector, ns::BlockVector)
     )
 end
 # Cost
+function box_bounds(belief::Belief)
+    bottom = max(100 * exp(-(belief.belief_mean[2] + 5)) - 1, 0)
+    top = max(100 * exp(belief.belief_mean[2] - 10) - 1, 0)
+    left = max(100 * exp(-(belief.belief_mean[1]+8)) - 1, 0)
+    right = max(100 * exp(belief.belief_mean[1] - 8) - 1, 0)
+    return bottom + top + left + right
+end
 function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Belief)
 
     attacker_pos = belief_over_attacker.belief_mean
@@ -215,7 +222,7 @@ function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_de
     # Here, we assume the defender is player 2.
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(2)], us[Block(2)]) # Defender is player 2
-    return -2 * steal_prob + 2 * control_effort
+    return -2 * steal_prob + 2 * control_effort + box_bounds(belief_over_defender)
 end
 function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
     # The attacker's cost is based on their own belief about the world.
@@ -224,7 +231,7 @@ function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_de
     goal_center = (goal_position[1] + goal_position[2]) / 2
     dist_to_goal_sq = dot(belief_over_attacker.belief_mean - goal_center, belief_over_attacker.belief_mean - goal_center)
     control_effort = dot(us[Block(1)], us[Block(1)]) # Attacker is player 1
-    return 1 * steal_prob + 4 * control_effort + 0.1 * dist_to_goal_sq
+    return 1 * steal_prob + 4 * control_effort + 0.1 * dist_to_goal_sq + box_bounds(belief_over_attacker)
 end    
 function shot_probability(belief_over_attacker::Belief, belief_over_defender::Belief)
     dist_penalty = 0.1
@@ -266,18 +273,18 @@ function shot_probability(belief_over_attacker::Belief, belief_over_defender::Be
 end
 function attacker_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
 
-    return -10 * shot_probability(belief_over_attacker, belief_over_defender)
+    return -10 * shot_probability(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_attacker)
 end
 function defender_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
 
-    return 10 * shot_probability(belief_over_attacker, belief_over_defender)
+    return 10 * shot_probability(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_defender)
 end
 function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector)
     steal_prob = dot(belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2], belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2])
-    return steal_prob + 2_000*dot(us[Block(3)], us[Block(3)])
+    return steal_prob + 2_000*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
 end
 function nature_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
-    return -defender_terminal_cost(belief_over_attacker, belief_over_defender)
+    return -defender_terminal_cost(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
 end
 
 function belief_main(sol_number=2, override_solution=false)
