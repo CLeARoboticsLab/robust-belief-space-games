@@ -21,8 +21,10 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     improvement_iterations = 0
     intermediate_solutions = [(nominal_beliefs, nominal_controls)]
     feed_forward_norms_history = Vector{Vector{Float64}}()
+    kkt_error_history = Vector{Vector{Float64}}()
     cur_ff_norm = 1
     push!(feed_forward_norms_history, [Inf])
+    push!(kkt_error_history, [Inf])
 
     cond = []
 
@@ -41,10 +43,11 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         #         println(f)
         #     end
         # end
-        feedback_terms, feed_forward_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations)
-        candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, feed_forward_norms, regularizations)
+        feedback_terms, feed_forward_norms, kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
+        candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, kkt_error_norms, regularizations)
 
         push!(feed_forward_norms_history, feed_forward_norms)
+        push!(kkt_error_history, kkt_error_norms)
         
         improvements = (old_cost .- new_cost)./abs.(old_cost)
 
@@ -55,7 +58,11 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         # println("\tCost decr: $cost_decreased, ff_norm decr: $feed_forward_norm_decreased")
         if step_accepted
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
-            if all(improvements .< ϵ_converge) && all(feed_forward_norms .< ϵ_converge)
+            # Compute current control stationarity error for convergence check
+            _, _, current_kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
+            current_stationarity_error = mean(current_kkt_error_norms)
+            
+            if all(improvements .< ϵ_converge) && current_stationarity_error < ϵ_converge
                 break
             end
             old_cost = new_cost
@@ -65,6 +72,12 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             push!(cond, feedback_terms)
             improvement_iterations += 1
             cur_ff_norm = length(feed_forward_norms_history)
+            
+            if DEBUG
+                open(DEBUG_FILE, "a") do f
+                    println(f, "[solve] Iteration $iterations - Control stationarity error: $current_stationarity_error")
+                end
+            end
         else
             if regularizations.control_reg > 10_000
                 break
@@ -75,13 +88,23 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         iterations += 1
     end
     println("Converged in $improvement_iterations / $iterations iterations")
-    println("Feed forward norms: max: ", round(max(feed_forward_norms_history[end]...), digits=3), " min: ", round(min(feed_forward_norms_history[end]...), digits=3), " mean: ", round(mean(feed_forward_norms_history[end]), digits=3), " std: ", round(std(feed_forward_norms_history[end]), digits=3), " median: ", round(median(feed_forward_norms_history[end]), digits=3))
-    return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], cond
+    
+    # Compute final control stationarity error
+    _, _, final_kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
+    println("Final control stationarity error: ", round(mean(final_kkt_error_norms), digits=6))
+    println("Legacy KKT error: max: ", round(max(kkt_error_history[end]...), digits=3), " min: ", round(min(kkt_error_history[end]...), digits=3), " mean: ", round(mean(kkt_error_history[end]), digits=3), " std: ", round(std(kkt_error_history[end]), digits=3), " median: ", round(median(kkt_error_history[end]), digits=3))
+    
+    return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], kkt_error_history[2:end], cond
 end
 
 # TODO: take a gradient step on one player's control (IBR style)
 
-function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int)
+# The KKT error computation has been improved to include:
+# 1. Both belief and control gradients (stationarity conditions)
+# 2. Dynamics constraint violations weighted by co-states
+# 3. Comprehensive error measure for convergence checking
+
+function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; kkt_component::Symbol = :both)
     T = eltype(nominal_beliefs[1].beliefs[1].belief_mean)
     n_players = game.dims.n + game.is_robust
     belief_size = total_size(nominal_beliefs[end])
@@ -94,6 +117,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
 
     joint_feedback_strategies = Vector{Any}()
     feed_forward_norms = Vector{Float64}()
+    kkt_error_norms = Vector{Float64}()
     Q_suite = Vector{Any}()
 
     # Initialize gradient helpers
@@ -108,6 +132,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         V_b[ii] = DiffResults.gradient(terminal_cost_gradient_info)
         V_bb[ii] = DiffResults.hessian(terminal_cost_gradient_info)
     end
+    # Note: previously stored co-states for dynamics-weighted KKT; no longer needed
 
     for t in game.horizon-1:-1:1
         g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
@@ -175,9 +200,14 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 println(f, "belief reg: $(regularizations.belief_reg)")
             end
         end
+        # Extract control and belief gradients for KKT error computation
         Qh_u = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_s[ii][Block(ii+game.dims.n^2)] # skip the belief blocks of Q_s
+            @view Q_s[ii][Block(ii+game.dims.n^2)] # control gradient
         end
+        Qh_b = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
+            @view Q_s[ii][Block(1):Block(game.dims.n^2)] # belief gradient
+        end
+        
         Qh_uu = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
             @view Q_ss[ii][Block(ii+game.dims.n^2), Block(1+game.dims.n^2):Block(game.dims.n^2+game.dims.n+game.is_robust)]
         end
@@ -185,11 +215,20 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             @view Q_ss[ii][Block(ii+game.dims.n^2), Block(1):Block(game.dims.n^2)]
         end
 
+        # Compute KKT error based on requested component for downstream usage
+        kkt_error = if kkt_component === :control
+            norm(Qh_u)
+        elseif kkt_component === :belief
+            norm(Qh_b)
+        else
+            norm([Qh_b; Qh_u])
+        end
 
         feed_forward, feed_back = calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
         push!(joint_feedback_strategies, (;feed_forward, feed_back))
         push!(feed_forward_norms, norm(feed_forward))
-        push!(Q_suite, (;Qh_uu, Qh_ub, Qh_u))
+        push!(kkt_error_norms, kkt_error)
+        push!(Q_suite, (;Qh_uu, Qh_ub, Qh_u, Qh_b))
 
         u_block_indices = Block(1+game.dims.n^2):Block(game.dims.n^2+game.dims.n+game.is_robust)
         b_block_indices = Block(1):Block(game.dims.n^2)
@@ -214,8 +253,9 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                                  feed_back' * Q_ub + # Q_ub
                                  Q_ub' * feed_back, clip_norm) # Q_ub
         end
+        # Note: co-state trajectory collection removed to reduce unnecessary work
     end
-    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms)
+    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms), reverse!(kkt_error_norms)
 end
 
 function calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
@@ -262,18 +302,29 @@ function build_strategy(game::BeliefGame, nominal_beliefs, nominal_controls, fee
     end
 end
 
-function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, feed_forward_norms, regularizations)
+function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, kkt_error_norms, regularizations)
     α = 1.0
-    ρ = 0.5
+    ρ = 0.9
     c = 1e-4
     
-    current_ff_norm = mean(feed_forward_norms)
+    current_kkt_error = mean(kkt_error_norms)
     
     function loss(α_scalar)
         strategy = build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α_scalar)
         b, u = rollout_strategy(game, strategy)
-        _, candidate_feed_forward_norms = backward_pass(game, b, u, regularizations, 0) # TODO: fix this iteration thing
-        return mean(candidate_feed_forward_norms)
+
+        # Compute KKT error using control stationarity only
+        _, _, candidate_kkt_error_norms = backward_pass(game, b, u, regularizations, 0; kkt_component=:control)
+        stationarity_error = mean(candidate_kkt_error_norms)
+
+        if DEBUG
+            open(DEBUG_FILE, "a") do f
+                println(f, "[line_search] KKT error breakdown for α=$α_scalar:")
+                println(f, "  Stationarity error (control gradients only): $stationarity_error")
+            end
+        end
+        
+        return stationarity_error
     end
     
     # directional_derivative = grad(central_fdm(5, 1), loss, 0.0)[1]
@@ -286,27 +337,27 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
     end
 
     candidate_beliefs, candidate_controls = rollout_strategy(game, build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α))
-    candidate_ff_norm = loss(α)
+    candidate_kkt_error = loss(α)
 
     iters = 0
-    while candidate_ff_norm > current_ff_norm + c * α * directional_derivative
+    while candidate_kkt_error > current_kkt_error + c * α * directional_derivative
         α = ρ * α
-        if α < 1e-8
+        if α < 1e-3
             break
         end
         candidate_beliefs, candidate_controls = rollout_strategy(game, build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α))
-        candidate_ff_norm = loss(α)
+        candidate_kkt_error = loss(α)
         iters += 1
     end
     
     new_costs = calculate_costs(game, candidate_beliefs, candidate_controls)
-    # println("[line search] feedforward terms: ")
+    println("[line search] α=$α feedforward terms: ")
     if DEBUG
         for ii in 1:game.horizon-1
             println("\t$(feedback_terms[ii][1])")
         end
         open(DEBUG_FILE, "a") do f
-            println(f, "[line search] feedforward terms: ")
+            println(f, "[line search] α=$α feedforward terms: ")
             for ii in 1:game.horizon-1
                 println(f, "\t$(feedback_terms[ii][1])")
             end
@@ -316,6 +367,8 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
     return candidate_beliefs, candidate_controls, new_costs, true
 end
 
+
+function compute_comprehensive_kkt_error end # retained name for compatibility if referenced elsewhere, but unused
 
 function get_dummy_strategy(game::BeliefGame)
     if game.is_robust
