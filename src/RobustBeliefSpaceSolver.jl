@@ -99,11 +99,6 @@ end
 
 # TODO: take a gradient step on one player's control (IBR style)
 
-# The KKT error computation has been improved to include:
-# 1. Both belief and control gradients (stationarity conditions)
-# 2. Dynamics constraint violations weighted by co-states
-# 3. Comprehensive error measure for convergence checking
-
 function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; kkt_component::Symbol = :both)
     T = eltype(nominal_beliefs[1].beliefs[1].belief_mean)
     n_players = game.dims.n + game.is_robust
