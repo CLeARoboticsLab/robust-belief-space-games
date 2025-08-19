@@ -88,7 +88,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
                 end
             end
         else
-            if regularizations.control_reg > 10_000
+            if regularizations.control_reg > 1000
                 break
             end
             regularizations.control_reg *= 1.3
