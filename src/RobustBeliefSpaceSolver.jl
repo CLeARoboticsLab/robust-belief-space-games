@@ -26,7 +26,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     push!(feed_forward_norms_history, [Inf])
     push!(kkt_error_history, [Inf])
 
-    cond = []
+    cond = Float64[]
 
     while true
     # while max(feed_forward_norms_history[end]...) > ϵ_converge
@@ -69,7 +69,16 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             regularizations.control_reg *= 0.98
             regularizations.belief_reg *= 0.98
             push!(intermediate_solutions, (candidate_beliefs, candidate_controls))
-            push!(cond, feedback_terms)
+            
+            # Store the maximum feed_forward norm as a condition number proxy
+            # Higher norms often indicate worse conditioning of the optimization problem
+            if !isempty(feedback_terms)
+                max_cond = maximum(norm.(feedback_terms[end][1]))
+            else
+                max_cond = 0.0
+            end
+            
+            push!(cond, max_cond)
             improvement_iterations += 1
             cur_ff_norm = length(feed_forward_norms_history)
             
