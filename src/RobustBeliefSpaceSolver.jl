@@ -344,10 +344,11 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
     candidate_kkt_error = loss(α)
 
     iters = 0
-    while candidate_kkt_error > current_kkt_error + c * α * directional_derivative
+    alpha_limit_hit = false
+    while candidate_kkt_error > current_kkt_error + c * α * directional_derivative && !alpha_limit_hit
         α = ρ * α
         if α < 1e-3
-            break
+            alpha_limit_hit = true
         end
         candidate_beliefs, candidate_controls = rollout_strategy(game, build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α))
         candidate_kkt_error = loss(α)
@@ -368,7 +369,7 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
         end
     end
 
-    return candidate_beliefs, candidate_controls, new_costs, true
+    return candidate_beliefs, candidate_controls, new_costs, !alpha_limit_hit
 end
 
 

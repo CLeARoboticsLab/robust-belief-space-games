@@ -185,10 +185,14 @@ function h(xs::BlockVector, ns::BlockVector)
 end
 # Cost
 function box_bounds(belief::Belief)
-    bottom = max(100 * exp(-(belief.belief_mean[2] + 5)) - 1, 0)
-    top = max(100 * exp(belief.belief_mean[2] - 10) - 1, 0)
-    left = max(100 * exp(-(belief.belief_mean[1]+8)) - 1, 0)
-    right = max(100 * exp(belief.belief_mean[1] - 8) - 1, 0)
+    # bottom = max(100 * exp(-(belief.belief_mean[2] + 5)) - 1, 0)
+    bottom = (belief.belief_mean[2] < 0) ? 5 * belief.belief_mean[2]^2 : 0
+    # top = max(100 * exp(belief.belief_mean[2] - 10) - 1, 0)
+    top = (belief.belief_mean[2] > 3) ? 5 * belief.belief_mean[2]^2 : 0
+    # left = max(100 * exp(-(belief.belief_mean[1]+8)) - 1, 0)
+    left = (belief.belief_mean[1] < -3) ? 5 * belief.belief_mean[1]^2 : 0
+    # right = max(100 * exp(belief.belief_mean[1] - 8) - 1, 0)
+    right = (belief.belief_mean[1] > 3) ? 5 * belief.belief_mean[1]^2 : 0
     return bottom + top + left + right
 end
 function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Belief)
@@ -468,7 +472,6 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
 
     @save "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history cond_history
     
-    # 6. Visualize
     visualize_receding_horizon_solution(
         gt_state_history, 
         all_observations,
