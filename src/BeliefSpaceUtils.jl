@@ -107,9 +107,16 @@ function clip(x, max_norm)
     end
 end
 
-function dual_round(x; kwargs...)
-    x isa Dual ? x : round(x; kwargs...)
-end
+dual_round(x::Dual; kwargs...) = x
+
+dual_round(x::Number; kwargs...) = _fix_neg_zero(round(x; kwargs...))
+
+dual_round(x::AbstractArray; kwargs...) = map(y -> dual_round(y; kwargs...), x)
+
+dual_round(x::Symmetric; kwargs...) = Symmetric(dual_round(Matrix(x); kwargs...))
+
+_fix_neg_zero(x::AbstractFloat) = iszero(x) ? zero(x) : x
+_fix_neg_zero(x) = x
 
 function rollout_strategy(game::BeliefGame, strategy::Vector)
     H = length(strategy)

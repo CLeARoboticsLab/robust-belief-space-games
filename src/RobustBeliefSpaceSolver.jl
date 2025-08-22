@@ -58,11 +58,8 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         # println("\tCost decr: $cost_decreased, ff_norm decr: $feed_forward_norm_decreased")
         if step_accepted
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
-            # Compute current control stationarity error for convergence check
-            _, _, current_kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
-            current_stationarity_error = mean(current_kkt_error_norms)
             
-            if all(improvements .< ϵ_converge) && current_stationarity_error < ϵ_converge
+            if all(improvements .< ϵ_converge) && mean(kkt_error_norms) < ϵ_converge
                 break
             end
             old_cost = new_cost
