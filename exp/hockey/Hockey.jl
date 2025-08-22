@@ -177,7 +177,7 @@ end
 function h(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0; 0 1] * xᵢ
+            [1 0; 0 1] * xᵢ + [0.1 0; 0 0.1] * nᵢ
             # [1 0; 0 1] * xᵢ + 0.01 * norm(xᵢ[1:2]) * [0.1 0; 0 0.1] * nᵢ
         end,
         length.(xs.blocks)
