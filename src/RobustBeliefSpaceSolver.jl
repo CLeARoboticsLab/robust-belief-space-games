@@ -117,11 +117,13 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     V_b = [Vector{T}(undef, belief_size) for _ in 1:n_players+game.is_robust]
     V_bb = [Matrix{T}(undef, belief_size, belief_size) for _ in 1:n_players+game.is_robust]
 
+    lagrange_multipliers = [[Vector{T}(undef, belief_size) for _ in 1:n_players+game.is_robust] for _ in 1:game.horizon-1]
+
     cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:(game.dims.n+game.is_robust)]
 
     joint_feedback_strategies = Vector{Any}()
     feed_forward_norms = Vector{Float64}()
-    kkt_error_norms = Vector{Float64}()
+    stationarity_errors = Vector{Vector{T}}()
     Q_suite = Vector{Any}()
 
     # Initialize gradient helpers
@@ -134,13 +136,15 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             x_val)
         V[ii] = DiffResults.value(terminal_cost_gradient_info)
         V_b[ii] = DiffResults.gradient(terminal_cost_gradient_info)
+        lagrange_multipliers[end][ii] = DiffResults.gradient(terminal_cost_gradient_info)
         V_bb[ii] = DiffResults.hessian(terminal_cost_gradient_info)
     end
-    # Note: previously stored co-states for dynamics-weighted KKT; no longer needed
 
     for t in game.horizon-1:-1:1
         g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
         g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
+        g_s = real.(g_s)
+        W_s = real.(W_s)
         W = real.(W)
         
         for ii in 1:(game.dims.n+game.is_robust)
@@ -204,7 +208,6 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 println(f, "belief reg: $(regularizations.belief_reg)")
             end
         end
-        # Extract control and belief gradients for KKT error computation
         Qh_u = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
             @view Q_s[ii][Block(ii+game.dims.n^2)] # control gradient
         end
@@ -219,19 +222,18 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             @view Q_ss[ii][Block(ii+game.dims.n^2), Block(1):Block(game.dims.n^2)]
         end
 
-        # Compute KKT error based on requested component for downstream usage
-        kkt_error = if kkt_component === :control
-            norm(Qh_u)
+        stationarity_error = if kkt_component === :control
+            Qh_u
         elseif kkt_component === :belief
-            norm(Qh_b)
+            Qh_b
         else
-            norm([Qh_b; Qh_u])
+            [Qh_b; Qh_u]
         end
 
         feed_forward, feed_back = calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
         push!(joint_feedback_strategies, (;feed_forward, feed_back))
         push!(feed_forward_norms, norm(feed_forward))
-        push!(kkt_error_norms, kkt_error)
+        push!(stationarity_errors, stationarity_error)
         push!(Q_suite, (;Qh_uu, Qh_ub, Qh_u, Qh_b))
 
         u_block_indices = Block(1+game.dims.n^2):Block(game.dims.n^2+game.dims.n+game.is_robust)
@@ -251,15 +253,15 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                                 feed_back' * Q_uu * feed_forward + # Q_uu
                                 feed_back' * Q_u + # Q_u
                                 Q_ub' * feed_forward, clip_norm)# Q_ub
-            
+            lagrange_multipliers[t][ii] = V_b[ii]
+
             V_bb[ii] = clip(Q_bb + # Q_bb
                                  feed_back' * Q_uu * feed_back + # Q_uu
                                  feed_back' * Q_ub + # Q_ub
                                  Q_ub' * feed_back, clip_norm) # Q_ub
         end
-        # Note: co-state trajectory collection removed to reduce unnecessary work
     end
-    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms), reverse!(kkt_error_norms)
+    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms), reverse!(stationarity_errors), reverse!(lagrange_multipliers)
 end
 
 function calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
@@ -318,17 +320,27 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
         b, u = rollout_strategy(game, strategy)
 
         # Compute KKT error using control stationarity only
-        _, _, candidate_kkt_error_norms = backward_pass(game, b, u, regularizations, 0; kkt_component=:control)
-        stationarity_error = mean(candidate_kkt_error_norms)
+        _, _, candidate_stationarity_errors, lagrange_multipliers = backward_pass(game, b, u, regularizations, 0; kkt_component=:control)
+        # ∇ᵤL = mapreduce(vcat, 1:game.horizon-1) do t
+        #     stationarity_error = candidate_stationarity_errors[t]
+        #     lagrange_multiplier = lagrange_multipliers[t]
+        #     mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
+        #         g_s, _ = ekf_update_gradient(b[t], u[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
+        #         g_s_u = (ii > game.dims.n) ? g_s[:, total_size(b[t])+sum(game.dims.controls)+1:end] : g_s[:, total_size(b[t])+sum(game.dims.controls[1:ii-1])+1:total_size(b[t])+sum(game.dims.controls[1:ii])]
+        #         stat_error = (ii > game.dims.n) ? stationarity_error[sum(game.dims.controls)+1:end] : stationarity_error[sum(game.dims.controls[1:ii-1])+1:sum(game.dims.controls[1:ii])]
+        #         stat_error .- g_s_u' * lagrange_multiplier[ii]
+        #     end
+        # end
 
         if DEBUG
             open(DEBUG_FILE, "a") do f
                 println(f, "[line_search] KKT error breakdown for α=$α_scalar:")
-                println(f, "  Stationarity error (control gradients only): $stationarity_error")
+                println(f, "  Stationarity error (control gradients only): $∇ᵤL")
             end
         end
         
-        return stationarity_error
+        # return mean(∇ᵤL)
+        return mean(norm.(candidate_stationarity_errors))
     end
     
     # directional_derivative = grad(central_fdm(5, 1), loss, 0.0)[1]
