@@ -47,7 +47,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, kkt_error_norms, regularizations)
 
         push!(feed_forward_norms_history, feed_forward_norms)
-        push!(kkt_error_history, kkt_error_norms)
+        push!(kkt_error_history, norm.(kkt_error_norms))
         
         improvements = (old_cost .- new_cost)./abs.(old_cost)
 
@@ -100,7 +100,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     
     # Compute final control stationarity error
     _, _, final_kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
-    println("Final control stationarity error: ", round(mean(final_kkt_error_norms), digits=6))
+    println("Final control stationarity error: ", round(mean(norm.(final_kkt_error_norms)), digits=6))
     println("Legacy KKT error: max: ", round(max(kkt_error_history[end]...), digits=3), " min: ", round(min(kkt_error_history[end]...), digits=3), " mean: ", round(mean(kkt_error_history[end]), digits=3), " std: ", round(std(kkt_error_history[end]), digits=3), " median: ", round(median(kkt_error_history[end]), digits=3))
     
     return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], kkt_error_history[2:end], cond
@@ -313,7 +313,7 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
     ρ = 0.9
     c = 1e-4
     
-    current_kkt_error = mean(kkt_error_norms)
+    current_kkt_error = mean(norm.(kkt_error_norms))
     
     function loss(α_scalar)
         strategy = build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α_scalar)
@@ -368,7 +368,6 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
     end
     
     new_costs = calculate_costs(game, candidate_beliefs, candidate_controls)
-    println("[line search] α=$α feedforward terms: ")
     if DEBUG
         for ii in 1:game.horizon-1
             println("\t$(feedback_terms[ii][1])")
