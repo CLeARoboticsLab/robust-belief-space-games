@@ -1,16 +1,17 @@
 function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
-    fdm = FiniteDifferences.central_fdm(5, 1)
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
     stacked_controls = mortar([control.blocks[1:end - is_robust]..., control.blocks...])
     expected_dynamics = dynamics(means(beliefs), stacked_controls, zero_noise)
-    # A=only(FiniteDifferences.jacobian(fdm, (x)-> Vector(dynamics(x, stacked_controls, zero_noise)), means(beliefs)))
-    # M=only(FiniteDifferences.jacobian(fdm, (x)-> Vector(dynamics(means(beliefs), stacked_controls, x)), zero_noise))
-    # H=only(FiniteDifferences.jacobian(fdm, (x)-> Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), stacked_controls, zero_noise), zero_noise)), vcat(means(beliefs)...)))
-    # N=only(FiniteDifferences.jacobian(fdm, (x)-> Vector(sensor_model(expected_dynamics, x)), zero_noise))
-    A = I(8)
-    M = 0.1*I(8)
-    H = I(8)
-    N = 0.1*I(8) #TODO: this is a hack for performance during debugging of hockey example
+
+    A_fn(x) = Vector(dynamics(x, stacked_controls, zero_noise))
+    M_fn(x) = Vector(dynamics(means(beliefs), stacked_controls, x))
+    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), stacked_controls, zero_noise), zero_noise))
+    N_fn(x) = Vector(sensor_model(expected_dynamics, x))
+    
+    A = ForwardDiff.jacobian(A_fn, means(beliefs))
+    M = ForwardDiff.jacobian(M_fn, zero_noise)
+    H = ForwardDiff.jacobian(H_fn, vcat(means(beliefs)...))
+    N = ForwardDiff.jacobian(N_fn, zero_noise)
 
     Σ = BlockDiagonal([b.belief_covariance for b in beliefs.beliefs])
     Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))

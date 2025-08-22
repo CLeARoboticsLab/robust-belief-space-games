@@ -167,7 +167,7 @@ function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
             mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
             [1 0; 0 1] * xᵢ +
             [1 0; 0 1] * uᵢ +
-            [0.1 0; 0 0.1] * mᵢ
+            0.5 * I * mᵢ
         end,
         length.(xs.blocks)
     )
@@ -177,7 +177,7 @@ end
 function h(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0; 0 1] * xᵢ + [0.1 0; 0 0.1] * nᵢ
+            [1 0; 0 1] * xᵢ + 0.5 *I * nᵢ
             # [1 0; 0 1] * xᵢ + 0.01 * norm(xᵢ[1:2]) * [0.1 0; 0 0.1] * nᵢ
         end,
         length.(xs.blocks)
@@ -472,6 +472,18 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
 
     @save "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history cond_history
     
+    println("\nCovariance matrices over time:")
+    let nominal_beliefs = solution_history[1][1][1]
+        for (t, beliefs) in enumerate(nominal_beliefs)
+            println("\nTime step $t:")
+            for (ii, belief) in enumerate(beliefs)
+                println("Player $ii covariance:")
+                display(belief.belief_covariance)
+                println("Norm: ", norm(belief.belief_covariance))
+            end
+        end
+    end
+
     visualize_receding_horizon_solution(
         gt_state_history, 
         all_observations,

@@ -28,6 +28,9 @@ struct Beliefs
     beliefs::Vector{Belief}
 end
 
+Base.iterate(b::Beliefs, state...) = iterate(b.beliefs, state...)
+Base.length(b::Beliefs) = length(b.beliefs)
+
 function means(beliefs::Beliefs)
     return mortar([belief.belief_mean for belief in beliefs.beliefs])
 end

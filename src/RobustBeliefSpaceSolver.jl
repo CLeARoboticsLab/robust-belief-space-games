@@ -59,7 +59,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         if step_accepted
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             
-            if all(improvements .< ϵ_converge) && mean(kkt_error_norms) < ϵ_converge
+            if all(improvements .< ϵ_converge) && mean(norm.(vcat(kkt_error_norms...))) < ϵ_converge
                 break
             end
             old_cost = new_cost
