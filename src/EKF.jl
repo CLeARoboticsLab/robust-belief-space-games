@@ -15,7 +15,11 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
 
     Σ = BlockDiagonal([b.belief_covariance for b in beliefs.beliefs])
     Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
-    K = dual_round.(Γ * H' * ((H * Γ * H' + N * N') \ I), digits = 5)
+    
+    S = H * Γ * H' + N * N'
+    Q, R = qr(S)
+    K_transpose = R \ (Q' * (H * Γ))
+    K = dual_round.(K_transpose', digits = 5)
 
     temp = BlockArray(Symmetric(dual_round.(Γ - K * H * Γ, digits=5)), dims(beliefs), dims(beliefs))
     covs_extraced = mapreduce(hcat, 1:length(beliefs.beliefs)) do dim
@@ -94,7 +98,11 @@ function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dy
 
     Σ = BlockDiagonal([b.belief_covariance for b in beliefs.beliefs])
     Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
-    K = dual_round.(Γ * H' * ((H * Γ * H' + N * N') \ I), digits = 5)
+    
+    S = H * Γ * H' + N * N'
+    Q, R = qr(S)
+    K_transpose = R \ (Q' * (H * Γ))
+    K = dual_round.(K_transpose', digits = 5)
 
     temp = BlockArray(Symmetric(dual_round.(Γ - K * H * Γ, digits=5)), dims(beliefs), dims(beliefs))
     mean_update = expected_dynamics + K * (observations - sensor_model(expected_dynamics, zero_noise))
