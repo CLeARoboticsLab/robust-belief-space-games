@@ -191,7 +191,7 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     save("exp/hockey/outputs/$graph_name.png", fig)
 end
 
-function visualize_receding_horizon_solution(gt_state_history, observations, goal_position, solution_history, cond_history; dims = (; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2]))
+function visualize_receding_horizon_solution(gt_state_history, observations, goal_position, solution_history, cond_history, lq_sol; dims = (; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2]))
     fig = Figure()
     
     # --- Top Row: Axis and Legend ---
@@ -241,6 +241,7 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     nature_color = :green
     non_robust_plan_color = :purple
     robust_plan_color = :orange
+    lq_sol_color = :cyan
 
     # Opacities & Visibilities
     plan_opacity = 1.0
@@ -254,7 +255,9 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
 
     attacker_belief_opacity = Observable(1.0)
     defender_belief_opacity = Observable(0.1)
-    
+    plan_timestep = Observable(1)
+    show_lq_sol = Observable(true)
+
     # --- Solver Iteration Controls ---
     show_solver_iterations = Observable(false)
     current_iteration = Observable(1.0)
@@ -317,6 +320,16 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     lines!(ax, attacker_belief_history_self_x, attacker_belief_history_self_y, color=attacker_color, linewidth=2, label="Attacker's Belief (executed)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
     lines!(ax, defender_belief_history_self_x, defender_belief_history_self_y, color=defender_color, linewidth=2, label="Defender's Belief (executed)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
     # Attacker other = Defender self, and vice versa.
+
+    # --- LQ Solution Trajectory ---
+    lq_attacker_x = [s[Block(1)][1] for s in lq_sol.xs]
+    lq_attacker_y = [s[Block(1)][2] for s in lq_sol.xs]
+    lq_defender_x = [s[Block(2)][1] for s in lq_sol.xs]
+    lq_defender_y = [s[Block(2)][2] for s in lq_sol.xs]
+
+    lines!(ax, lq_attacker_x, lq_attacker_y, color=lq_sol_color, linewidth=2, linestyle=:dot, label="LQ Attacker", visible=show_lq_sol)
+    lines!(ax, lq_defender_x, lq_defender_y, color=lq_sol_color, linewidth=2, linestyle=:dot, label="LQ Defender", visible=show_lq_sol)
+
 
     # --- Goal ---
     lines!(ax, [p[1] for p in goal_position], [p[2] for p in goal_position], color=:green, linewidth=5, label="Goal")
@@ -415,6 +428,26 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     lines!(ax, robust_defender_plan, color=defender_color, linestyle=:dash, linewidth=3, alpha=@lift($robust_plan_opacity * $defender_belief_opacity), label="Robust Defender Plan (self)")
     scatter!(ax, robust_defender_plan, color=defender_color, marker=:xcross, markersize=10, alpha=@lift($robust_plan_opacity * $defender_belief_opacity))
 
+    # --- HIGHLIGHT CURRENT PLAN TIMESTEP ---
+    current_non_robust_attacker_pos = @lift if !isempty($non_robust_attacker_plan) && $(plan_timestep) <= length($non_robust_attacker_plan); $non_robust_attacker_plan[$(plan_timestep)]; else; Point2f(NaN, NaN); end
+    current_non_robust_defender_pos = @lift if !isempty($non_robust_defender_plan) && $(plan_timestep) <= length($non_robust_defender_plan); $non_robust_defender_plan[$(plan_timestep)]; else; Point2f(NaN, NaN); end
+    
+    current_robust_attacker_pos = @lift if !isempty($robust_attacker_plan) && $(plan_timestep) <= length($robust_attacker_plan); $robust_attacker_plan[$(plan_timestep)]; else; Point2f(NaN, NaN); end
+    current_robust_defender_pos = @lift if !isempty($robust_defender_plan) && $(plan_timestep) <= length($robust_defender_plan); $robust_defender_plan[$(plan_timestep)]; else; Point2f(NaN, NaN); end
+    
+    current_robust_attacker_pos_other = @lift if !isempty($robust_attacker_plan_other) && $(plan_timestep) <= length($robust_attacker_plan_other); $robust_attacker_plan_other[$(plan_timestep)]; else; Point2f(NaN, NaN); end
+    current_robust_defender_pos_other = @lift if !isempty($robust_defender_plan_other) && $(plan_timestep) <= length($robust_defender_plan_other); $robust_defender_plan_other[$(plan_timestep)]; else; Point2f(NaN, NaN); end
+    
+    scatter!(ax, current_non_robust_attacker_pos, color=attacker_color, markersize=25, marker=:star5, alpha=non_robust_plan_opacity)
+    scatter!(ax, current_non_robust_defender_pos, color=defender_color, markersize=25, marker=:star5, alpha=non_robust_plan_opacity)
+    
+    scatter!(ax, current_robust_attacker_pos, color=attacker_color, markersize=25, marker=:star5, alpha=@lift($robust_plan_opacity * $attacker_belief_opacity))
+    scatter!(ax, current_robust_defender_pos, color=defender_color, markersize=25, marker=:star5, alpha=@lift($robust_plan_opacity * $defender_belief_opacity))
+    
+    scatter!(ax, current_robust_attacker_pos_other, color=attacker_color, markersize=25, marker=:star5, alpha=@lift($robust_plan_opacity * $attacker_belief_opacity))
+    scatter!(ax, current_robust_defender_pos_other, color=defender_color, markersize=25, marker=:star5, alpha=@lift($robust_plan_opacity * $defender_belief_opacity))
+
+
     # --- Current belief positions (as markers) ---
     scatter!(ax, attacker_pos_self, color=attacker_color, markersize=20)
     scatter!(ax, defender_pos_self, color=defender_color, markersize=20)
@@ -441,25 +474,27 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     # scatter!(ax, current_attacker_obs, color=attacker_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Attacker Observation") 
     # scatter!(ax, current_defender_obs, color=defender_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Defender Observation")
     
-    # --- Belief uncertainty ellipses ---
-    attacker_ellipse_self_pts = Observable(Point2f[])
-    attacker_ellipse_other_pts = Observable(Point2f[])
-    defender_ellipse_other_pts = Observable(Point2f[])
-    defender_ellipse_self_pts = Observable(Point2f[])
+    # --- Belief uncertainty ellipses (at planned time) ---
+    non_robust_belief_at_plan_time = @lift if !isempty($non_robust_plan) && !isempty($non_robust_plan[1]) && $(plan_timestep) <= length($non_robust_plan[1]); $non_robust_plan[1][$(plan_timestep)]; else; nothing; end
+    robust_belief_at_plan_time = @lift if !isempty($robust_plan) && !isempty($robust_plan[1]) && $(plan_timestep) <= length($robust_plan[1]); $robust_plan[1][$(plan_timestep)]; else; nothing; end
 
-    poly!(ax, attacker_ellipse_self_pts, color=(attacker_color, 0.2), strokecolor=(attacker_color, 0.2), strokewidth=2)
-    poly!(ax, attacker_ellipse_other_pts, color=(attacker_color, 0.2), strokecolor=(attacker_color, 0.2), strokewidth=2)
-    poly!(ax, defender_ellipse_other_pts, color=(defender_color, 0.2), strokecolor=(defender_color, 0.2), strokewidth=2)
-    poly!(ax, defender_ellipse_self_pts, color=(defender_color, 0.2), strokecolor=(defender_color, 0.2), strokewidth=2)
+    # Non-robust ellipses
+    nr_attacker_self_ellipse = @lift if !isnothing($non_robust_belief_at_plan_time); get_position_uncertainty_ellipse($non_robust_belief_at_plan_time.beliefs[1].belief_mean[1:2], $non_robust_belief_at_plan_time.beliefs[1].belief_covariance); else; Point2f[]; end
+    nr_attacker_other_ellipse = @lift if !isnothing($non_robust_belief_at_plan_time); get_position_uncertainty_ellipse($non_robust_belief_at_plan_time.beliefs[2].belief_mean[1:2], $non_robust_belief_at_plan_time.beliefs[2].belief_covariance); else; Point2f[]; end
+    
+    poly!(ax, nr_attacker_self_ellipse, color=(attacker_color, 0.2), strokecolor=(attacker_color, 0.2), visible=@lift($non_robust_plan_opacity > 0.1))
+    poly!(ax, nr_attacker_other_ellipse, color=(defender_color, 0.2), strokecolor=(defender_color, 0.2), visible=@lift($non_robust_plan_opacity > 0.1))
 
-    on(current_timestep) do val
-        current_belief = belief_history[val]
-        attacker_ellipse_self_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[1].belief_mean[1:2], current_belief.beliefs[1].belief_covariance)
-        attacker_ellipse_other_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[2].belief_mean[1:2], current_belief.beliefs[2].belief_covariance)
-        defender_ellipse_other_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[3].belief_mean[1:2], current_belief.beliefs[3].belief_covariance)
-        defender_ellipse_self_pts[] = get_position_uncertainty_ellipse(current_belief.beliefs[4].belief_mean[1:2], current_belief.beliefs[4].belief_covariance)
-        
-    end
+    # Robust ellipses
+    r_attacker_self_ellipse = @lift if !isnothing($robust_belief_at_plan_time); get_position_uncertainty_ellipse($robust_belief_at_plan_time.beliefs[1].belief_mean[1:2], $robust_belief_at_plan_time.beliefs[1].belief_covariance); else; Point2f[]; end
+    r_attacker_other_ellipse = @lift if !isnothing($robust_belief_at_plan_time); get_position_uncertainty_ellipse($robust_belief_at_plan_time.beliefs[2].belief_mean[1:2], $robust_belief_at_plan_time.beliefs[2].belief_covariance); else; Point2f[]; end
+    r_defender_other_ellipse = @lift if !isnothing($robust_belief_at_plan_time); get_position_uncertainty_ellipse($robust_belief_at_plan_time.beliefs[3].belief_mean[1:2], $robust_belief_at_plan_time.beliefs[3].belief_covariance); else; Point2f[]; end
+    r_defender_self_ellipse = @lift if !isnothing($robust_belief_at_plan_time); get_position_uncertainty_ellipse($robust_belief_at_plan_time.beliefs[4].belief_mean[1:2], $robust_belief_at_plan_time.beliefs[4].belief_covariance); else; Point2f[]; end
+
+    poly!(ax, r_attacker_self_ellipse, color=(attacker_color, 0.2), strokecolor=(attacker_color, 0.2), visible=@lift($robust_plan_opacity > 0.1 && $attacker_belief_opacity > 0.1))
+    poly!(ax, r_attacker_other_ellipse, color=(defender_color, 0.2), strokecolor=(defender_color, 0.2), visible=@lift($robust_plan_opacity > 0.1 && $attacker_belief_opacity > 0.1))
+    poly!(ax, r_defender_other_ellipse, color=(attacker_color, 0.2), strokecolor=(attacker_color, 0.2), visible=@lift($robust_plan_opacity > 0.1 && $defender_belief_opacity > 0.1))
+    poly!(ax, r_defender_self_ellipse, color=(defender_color, 0.2), strokecolor=(defender_color, 0.2), visible=@lift($robust_plan_opacity > 0.1 && $defender_belief_opacity > 0.1))
     
     # --- Controls ---
     time_slider_grid = control_grid[1, 1] = GridLayout(tellwidth=false)
@@ -478,7 +513,22 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     Label(iteration_slider_grid[1, 1], "Iteration:")
     Label(iteration_slider_grid[1, 3], @lift("$(show_solver_iterations[] ? ($num_iterations > 0 ? string(round($current_iteration, digits=2)) : "N/A") : "Final")"))
 
-    belief_focus_grid = control_grid[3, 1] = GridLayout(tellwidth=false)
+    plan_time_slider_grid = control_grid[3, 1] = GridLayout(tellwidth=false)
+    plan_length = @lift begin
+        nrp = $non_robust_plan
+        if !isempty(nrp) && !isempty(nrp[1])
+            length(nrp[1])
+        else
+            1
+        end
+    end
+    
+    plan_time_slider = Slider(plan_time_slider_grid[1, 2], range=@lift(1:$plan_length), startvalue=1)
+    on(plan_time_slider.value) do val; plan_timestep[] = val; end
+    Label(plan_time_slider_grid[1, 1], "Plan Time:")
+    Label(plan_time_slider_grid[1, 3], @lift("$(Int($plan_timestep))"))
+
+    belief_focus_grid = control_grid[4, 1] = GridLayout(tellwidth=false)
     focus_attacker_btn = Button(belief_focus_grid[1, 1], label="Focus Attacker Beliefs")
     focus_defender_btn = Button(belief_focus_grid[1, 2], label="Focus Defender Beliefs")
     show_all_beliefs_btn = Button(belief_focus_grid[1, 3], label="Show All Beliefs")
@@ -487,7 +537,7 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     on(focus_defender_btn.clicks) do n; attacker_belief_opacity[] = 0.1; defender_belief_opacity[] = 1.0; end
     on(show_all_beliefs_btn.clicks) do n; attacker_belief_opacity[] = 1.0; defender_belief_opacity[] = 1.0; end
 
-    toggle_grid = control_grid[1:3, 2] = GridLayout(tellwidth=false)
+    toggle_grid = control_grid[1:4, 2] = GridLayout(tellwidth=false)
 
     gt_toggle = Toggle(toggle_grid[1, 2], active=true)
     Label(toggle_grid[1, 1], "Ground Truth")
@@ -520,6 +570,10 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     arrows_toggle = Toggle(toggle_grid[8, 2], active=true)
     Label(toggle_grid[8, 1], "Show Arrows")
     on(arrows_toggle.active) do active; show_arrows[] = active; end
+
+    lq_sol_toggle = Toggle(toggle_grid[9, 2], active=true)
+    Label(toggle_grid[9, 1], "LQ Solution")
+    on(lq_sol_toggle.active) do active; show_lq_sol[] = active; end
 
     Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
     

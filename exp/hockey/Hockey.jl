@@ -193,7 +193,7 @@ function box_bounds(belief::Belief)
     left = (belief.belief_mean[1] < -3) ? 5 * belief.belief_mean[1]^2 : 0
     # right = max(100 * exp(belief.belief_mean[1] - 8) - 1, 0)
     right = (belief.belief_mean[1] > 3) ? 5 * belief.belief_mean[1]^2 : 0
-    return bottom + top + left + right
+    return 1 * (bottom + top + left + right)
 end
 function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Belief)
 
@@ -226,7 +226,7 @@ function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_de
     # Here, we assume the defender is player 2.
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(2)], us[Block(2)]) # Defender is player 2
-    return -2 * steal_prob + 2 * control_effort + box_bounds(belief_over_defender)
+    return -2 * steal_prob + 16 * control_effort + box_bounds(belief_over_defender)
 end
 function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
     # The attacker's cost is based on their own belief about the world.
@@ -235,7 +235,7 @@ function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_de
     goal_center = (goal_position[1] + goal_position[2]) / 2
     dist_to_goal_sq = dot(belief_over_attacker.belief_mean - goal_center, belief_over_attacker.belief_mean - goal_center)
     control_effort = dot(us[Block(1)], us[Block(1)]) # Attacker is player 1
-    return 1 * steal_prob + 4 * control_effort + 0.1 * dist_to_goal_sq + box_bounds(belief_over_attacker)
+    return 1 * steal_prob + 16 * control_effort + 4 * dist_to_goal_sq + box_bounds(belief_over_attacker)
 end    
 function shot_probability(belief_over_attacker::Belief, belief_over_defender::Belief)
     dist_penalty = 0.1
@@ -285,7 +285,7 @@ function defender_terminal_cost(belief_over_attacker::Belief, belief_over_defend
 end
 function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector)
     steal_prob = dot(belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2], belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2])
-    return steal_prob + 5*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender) - 2 * dot(us[Block(2)], us[Block(2)])
+    return steal_prob + 10*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender) - 2 * dot(us[Block(2)], us[Block(2)])
 end
 function nature_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
     return -defender_terminal_cost(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
@@ -379,13 +379,14 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
-        @load "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history cond_history
+        @load "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history cond_history lq_sol
         visualize_receding_horizon_solution(
             gt_state_history, 
             all_observations, 
             goal_position,
             solution_history,
-            cond_history;
+            cond_history,
+            lq_sol;
             dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
         )
         return
@@ -417,6 +418,17 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
             (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us),
             (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
         )
+    
+    # --- Solve LQ Game ---
+    lq_horizon = 10
+    lq_initial_states = [
+        [gt_initial_state[Block(1)]..., 0.0, 0.0],
+        [gt_initial_state[Block(2)]..., 0.0, 0.0]
+    ]
+    lq_game = hockey_game(; horizon = lq_horizon, goal_position = goal_position)
+    mcp_game = MCPGame(lq_game, lq_horizon, vcat(lq_initial_states...); debug=false)
+    lq_sol = solve(mcp_game; debug=false, warm_start=false)
+
     environment = BeliefEnvironment(f, gt_initial_state, h)
 
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
@@ -470,26 +482,27 @@ function receding_horizon_main(file_id::String=""; horizon=5, override=false, ra
         push!(all_observations, observations)
     end
 
-    @save "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history cond_history
+    @save "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history cond_history lq_sol
     
-    println("\nCovariance matrices over time:")
-    let nominal_beliefs = solution_history[1][1][1]
-        for (t, beliefs) in enumerate(nominal_beliefs)
-            println("\nTime step $t:")
-            for (ii, belief) in enumerate(beliefs)
-                println("Player $ii covariance:")
-                display(belief.belief_covariance)
-                println("Norm: ", norm(belief.belief_covariance))
-            end
-        end
-    end
+    # println("\nCovariance matrices over time:")
+    # let nominal_beliefs = solution_history[1][1][1]
+    #     for (t, beliefs) in enumerate(nominal_beliefs)
+    #         println("\nTime step $t:")
+    #         for (ii, belief) in enumerate(beliefs)
+    #             println("Player $ii covariance:")
+    #             display(belief.belief_covariance)
+    #             println("Norm: ", norm(belief.belief_covariance))
+    #         end
+    #     end
+    # end
 
     visualize_receding_horizon_solution(
         gt_state_history, 
         all_observations,
         goal_position,
         solution_history,
-        cond_history;
+        cond_history,
+        lq_sol;
         dims=dims
     )
 end
