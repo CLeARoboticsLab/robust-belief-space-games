@@ -205,31 +205,31 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     control_grid = fig[2, 1] = GridLayout(tellheight=false)
     
     # --- Condition Number Plot ---
-    ax_cond = Axis(fig[3, 1],
-        title="Condition Number",
-        xlabel="Time",
-        ylabel="Condition Number",
-    )
+    # ax_cond = Axis(fig[3, 1],
+    #     title="Condition Number",
+    #     xlabel="Time",
+    #     ylabel="Condition Number",
+    # )
     
     # Filter out non-numeric values and create valid plotting data
-    valid_cond_data = []
-    valid_time_indices = []
+    # valid_cond_data = []
+    # valid_time_indices = []
     
-    for (i, cond_val) in enumerate(cond_history)
-        if cond_val isa Number && isfinite(cond_val)
-            push!(valid_cond_data, cond_val)
-            push!(valid_time_indices, i)
-        end
-    end
+    # for (i, cond_val) in enumerate(cond_history)
+    #     if cond_val isa Number && isfinite(cond_val)
+    #         push!(valid_cond_data, cond_val)
+    #         push!(valid_time_indices, i)
+    #     end
+    # end
     
-    # Only plot if we have valid data
-    if !isempty(valid_cond_data)
-        lines!(ax_cond, valid_time_indices, valid_cond_data, color=:purple, linewidth=2)
-    else
-        # Display a message if no valid condition numbers
-        text!(ax_cond, 0.5, 0.5, text="No valid condition numbers to plot", 
-              align=(:center, :center), color=:gray)
-    end
+    # # Only plot if we have valid data
+    # if !isempty(valid_cond_data)
+    #     lines!(ax_cond, valid_time_indices, valid_cond_data, color=:purple, linewidth=2)
+    # else
+    #     # Display a message if no valid condition numbers
+    #     text!(ax_cond, 0.5, 0.5, text="No valid condition numbers to plot", 
+    #           align=(:center, :center), color=:gray)
+    # end
     
     current_timestep = Observable(1)
     horizon = length(gt_state_history) - 1
