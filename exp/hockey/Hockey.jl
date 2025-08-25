@@ -197,8 +197,8 @@ function box_bounds(belief::Belief)
 end
 function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Belief)
 
-    attacker_pos = belief_over_attacker.belief_mean
-    defender_pos = belief_over_defender.belief_mean
+    attacker_pos = length(belief_over_attacker.belief_mean) == 4 ? belief_over_attacker.belief_mean[1:2] : belief_over_attacker.belief_mean
+    defender_pos = length(belief_over_defender.belief_mean) == 4 ? belief_over_defender.belief_mean[1:2] : belief_over_defender.belief_mean
 
     sq_dist = dot(attacker_pos - defender_pos, attacker_pos - defender_pos)
 
@@ -226,7 +226,7 @@ function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_de
     # Here, we assume the defender is player 2.
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(2)], us[Block(2)]) # Defender is player 2
-    return -2 * steal_prob + 16 * control_effort + box_bounds(belief_over_defender)
+    return 2 * steal_prob + 16 * control_effort + box_bounds(belief_over_defender)
 end
 function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
     # The attacker's cost is based on their own belief about the world.
@@ -235,45 +235,13 @@ function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_de
     goal_center = (goal_position[1] + goal_position[2]) / 2
     dist_to_goal_sq = dot(belief_over_attacker.belief_mean - goal_center, belief_over_attacker.belief_mean - goal_center)
     control_effort = dot(us[Block(1)], us[Block(1)]) # Attacker is player 1
-    return 1 * steal_prob + 16 * control_effort + 4 * dist_to_goal_sq + box_bounds(belief_over_attacker)
+    return -2 * steal_prob + 16 * control_effort + 4 * dist_to_goal_sq + box_bounds(belief_over_attacker)
 end    
 function shot_probability(belief_over_attacker::Belief, belief_over_defender::Belief)
-    dist_penalty = 0.1
-    block_max = 3
-    block_falloff = 0.8
-    attacker_uncertainty_penalty = 0.3  
-    defender_uncertainty_penalty = 0.5 
-    goal_center = (goal_position[1] + goal_position[2]) / 2
-
-    attacker_pos = belief_over_attacker.belief_mean # Player 1 is Attacker
-    defender_pos = belief_over_defender.belief_mean # Player 2 is Defender
-    attacker_pos_uncertainty = tr(belief_over_attacker.belief_covariance)
-    defender_pos_uncertainty = tr(belief_over_defender.belief_covariance)
-
-    # Term 1: Base score, penalized by distance to goal and attacker's own uncertainty.
-    dist_sq_to_goal = dot(attacker_pos - goal_center, attacker_pos - goal_center)
-    distance_penalty = dist_penalty * atan(dist_sq_to_goal)
-    # attacker_uncertainty_penalty_term = attacker_uncertainty_penalty * attacker_pos_uncertainty
-
-    # # Term 2: Defender blocking penalty, hindered by defender's own uncertainty.
-    # v_attacker_to_goal = goal_center - attacker_pos
-    # v_attacker_to_defender = defender_pos - attacker_pos
-    # dist_sq_to_defender = dot(v_attacker_to_defender, v_attacker_to_defender)
-
-    # cos_block_angle =
-    #     dot(v_attacker_to_goal, v_attacker_to_defender) /
-    #     (norm(v_attacker_to_goal) * norm(v_attacker_to_defender) + 1e-9)
-
-    # # Defender's blocking power is reduced by their positional uncertainty
-    # block_effectiveness = (block_max * atan(-0.1 * block_falloff * dist_sq_to_defender)) /
-    #                     (1 + defender_uncertainty_penalty * defender_pos_uncertainty)
-
-    # defender_block_penalty = block_effectiveness * log(1 + exp(cos_block_angle))
-
-    # # Final score calculation
-    # final_score = 1.0 - distance_penalty - attacker_uncertainty_penalty_term - defender_block_penalty
-    # return final_score
-    return 10.0 - 10 * distance_penalty
+    attacker_pos = length(belief_over_attacker.belief_mean) == 4 ? belief_over_attacker.belief_mean[1:2] : belief_over_attacker.belief_mean
+    defender_pos = length(belief_over_defender.belief_mean) == 4 ? belief_over_defender.belief_mean[1:2] : belief_over_defender.belief_mean
+    
+    return shot_probability(attacker_pos, defender_pos, goal_position[1], goal_position[2])
 end
 function attacker_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
 
