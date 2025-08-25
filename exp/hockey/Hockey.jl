@@ -219,23 +219,23 @@ function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Bel
     # total_pos_uncertainty = attacker_pos_uncertainty + defender_pos_uncertainty
     
     # return 5.0 * geometric_bonus - 0.5 * total_pos_uncertainty
-    return 5.0 * sq_dist
+    return max(0, 10 - sq_dist)
 end
 function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
     # The defender's cost is based on their own belief about the world.
     # Here, we assume the defender is player 2.
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
+    shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(2)], us[Block(2)]) # Defender is player 2
-    return 2 * steal_prob + 16 * control_effort + box_bounds(belief_over_defender)
+    return -2 * steal_prob + 2 * shot_prob + 2 * control_effort + box_bounds(belief_over_defender)
 end
 function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
     # The attacker's cost is based on their own belief about the world.
     # Here, we assume the attacker is player 1.
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
-    goal_center = (goal_position[1] + goal_position[2]) / 2
-    dist_to_goal_sq = dot(belief_over_attacker.belief_mean - goal_center, belief_over_attacker.belief_mean - goal_center)
+    shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(1)], us[Block(1)]) # Attacker is player 1
-    return -2 * steal_prob + 16 * control_effort + 4 * dist_to_goal_sq + box_bounds(belief_over_attacker)
+    return 2 * steal_prob + -2 * shot_prob + 2 * control_effort + box_bounds(belief_over_attacker)
 end    
 function shot_probability(belief_over_attacker::Belief, belief_over_defender::Belief)
     attacker_pos = length(belief_over_attacker.belief_mean) == 4 ? belief_over_attacker.belief_mean[1:2] : belief_over_attacker.belief_mean
@@ -245,15 +245,15 @@ function shot_probability(belief_over_attacker::Belief, belief_over_defender::Be
 end
 function attacker_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
 
-    return -10 * shot_probability(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_attacker)
+    return -4 * shot_probability(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_attacker)
 end
 function defender_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
 
-    return 10 * shot_probability(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_defender)
+    return 4 * shot_probability(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_defender)
 end
 function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector)
     steal_prob = dot(belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2], belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2])
-    return steal_prob + 10*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender) - 2 * dot(us[Block(2)], us[Block(2)])
+    return steal_prob + 10*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
 end
 function nature_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
     return -defender_terminal_cost(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
@@ -343,7 +343,7 @@ function safe_eigen(A)
     # end
 end
 
-function receding_horizon_main(file_id::String=""; horizon=5, override=false, random_seed=1)
+function receding_horizon_main(file_id::String=""; horizon=2, override=false, random_seed=1)
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
