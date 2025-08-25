@@ -245,18 +245,18 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
 
     # Opacities & Visibilities
     plan_opacity = 1.0
-    gt_opacity = Observable(1.0)
-    belief_opacity = Observable(1.0)
+    gt_opacity = Observable(0.0)
+    belief_opacity = Observable(0.0)
     non_robust_plan_opacity = Observable(plan_opacity)
     robust_plan_opacity = Observable(plan_opacity)
-    observation_opacity = Observable(1.0)
-    nature_opacity = Observable(1.0)
-    show_arrows = Observable(true)
+    observation_opacity = Observable(0.0)
+    nature_opacity = Observable(0.0)
+    show_arrows = Observable(false)
 
     attacker_belief_opacity = Observable(1.0)
     defender_belief_opacity = Observable(0.1)
     plan_timestep = Observable(1)
-    show_lq_sol = Observable(true)
+    show_lq_sol = Observable(false)
 
     # --- Solver Iteration Controls ---
     show_solver_iterations = Observable(false)
@@ -539,11 +539,11 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
 
     toggle_grid = control_grid[1:4, 2] = GridLayout(tellwidth=false)
 
-    gt_toggle = Toggle(toggle_grid[1, 2], active=true)
+    gt_toggle = Toggle(toggle_grid[1, 2], active=false)
     Label(toggle_grid[1, 1], "Ground Truth")
     on(gt_toggle.active) do active; gt_opacity[] = active ? 1.0 : 0.0; end
 
-    belief_toggle = Toggle(toggle_grid[2, 2], active=true)
+    belief_toggle = Toggle(toggle_grid[2, 2], active=false)
     Label(toggle_grid[2, 1], "Belief Traj")
     on(belief_toggle.active) do active; belief_opacity[] = active ? 1.0 : 0.0; end
 
@@ -559,19 +559,19 @@ function visualize_receding_horizon_solution(gt_state_history, observations, goa
     Label(toggle_grid[5, 1], "Show Iters")
     on(solver_iter_toggle.active) do active; show_solver_iterations[] = active; end
 
-    obs_toggle = Toggle(toggle_grid[6, 2], active=true)
+    obs_toggle = Toggle(toggle_grid[6, 2], active=false)
     Label(toggle_grid[6, 1], "Observations")
     on(obs_toggle.active) do active; observation_opacity[] = active ? 1.0 : 0.0; end
 
-    nature_toggle = Toggle(toggle_grid[7, 2], active=true)
+    nature_toggle = Toggle(toggle_grid[7, 2], active=false)
     Label(toggle_grid[7, 1], "Nature")
     on(nature_toggle.active) do active; nature_opacity[] = active ? 1.0 : 0.0; end
 
-    arrows_toggle = Toggle(toggle_grid[8, 2], active=true)
+    arrows_toggle = Toggle(toggle_grid[8, 2], active=false)
     Label(toggle_grid[8, 1], "Show Arrows")
     on(arrows_toggle.active) do active; show_arrows[] = active; end
 
-    lq_sol_toggle = Toggle(toggle_grid[9, 2], active=true)
+    lq_sol_toggle = Toggle(toggle_grid[9, 2], active=false)
     Label(toggle_grid[9, 1], "LQ Solution")
     on(lq_sol_toggle.active) do active; show_lq_sol[] = active; end
 
