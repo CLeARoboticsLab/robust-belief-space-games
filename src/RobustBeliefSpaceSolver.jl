@@ -336,7 +336,7 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
             end
         end
         
-        # return mean(∇ᵤL)
+        # return norm(∇ᵤL)
         return mean(norm.(candidate_stationarity_errors))
     end
     
