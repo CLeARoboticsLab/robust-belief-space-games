@@ -221,13 +221,11 @@ function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Bel
     # return 5.0 * geometric_bonus - 0.5 * total_pos_uncertainty
     return max(0, 10 - sq_dist)
 end
-function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
-    # The defender's cost is based on their own belief about the world.
-    # Here, we assume the defender is player 2.
-    steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
-    shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
-    control_effort = dot(us[Block(2)], us[Block(2)]) # Defender is player 2
-    return -2 * steal_prob + 2 * shot_prob + 2 * control_effort + box_bounds(belief_over_defender)
+function shot_probability(belief_over_attacker::Belief, belief_over_defender::Belief)
+    attacker_pos = length(belief_over_attacker.belief_mean) == 4 ? belief_over_attacker.belief_mean[1:2] : belief_over_attacker.belief_mean
+    defender_pos = length(belief_over_defender.belief_mean) == 4 ? belief_over_defender.belief_mean[1:2] : belief_over_defender.belief_mean
+    
+    return shot_probability(attacker_pos, defender_pos, goal_position[1], goal_position[2])
 end
 function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
     # The attacker's cost is based on their own belief about the world.
@@ -237,11 +235,17 @@ function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_de
     control_effort = dot(us[Block(1)], us[Block(1)]) # Attacker is player 1
     return 2 * steal_prob + -2 * shot_prob + 2 * control_effort + box_bounds(belief_over_attacker)
 end    
-function shot_probability(belief_over_attacker::Belief, belief_over_defender::Belief)
-    attacker_pos = length(belief_over_attacker.belief_mean) == 4 ? belief_over_attacker.belief_mean[1:2] : belief_over_attacker.belief_mean
-    defender_pos = length(belief_over_defender.belief_mean) == 4 ? belief_over_defender.belief_mean[1:2] : belief_over_defender.belief_mean
-    
-    return shot_probability(attacker_pos, defender_pos, goal_position[1], goal_position[2])
+function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us)
+    # The defender's cost is based on their own belief about the world.
+    # Here, we assume the defender is player 2.
+    steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
+    shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
+    control_effort = dot(us[Block(2)], us[Block(2)]) # Defender is player 2
+    return -2 * steal_prob + 2 * shot_prob + 2 * control_effort + box_bounds(belief_over_defender)
+end
+function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector)
+    steal_prob = dot(belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2], belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2])
+    return steal_prob + 10*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
 end
 function attacker_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
 
@@ -250,10 +254,6 @@ end
 function defender_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
 
     return 4 * shot_probability(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_defender)
-end
-function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector)
-    steal_prob = dot(belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2], belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2])
-    return steal_prob + 10*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
 end
 function nature_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
     return -defender_terminal_cost(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
