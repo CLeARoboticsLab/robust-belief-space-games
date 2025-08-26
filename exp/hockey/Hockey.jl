@@ -244,8 +244,8 @@ function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_de
     return -2 * steal_prob + 2 * shot_prob + 2 * control_effort + box_bounds(belief_over_defender)
 end
 function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector)
-    steal_prob = dot(belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2], belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2])
-    return steal_prob + 10*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
+    # steal_prob = dot(belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2], belief_over_attacker.belief_mean[1:2] - belief_over_defender.belief_mean[1:2])
+    return -defender_non_terminal_cost(belief_over_attacker, belief_over_defender, us) + 5*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
 end
 function attacker_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
 
