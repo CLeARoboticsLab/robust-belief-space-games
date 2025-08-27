@@ -113,22 +113,19 @@ function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dy
     return Beliefs([Belief(@view(mean_update[Block(ii)]), @view(temp[Block(ii), Block(ii)])) for ii in 1:length(beliefs.beliefs)])
 end
 
-function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dynamics::Function, sensor_models::Vector, observations::BlockVector)
-    # Note: This is a simplified EKF and assumes sensor models are decoupled per player belief set.
-    
-    num_players = length(sensor_models)
+function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, environments::Vector{BeliefEnvironment}, observations::BlockVector)
+    num_players = length(environments)
     if length(beliefs.beliefs) % num_players != 0
         error("Number of beliefs must be a multiple of the number of players.")
     end
     beliefs_per_player = length(beliefs.beliefs) ÷ num_players
-
     new_beliefs = Vector{Belief}(undef, length(beliefs.beliefs))
 
     for p in 1:num_players
         player_belief_indices = (p-1)*beliefs_per_player+1:p*beliefs_per_player
         player_beliefs = Beliefs(beliefs.beliefs[player_belief_indices])
         player_observations = BlockVector(observations.blocks[p], dims(player_beliefs))
-        updated_player_beliefs = ekf_update_with_observations(player_beliefs, control, dynamics, sensor_models[p], player_observations)
+        updated_player_beliefs = ekf_update_with_observations(player_beliefs, control, environments[p].dynamics, environments[p].sensor_models, player_observations)
         new_beliefs[player_belief_indices] .= updated_player_beliefs.beliefs
     end
     
