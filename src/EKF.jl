@@ -87,14 +87,18 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
 end
 
 function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dynamics::Function, sensor_model::Function, observations::BlockVector)
-    fdm = FiniteDifferences.central_fdm(5, 1)
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
     stacked_controls = mortar([control.blocks..., control.blocks...])
     expected_dynamics = dynamics(means(beliefs), stacked_controls, zero_noise)
-    A=only(FiniteDifferences.jacobian(fdm, (x)-> Vector(dynamics(x, stacked_controls, zero_noise)), means(beliefs)))
-    M=only(FiniteDifferences.jacobian(fdm, (x)-> Vector(dynamics(means(beliefs), stacked_controls, x)), zero_noise))
-    H=only(FiniteDifferences.jacobian(fdm, (x)-> Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), stacked_controls, zero_noise), zero_noise)), vcat(means(beliefs)...)))
-    N=only(FiniteDifferences.jacobian(fdm, (x)-> Vector(sensor_model(expected_dynamics, x)), zero_noise))
+    A_fn(x) = Vector(dynamics(x, stacked_controls, zero_noise))
+    M_fn(x) = Vector(dynamics(means(beliefs), stacked_controls, x))
+    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), stacked_controls, zero_noise), zero_noise))
+    N_fn(x) = Vector(sensor_model(expected_dynamics, x))
+    
+    A = ForwardDiff.jacobian(A_fn, means(beliefs))
+    M = ForwardDiff.jacobian(M_fn, zero_noise)
+    H = ForwardDiff.jacobian(H_fn, vcat(means(beliefs)...))
+    N = ForwardDiff.jacobian(N_fn, zero_noise)
 
     Σ = BlockDiagonal([b.belief_covariance for b in beliefs.beliefs])
     Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
@@ -107,4 +111,26 @@ function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dy
     temp = BlockArray(Symmetric(dual_round.(Γ - K * H * Γ, digits=5)), dims(beliefs), dims(beliefs))
     mean_update = expected_dynamics + K * (observations - sensor_model(expected_dynamics, zero_noise))
     return Beliefs([Belief(@view(mean_update[Block(ii)]), @view(temp[Block(ii), Block(ii)])) for ii in 1:length(beliefs.beliefs)])
+end
+
+function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dynamics::Function, sensor_models::Vector, observations::BlockVector)
+    # Note: This is a simplified EKF and assumes sensor models are decoupled per player belief set.
+    
+    num_players = length(sensor_models)
+    if length(beliefs.beliefs) % num_players != 0
+        error("Number of beliefs must be a multiple of the number of players.")
+    end
+    beliefs_per_player = length(beliefs.beliefs) ÷ num_players
+
+    new_beliefs = Vector{Belief}(undef, length(beliefs.beliefs))
+
+    for p in 1:num_players
+        player_belief_indices = (p-1)*beliefs_per_player+1:p*beliefs_per_player
+        player_beliefs = Beliefs(beliefs.beliefs[player_belief_indices])
+        player_observations = BlockVector(observations.blocks[p], dims(player_beliefs))
+        updated_player_beliefs = ekf_update_with_observations(player_beliefs, control, dynamics, sensor_models[p], player_observations)
+        new_beliefs[player_belief_indices] .= updated_player_beliefs.beliefs
+    end
+    
+    return Beliefs(new_beliefs)
 end

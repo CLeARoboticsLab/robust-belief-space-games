@@ -174,11 +174,19 @@ function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
 end
 
     # Sensor Models
-function h(xs::BlockVector, ns::BlockVector)
+function h₁(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
             [1 0; 0 1] * xᵢ + 0.5 *I * nᵢ
-            # [1 0; 0 1] * xᵢ + 0.01 * norm(xᵢ[1:2]) * [0.1 0; 0 0.1] * nᵢ
+        end,
+        length.(xs.blocks)
+    )
+end
+
+function h₂(xs::BlockVector, ns::BlockVector)
+    BlockVector(
+        mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
+            [1 0; 0 1] * xᵢ + 0.5 *I * nᵢ
         end,
         length.(xs.blocks)
     )
@@ -343,18 +351,14 @@ function safe_eigen(A)
     # end
 end
 
-function receding_horizon_main(file_id::String=""; horizon=2, override=false, random_seed=1)
+function receding_horizon_main(file_id::String=""; horizon=7, planning_horizon=5, override=false, random_seed=1)
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
-        @load "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history cond_history lq_sol
+        @load "exp/hockey/outputs/rh_$file_id.jld2" solutions goal_position
         visualize_receding_horizon_solution(
-            gt_state_history, 
-            all_observations, 
-            goal_position,
-            solution_history,
-            cond_history,
-            lq_sol;
+            solutions, 
+            goal_position;
             dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
         )
         return
@@ -387,53 +391,86 @@ function receding_horizon_main(file_id::String=""; horizon=2, override=false, ra
             (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
         )
     
-    # --- Solve LQ Game ---
-    lq_horizon = 10
-    lq_initial_states = [
-        [gt_initial_state[Block(1)]..., 0.0, 0.0],
-        [gt_initial_state[Block(2)]..., 0.0, 0.0]
-    ]
-    lq_game = hockey_game(; horizon = lq_horizon, goal_position = goal_position)
-    mcp_game = MCPGame(lq_game, lq_horizon, vcat(lq_initial_states...); debug=false)
-    lq_sol = solve(mcp_game; debug=false, warm_start=false)
-
-    environment = BeliefEnvironment(f, gt_initial_state, h)
-
+    # --- Shared Parameters ---
+    dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
     robust = [false, true]
-    dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
+    
+    # --- Run Scenarios ---
+    solutions = Dict()
 
+    println("--- Running Nominal Scenario ---")
+    solutions["nominal"] = run_receding_horizon_scenario(
+        gt_initial_state, initial_beliefs, costs, robust, dims,
+        horizon, planning_horizon, random_seed,
+        (f, gt_initial_state, h₁), # environment
+        (current_beliefs, u, dynamics, sensor_models, observations) -> ekf_update_with_observations(current_beliefs, u, dynamics, sensor_models, observations) # ekf_update
+    )
+
+    println("\n--- Running Mismatched Sensor Scenario ---")
+    solutions["mismatched_sensor"] = run_receding_horizon_scenario(
+        gt_initial_state, initial_beliefs, costs, robust, dims,
+        horizon, planning_horizon, random_seed,
+        (f, gt_initial_state, h₁), # environment
+        (current_beliefs, u, dynamics, sensor_models, observations) -> ekf_update_with_observations(current_beliefs, u, dynamics, [h₂, h₂], observations) # ekf_update with h₂
+    )
+
+    @save "exp/hockey/outputs/rh_$file_id.jld2" solutions goal_position
+    
+    visualize_receding_horizon_solution(
+        solutions,
+        goal_position;
+        dims=dims
+    )
+end
+
+function run_receding_horizon_scenario(
+    gt_initial_state, initial_beliefs, costs, robust, dims,
+    horizon, planning_horizon, random_seed,
+    environment_params, ekf_update_fn
+)
+    f, _, h = environment_params
+    environment = BeliefEnvironment(f, gt_initial_state, h)
+
+    # --- Solve LQ Game ---
+    lq_sol_history = []
+    
     current_beliefs = initial_beliefs
     current_gt_state = gt_initial_state
     all_observations = []
     gt_state_history = [current_gt_state]
-    planned_trajectories = []
     solution_history = []
     cond_history = []
     warm_starts = Vector{Any}([nothing, nothing])
 
     Random.seed!(random_seed)
-    normal_distribution = MvNormal(zeros(sum(dims.states)), 0.3*I(sum(dims.states)))
+    normal_distribution = MvNormal(zeros(sum(dims.states)), 0.01*I(sum(dims.states)))
     draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
-    # draw_from_normal = () -> BlockVector(zeros(sum(dims.states)), dims.states)
 
-    αs = [1.0, 1.0]
-    
-    for t in 1:horizon-1
-        println("--- Receding Horizon Step $t / $horizon ---")
+    for t in 1:horizon-planning_horizon
+        println("Receding Horizon Step $t / $(horizon-planning_horizon)")
         
-        # NAture has too much power?
+        lq_horizon = 10
+        lq_initial_states = [
+            [current_gt_state[Block(1)]..., 0.0, 0.0],
+            [current_gt_state[Block(2)]..., 0.0, 0.0]
+        ]
+        lq_game = hockey_game(; horizon = lq_horizon, goal_position = goal_position)
+        mcp_game = MCPGame(lq_game, lq_horizon, vcat(lq_initial_states...); debug=false)
+        lq_sol = solve(mcp_game; debug=false, warm_start=false)
+        push!(lq_sol_history, lq_sol)
+
         sols = Vector{Any}(undef, dims.n)
         for ii in 1:dims.n
             game = BeliefGame(
                 environment,
                 costs[ii],
                 current_beliefs,
-                10,
+                planning_horizon,
                 dims,
                 current_gt_state,
                 robust[ii])
-            nominal_beliefs, nominal_controls, intermediate_solutions, _, _, cond = solve(game; debug=true, warm_start=warm_starts[ii])
+            nominal_beliefs, nominal_controls, intermediate_solutions, _, _, cond = solve(game; debug=true)
             warm_starts[ii] = (nominal_beliefs, nominal_controls)
             sols[ii] = (nominal_beliefs, nominal_controls, intermediate_solutions)
             push!(cond_history, cond)
@@ -441,36 +478,12 @@ function receding_horizon_main(file_id::String=""; horizon=2, override=false, ra
         push!(solution_history, sols)
         u = mortar([sols[ii][2][1][Block(ii)] for ii in 1:dims.n])
         current_gt_state = f(current_gt_state, u, draw_from_normal())
-
         
-        # TODO different sensor models per player
         observations = mortar([h(current_gt_state, draw_from_normal()) for ii in 1:dims.n])
-        current_beliefs = ekf_update_with_observations(current_beliefs, u, environment.dynamics, environment.sensor_models, observations)
+        current_beliefs = ekf_update_fn(current_beliefs, u, environment.dynamics, environment.sensor_models, observations)
         push!(gt_state_history, current_gt_state)
         push!(all_observations, observations)
     end
 
-    @save "exp/hockey/outputs/rh_$file_id.jld2" gt_state_history all_observations goal_position solution_history cond_history lq_sol
-    
-    # println("\nCovariance matrices over time:")
-    # let nominal_beliefs = solution_history[1][1][1]
-    #     for (t, beliefs) in enumerate(nominal_beliefs)
-    #         println("\nTime step $t:")
-    #         for (ii, belief) in enumerate(beliefs)
-    #             println("Player $ii covariance:")
-    #             display(belief.belief_covariance)
-    #             println("Norm: ", norm(belief.belief_covariance))
-    #         end
-    #     end
-    # end
-
-    visualize_receding_horizon_solution(
-        gt_state_history, 
-        all_observations,
-        goal_position,
-        solution_history,
-        cond_history,
-        lq_sol;
-        dims=dims
-    )
+    return (gt_state_history, all_observations, solution_history, cond_history, lq_sol_history)
 end
