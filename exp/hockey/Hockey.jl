@@ -186,7 +186,7 @@ end
 function h₂(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0; 0 1] * xᵢ + 0.5 *I * nᵢ
+            [1 0; 0 1] * xᵢ + 0.1 *I * nᵢ
         end,
         length.(xs.blocks)
     )
@@ -351,7 +351,7 @@ function safe_eigen(A)
     # end
 end
 
-function receding_horizon_main(file_id::String=""; horizon=7, planning_horizon=5, override=false, random_seed=1)
+function receding_horizon_main(file_id::String=""; horizon=15, planning_horizon=5, override=false, random_seed=1)
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
@@ -390,10 +390,23 @@ function receding_horizon_main(file_id::String=""; horizon=7, planning_horizon=5
             (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us),
             (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
         )
+    dummy_attacker_costs = BeliefCost(
+        (bs, us) -> norm(us[Block(1)]),
+        (bs) -> norm(bs.beliefs[1].belief_mean[1:2]),
+    )
+    dummy_defender_costs = BeliefCost(
+        (bs, us) -> norm(us[Block(2)]),
+        (bs) -> norm(bs.beliefs[2].belief_mean[1:2]),
+    )
+    dummy_nature_costs = BeliefCost(
+        (bs, us) -> norm(us[Block(3)]),
+        (bs) -> norm(bs.beliefs[3].belief_mean[1:2]),
+    )
     
     # --- Shared Parameters ---
     dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
+    dummy_costs = [[dummy_attacker_costs, dummy_defender_costs], [dummy_attacker_costs, dummy_defender_costs, dummy_nature_costs]]
     robust = [false, true]
     
     # --- Run Scenarios ---
@@ -407,9 +420,9 @@ function receding_horizon_main(file_id::String=""; horizon=7, planning_horizon=5
         (current_beliefs, u, dynamics, sensor_models, observations) -> ekf_update_with_observations(current_beliefs, u, dynamics, sensor_models, observations) # ekf_update
     )
 
-    println("\n--- Running Mismatched Sensor Scenario ---")
-    solutions["mismatched_sensor"] = run_receding_horizon_scenario(
-        gt_initial_state, initial_beliefs, costs, robust, dims,
+    println("\n--- Running Dummy Scenario ---")
+    solutions["dummy"] = run_receding_horizon_scenario(
+        gt_initial_state, initial_beliefs, dummy_costs, robust, dims,
         horizon, planning_horizon, random_seed,
         (f, gt_initial_state, h₁), # environment
         (current_beliefs, u, dynamics, sensor_models, observations) -> ekf_update_with_observations(current_beliefs, u, dynamics, [h₂, h₂], observations) # ekf_update with h₂
