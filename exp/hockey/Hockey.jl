@@ -154,30 +154,36 @@ function main()
 end
 
 dt = 0.3
-dt = 0.3
 n=2
 goal_position = [
     [0.25, -1.5],
     [-0.25, -1.5],
 ]
+goal_center = (goal_position[1] + goal_position[2]) / 2
 # Environment
     # Dynamics
+function M(u)
+    return 0.1 * I
+end
 function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
     BlockVector(
             mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
             [1 0; 0 1] * xᵢ +
             [1 0; 0 1] * uᵢ +
-            0.5 * I * mᵢ
+            M(uᵢ) * mᵢ
         end,
         length.(xs.blocks)
     )
 end
-
     # Sensor Models
+function N(x)
+    dist = dot(x - goal_center, x - goal_center)
+    return 0.01 * I * dist
+end
 function h₁(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0; 0 1] * xᵢ + 0.5 *I * nᵢ
+            [1 0; 0 1] * xᵢ + N(xᵢ) * nᵢ
         end,
         length.(xs.blocks)
     )
@@ -186,7 +192,7 @@ end
 function h₂(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0; 0 1] * xᵢ + 0.1 *I * nᵢ
+            [1 0; 0 1] * xᵢ + 0.1 * I * nᵢ
         end,
         length.(xs.blocks)
     )
@@ -390,23 +396,10 @@ function receding_horizon_main(file_id::String=""; horizon=15, planning_horizon=
             (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us),
             (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
         )
-    dummy_attacker_costs = BeliefCost(
-        (bs, us) -> norm(us[Block(1)]),
-        (bs) -> norm(bs.beliefs[1].belief_mean[1:2]),
-    )
-    dummy_defender_costs = BeliefCost(
-        (bs, us) -> norm(us[Block(2)]),
-        (bs) -> norm(bs.beliefs[2].belief_mean[1:2]),
-    )
-    dummy_nature_costs = BeliefCost(
-        (bs, us) -> norm(us[Block(3)]),
-        (bs) -> norm(bs.beliefs[3].belief_mean[1:2]),
-    )
     
     # --- Shared Parameters ---
     dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
-    dummy_costs = [[dummy_attacker_costs, dummy_defender_costs], [dummy_attacker_costs, dummy_defender_costs, dummy_nature_costs]]
     robust = [false, true]
     
     # --- Run Scenarios ---
@@ -416,16 +409,16 @@ function receding_horizon_main(file_id::String=""; horizon=15, planning_horizon=
     solutions["nominal"] = run_receding_horizon_scenario(
         gt_initial_state, initial_beliefs, costs, robust, dims,
         horizon, planning_horizon, random_seed,
-        (f, gt_initial_state, h₁), # environment
-        (current_beliefs, u, dynamics, sensor_models, observations) -> ekf_update_with_observations(current_beliefs, u, dynamics, sensor_models, observations) # ekf_update
+        (f, gt_initial_state, [h₁, h₁]), # environment
+        (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations) # ekf_update
     )
 
-    println("\n--- Running Dummy Scenario ---")
-    solutions["dummy"] = run_receding_horizon_scenario(
-        gt_initial_state, initial_beliefs, dummy_costs, robust, dims,
+    println("\n--- Running Mismatched Sensor Scenario ---")
+    solutions["mismatched_sensor"] = run_receding_horizon_scenario(
+        gt_initial_state, initial_beliefs, costs, robust, dims,
         horizon, planning_horizon, random_seed,
-        (f, gt_initial_state, h₁), # environment
-        (current_beliefs, u, dynamics, sensor_models, observations) -> ekf_update_with_observations(current_beliefs, u, dynamics, [h₂, h₂], observations) # ekf_update with h₂
+        (f, gt_initial_state, [h₂, h₁]), # environment
+        (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations) # ekf_update with h₂
     )
 
     @save "exp/hockey/outputs/rh_$file_id.jld2" solutions goal_position
@@ -443,7 +436,7 @@ function run_receding_horizon_scenario(
     environment_params, ekf_update_fn
 )
     f, _, h = environment_params
-    environment = BeliefEnvironment(f, gt_initial_state, h)
+    environments::Vector{BeliefEnvironment} = [BeliefEnvironment(f, gt_initial_state, h) for h in h]
 
     # --- Solve LQ Game ---
     lq_sol_history = []
@@ -476,7 +469,7 @@ function run_receding_horizon_scenario(
         sols = Vector{Any}(undef, dims.n)
         for ii in 1:dims.n
             game = BeliefGame(
-                environment,
+                environments[ii],
                 costs[ii],
                 current_beliefs,
                 planning_horizon,
@@ -492,8 +485,8 @@ function run_receding_horizon_scenario(
         u = mortar([sols[ii][2][1][Block(ii)] for ii in 1:dims.n])
         current_gt_state = f(current_gt_state, u, draw_from_normal())
         
-        observations = mortar([h(current_gt_state, draw_from_normal()) for ii in 1:dims.n])
-        current_beliefs = ekf_update_fn(current_beliefs, u, environment.dynamics, environment.sensor_models, observations)
+        observations = mortar([h[ii](current_gt_state, draw_from_normal()) for ii in 1:dims.n])
+        current_beliefs = ekf_update_fn(current_beliefs, u, environments, observations)
         push!(gt_state_history, current_gt_state)
         push!(all_observations, observations)
     end
