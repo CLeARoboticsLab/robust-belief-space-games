@@ -191,63 +191,58 @@ function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; gr
     save("exp/hockey/outputs/$graph_name.png", fig)
 end
 
-function visualize_receding_horizon_solution(solutions::Dict, goal_position; dims = (; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2]))
-    fig = Figure(resolution=(1600, 1200))
+function visualize_receding_horizon_solutions_multi_figure(solutions::Dict, goal_position; dims = (; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2]))
+    # Create separate figures for each solution
+    figures = Dict{String, Figure}()
+    axes = Dict{String, Axis}()
+    screens = []
     
-    # --- Top Row: Axis and Legend ---
-    ax = Axis(fig[1, 1],
-        title="Receding Horizon Hockey Game",
-        xlabel="x position",
-        ylabel="y position",
-    )
+    for (sol_name, sol_data) in solutions
+        # Create a new screen/window for each figure
+        screen = GLMakie.Screen(title="Receding Horizon Hockey Game - $sol_name")
+        push!(screens, screen)
+        
+        fig = Figure(resolution=(1400, 1000))
+        figures[sol_name] = fig
+        
+        # --- Top Row: Axis and Legend ---
+        ax = Axis(fig[1, 1],
+            title="Receding Horizon Hockey Game - $sol_name",
+            xlabel="x position",
+            ylabel="y position",
+        )
+        axes[sol_name] = ax
+        
+        # Create individual visualization for this solution
+        create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_position, dims)
+        
+        # Display each figure in its own window
+        display(screen, fig)
+    end
+    
+    return figures
+end
+
+function visualize_receding_horizon_solution(solutions::Dict, goal_position; dims = (; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2]))
+    # Call the new multi-figure function
+    return visualize_receding_horizon_solutions_multi_figure(solutions, goal_position; dims=dims)
+end
+
+function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_position, dims)
+    gt_state_history, observations, solution_history, cond_history, lq_sol_history = sol_data
     
     # --- Bottom Row: Controls ---
     control_grid = fig[2, 1] = GridLayout(tellheight=false)
 
-    # For now, let's use the first solution to drive the main plot dynamics
-    main_sol_name = first(keys(solutions))
-    gt_state_history, observations, solution_history, cond_history, lq_sol_history = solutions[main_sol_name]
-    
-    # --- Condition Number Plot ---
-    # ax_cond = Axis(fig[3, 1],
-    #     title="Condition Number",
-    #     xlabel="Time",
-    #     ylabel="Condition Number",
-    # )
-    
-    # Filter out non-numeric values and create valid plotting data
-    # valid_cond_data = []
-    # valid_time_indices = []
-    
-    # for (i, cond_val) in enumerate(cond_history)
-    #     if cond_val isa Number && isfinite(cond_val)
-    #         push!(valid_cond_data, cond_val)
-    #         push!(valid_time_indices, i)
-    #     end
-    # end
-    
-    # # Only plot if we have valid data
-    # if !isempty(valid_cond_data)
-    #     lines!(ax_cond, valid_time_indices, valid_cond_data, color=:purple, linewidth=2)
-    # else
-    #     # Display a message if no valid condition numbers
-    #     text!(ax_cond, 0.5, 0.5, text="No valid condition numbers to plot", 
-    #           align=(:center, :center), color=:gray)
-    # end
-    
     current_timestep = Observable(1)
     horizon = length(gt_state_history) - 1
     
     # Colors
-    gt_color = :black
+    attacker_color = :red
+    defender_color = :blue
     nature_color = :green
-    non_robust_plan_color = :purple
-    robust_plan_color = :orange
     lq_sol_color = :cyan
 
-    # Base colors for different solutions - will be modulated
-    sol_colors = [(:red, :blue), (:magenta, :cyan), (:orange, :green), (:purple, :yellow)]
-    
     # Opacities & Visibilities
     plan_opacity = 1.0
     gt_opacity = Observable(0.0)
@@ -307,45 +302,30 @@ function visualize_receding_horizon_solution(solutions::Dict, goal_position; dim
     end
 
     # --- Static trajectory plotting ---
-    for (i, (name, sol_data)) in enumerate(solutions)
-        s_gt_state_history, s_observations, s_solution_history, _, _ = sol_data
-        
-        # Modulate base colors
-        s_attacker_color, s_defender_color = sol_colors[i % length(sol_colors)]
+    attacker_gt_x = [s[Block(1)][1] for s in gt_state_history]
+    attacker_gt_y = [s[Block(1)][2] for s in gt_state_history]
+    defender_gt_x = [s[Block(2)][1] for s in gt_state_history]
+    defender_gt_y = [s[Block(2)][2] for s in gt_state_history]
 
-        attacker_gt_x = [s[Block(1)][1] for s in s_gt_state_history]
-        attacker_gt_y = [s[Block(1)][2] for s in s_gt_state_history]
-        defender_gt_x = [s[Block(2)][1] for s in s_gt_state_history]
-        defender_gt_y = [s[Block(2)][2] for s in s_gt_state_history]
+    lines!(ax, attacker_gt_x, attacker_gt_y, color=attacker_color, linewidth=3, alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)), label="$sol_name Attacker GT")
+    lines!(ax, defender_gt_x, defender_gt_y, color=defender_color, linewidth=3, alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)), label="$sol_name Defender GT")
+
+    # Attacker's beliefs
+    attacker_belief_self_x = [b.beliefs[1].belief_mean[1] for b in belief_history]
+    attacker_belief_self_y = [b.beliefs[1].belief_mean[2] for b in belief_history]
+    attacker_belief_other_x = [b.beliefs[2].belief_mean[1] for b in belief_history]
+    attacker_belief_other_y = [b.beliefs[2].belief_mean[2] for b in belief_history]
     
-        lines!(ax, attacker_gt_x, attacker_gt_y, color=s_attacker_color, linewidth=3, alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)), label="$name Attacker GT")
-        lines!(ax, defender_gt_x, defender_gt_y, color=s_defender_color, linewidth=3, alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)), label="$name Defender GT")
+    # Defender's beliefs
+    defender_belief_other_x = [b.beliefs[3].belief_mean[1] for b in belief_history]
+    defender_belief_other_y = [b.beliefs[3].belief_mean[2] for b in belief_history]
+    defender_belief_self_x = [b.beliefs[4].belief_mean[1] for b in belief_history]
+    defender_belief_self_y = [b.beliefs[4].belief_mean[2] for b in belief_history]
 
-        s_belief_history = [sols[1][1][1] for sols in s_solution_history]
-        
-        # Attacker's beliefs
-        attacker_belief_self_x = [b.beliefs[1].belief_mean[1] for b in s_belief_history]
-        attacker_belief_self_y = [b.beliefs[1].belief_mean[2] for b in s_belief_history]
-        attacker_belief_other_x = [b.beliefs[2].belief_mean[1] for b in s_belief_history]
-        attacker_belief_other_y = [b.beliefs[2].belief_mean[2] for b in s_belief_history]
-        
-        # Defender's beliefs
-        defender_belief_other_x = [b.beliefs[3].belief_mean[1] for b in s_belief_history]
-        defender_belief_other_y = [b.beliefs[3].belief_mean[2] for b in s_belief_history]
-        defender_belief_self_x = [b.beliefs[4].belief_mean[1] for b in s_belief_history]
-        defender_belief_self_y = [b.beliefs[4].belief_mean[2] for b in s_belief_history]
-
-        lines!(ax, attacker_belief_self_x, attacker_belief_self_y, color=s_attacker_color, linewidth=2, label="$name Attacker's Belief (self)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-        lines!(ax, attacker_belief_other_x, attacker_belief_other_y, color=s_defender_color, linestyle=:dash, linewidth=2, label="$name Attacker's Belief (other)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-        lines!(ax, defender_belief_self_x, defender_belief_self_y, color=s_defender_color, linewidth=2, label="$name Defender's Belief (self)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-        lines!(ax, defender_belief_other_x, defender_belief_other_y, color=s_attacker_color, linestyle=:dash, linewidth=2, label="$name Defender's Belief (other)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    end
-    
-    # The rest of the interactive plotting will be based on the main solution for now
-    attacker_color = :red
-    defender_color = :blue
-
-    belief_history = [sols[1][1][1] for sols in solution_history]
+    lines!(ax, attacker_belief_self_x, attacker_belief_self_y, color=attacker_color, linewidth=2, label="$sol_name Attacker's Belief (self)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    # lines!(ax, attacker_belief_other_x, attacker_belief_other_y, color=defender_color, linestyle=:dash, linewidth=2, label="$sol_name Attacker's Belief (other)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, defender_belief_self_x, defender_belief_self_y, color=defender_color, linewidth=2, label="$sol_name Defender's Belief (self)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    # lines!(ax, defender_belief_other_x, defender_belief_other_y, color=attacker_color, linestyle=:dash, linewidth=2, label="$sol_name Defender's Belief (other)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
     
     # --- LQ Solution Trajectory ---
     lq_sol = @lift lq_sol_history[$current_timestep]
@@ -356,7 +336,6 @@ function visualize_receding_horizon_solution(solutions::Dict, goal_position; dim
 
     lines!(ax, lq_attacker_x, lq_attacker_y, color=lq_sol_color, linewidth=2, linestyle=:dot, label="LQ Attacker", visible=show_lq_sol)
     lines!(ax, lq_defender_x, lq_defender_y, color=lq_sol_color, linewidth=2, linestyle=:dot, label="LQ Defender", visible=show_lq_sol)
-
 
     # --- Goal ---
     lines!(ax, [p[1] for p in goal_position], [p[2] for p in goal_position], color=:green, linewidth=5, label="Goal")
@@ -438,13 +417,12 @@ function visualize_receding_horizon_solution(solutions::Dict, goal_position; dim
     arrows!(ax, nature_start_pos_attacker_plan, nature_actions_on_attacker_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $nature_opacity > 0.1 && $attacker_belief_opacity > 0.1 && $show_arrows))
     arrows!(ax, nature_start_pos_defender_plan, nature_actions_on_defender_plan, color=nature_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $nature_opacity > 0.1 && $attacker_belief_opacity > 0.1 && $show_arrows))
 
-
+    # --- Plot planned trajectories ---
     lines!(ax, robust_attacker_plan_other, color=attacker_color, linestyle=:dash, linewidth=2, alpha=@lift($robust_plan_opacity * $attacker_belief_opacity), label="Robust Attacker Plan (other)")
     scatter!(ax, robust_attacker_plan_other, color=attacker_color, marker=:xcross, markersize=8, alpha=@lift($robust_plan_opacity * $attacker_belief_opacity))
 
     lines!(ax, robust_defender_plan_other, color=defender_color, linestyle=:dash, linewidth=2, alpha=@lift($robust_plan_opacity * $defender_belief_opacity), label="Robust Defender Plan (other)")
     scatter!(ax, robust_defender_plan_other, color=defender_color, marker=:cross, markersize=8, alpha=@lift($robust_plan_opacity * $defender_belief_opacity))
-
 
     lines!(ax, non_robust_attacker_plan, color=attacker_color, linewidth=3, alpha=non_robust_plan_opacity, label="Non-Robust Attacker Plan")
     scatter!(ax, non_robust_attacker_plan, color=attacker_color, markersize=10, alpha=non_robust_plan_opacity)
@@ -474,7 +452,6 @@ function visualize_receding_horizon_solution(solutions::Dict, goal_position; dim
     scatter!(ax, current_robust_attacker_pos_other, color=attacker_color, markersize=25, marker=:star5, alpha=@lift($robust_plan_opacity * $attacker_belief_opacity))
     scatter!(ax, current_robust_defender_pos_other, color=defender_color, markersize=25, marker=:star5, alpha=@lift($robust_plan_opacity * $defender_belief_opacity))
 
-
     # --- Current belief positions (as markers) ---
     scatter!(ax, attacker_pos_self, color=attacker_color, markersize=20)
     scatter!(ax, defender_pos_self, color=defender_color, markersize=20)
@@ -496,11 +473,6 @@ function visualize_receding_horizon_solution(solutions::Dict, goal_position; dim
     scatter!(ax, attacker_obs_x, attacker_obs_y, color=attacker_color, markersize=15, alpha=@lift(0.3 * $observation_opacity), label="Attacker Observations")
     scatter!(ax, defender_obs_x, defender_obs_y, color=defender_color, markersize=15, alpha=@lift(0.3 * $observation_opacity), label="Defender Observations")
 
-    # current_attacker_obs = @lift Point2f(observations[$current_timestep][1:2])
-    # current_defender_obs = @lift Point2f(observations[$current_timestep][3:4])
-    # scatter!(ax, current_attacker_obs, color=attacker_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Attacker Observation") 
-    # scatter!(ax, current_defender_obs, color=defender_color, markersize=20, marker=:utriangle, alpha=observation_opacity, label="Current Defender Observation")
-    
     # --- Belief uncertainty ellipses (at planned time) ---
     non_robust_belief_at_plan_time = @lift if !isempty($non_robust_plan) && !isempty($non_robust_plan[1]) && $(plan_timestep) <= length($non_robust_plan[1]); $non_robust_plan[1][$(plan_timestep)]; else; nothing; end
     robust_belief_at_plan_time = @lift if !isempty($robust_plan) && !isempty($robust_plan[1]) && $(plan_timestep) <= length($robust_plan[1]); $robust_plan[1][$(plan_timestep)]; else; nothing; end
@@ -590,36 +562,7 @@ function visualize_receding_horizon_solution(solutions::Dict, goal_position; dim
         end
     end
 
-    # Solution visibility toggles
-    sol_visibility_grid = right_controls[3, 1:2] = GridLayout(tellwidth=false)
-    Label(sol_visibility_grid[1, 1:4], "Solutions", fontsize=16)
-
-    sol_observables = Dict{String, Observable{Bool}}()
-    for (i, name) in enumerate(keys(solutions))
-        sol_observables[name] = Observable(true)
-        row = (i-1) ÷ 2 + 2
-        col = ((i-1) % 2) * 2 + 1
-        
-        Label(sol_visibility_grid[row, col], name)
-        toggle = Toggle(sol_visibility_grid[row, col + 1], active=true)
-        on(toggle.active) do active
-            sol_observables[name][] = active
-        end
-    end
-    
-    # This part is a bit tricky. We need to regenerate plots or update visibility.
-    # For now, let's just print a message. The full implementation would require
-    # making all the solution-specific plots dependent on these observables.
-    # This is a larger refactoring. A simpler way is to just control opacity.
-    # The initial plotting loop doesn't use observables for visibility per solution.
-    # Let's rebuild the plot objects in an observable way.
-    # This is too complex for a single edit. The current edit plots all, and
-    # this will serve as a starting point. Adding toggles for solutions requires
-    # making the plots themselves observables.
-
     Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
     
     set_close_to!(time_slider, 1)
-    
-    display(fig)
 end
