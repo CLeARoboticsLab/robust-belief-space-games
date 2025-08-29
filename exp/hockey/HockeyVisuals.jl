@@ -259,47 +259,10 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_posit
     plan_timestep = Observable(1)
     show_lq_sol = Observable(false)
 
-    # --- Solver Iteration Controls ---
-    show_solver_iterations = Observable(false)
-    current_iteration = Observable(1.0)
-
-    intermediate_planned_trajectories = [(sols[1][3], sols[2][3]) for sols in solution_history]
     belief_history = [sols[1][1][1] for sols in solution_history]
-    num_iterations = @lift begin
-        if $current_timestep <= length(intermediate_planned_trajectories)
-            max(length(intermediate_planned_trajectories[$current_timestep][1]), length(intermediate_planned_trajectories[$current_timestep][2]))
-        else
-            0
-        end
-    end
 
-    non_robust_plan = @lift begin
-        non_robust_iters = intermediate_planned_trajectories[$current_timestep][1]
-        if isempty(non_robust_iters)
-            []
-        elseif $show_solver_iterations
-            num_iters = length(non_robust_iters)
-            iter_idx = round(Int, $current_iteration * (num_iters - 1) + 1)
-            iter_idx = clamp(iter_idx, 1, num_iters) # Safety clamp
-            non_robust_iters[iter_idx]
-        else
-            non_robust_iters[end]
-        end
-    end
-    
-    robust_plan = @lift begin
-        robust_iters = intermediate_planned_trajectories[$current_timestep][2]
-        if isempty(robust_iters)
-            []
-        elseif $show_solver_iterations
-            num_iters = length(robust_iters)
-            iter_idx = round(Int, $current_iteration * (num_iters - 1) + 1)
-            iter_idx = clamp(iter_idx, 1, num_iters) # Safety clamp
-            robust_iters[iter_idx]
-        else
-            robust_iters[end]
-        end
-    end
+    non_robust_plan = @lift(solution_history[$current_timestep][1])
+    robust_plan = @lift(solution_history[$current_timestep][2])
 
     # --- Static trajectory plotting ---
     attacker_gt_x = [s[Block(1)][1] for s in gt_state_history]
@@ -307,8 +270,8 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_posit
     defender_gt_x = [s[Block(2)][1] for s in gt_state_history]
     defender_gt_y = [s[Block(2)][2] for s in gt_state_history]
 
-    lines!(ax, attacker_gt_x, attacker_gt_y, color=attacker_color, linewidth=3, alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)), label="$sol_name Attacker GT")
-    lines!(ax, defender_gt_x, defender_gt_y, color=defender_color, linewidth=3, alpha=@lift($gt_opacity * ($show_solver_iterations ? 0.2 : 1.0)), label="$sol_name Defender GT")
+    lines!(ax, attacker_gt_x, attacker_gt_y, color=attacker_color, linewidth=3, alpha=gt_opacity, label="$sol_name Attacker GT")
+    lines!(ax, defender_gt_x, defender_gt_y, color=defender_color, linewidth=3, alpha=gt_opacity, label="$sol_name Defender GT")
 
     # Attacker's beliefs
     attacker_belief_self_x = [b.beliefs[1].belief_mean[1] for b in belief_history]
@@ -322,10 +285,10 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_posit
     defender_belief_self_x = [b.beliefs[4].belief_mean[1] for b in belief_history]
     defender_belief_self_y = [b.beliefs[4].belief_mean[2] for b in belief_history]
 
-    lines!(ax, attacker_belief_self_x, attacker_belief_self_y, color=attacker_color, linewidth=2, label="$sol_name Attacker's Belief (self)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    # lines!(ax, attacker_belief_other_x, attacker_belief_other_y, color=defender_color, linestyle=:dash, linewidth=2, label="$sol_name Attacker's Belief (other)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    lines!(ax, defender_belief_self_x, defender_belief_self_y, color=defender_color, linewidth=2, label="$sol_name Defender's Belief (self)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
-    # lines!(ax, defender_belief_other_x, defender_belief_other_y, color=attacker_color, linestyle=:dash, linewidth=2, label="$sol_name Defender's Belief (other)", alpha=@lift($belief_opacity * ($show_solver_iterations ? 0.2 : 1.0)))
+    lines!(ax, attacker_belief_self_x, attacker_belief_self_y, color=attacker_color, linewidth=2, label="$sol_name Attacker's Belief (self)", alpha=belief_opacity)
+    # lines!(ax, attacker_belief_other_x, attacker_belief_other_y, color=defender_color, linestyle=:dash, linewidth=2, label="$sol_name Attacker's Belief (other)", alpha=belief_opacity)
+    lines!(ax, defender_belief_self_x, defender_belief_self_y, color=defender_color, linewidth=2, label="$sol_name Defender's Belief (self)", alpha=belief_opacity)
+    # lines!(ax, defender_belief_other_x, defender_belief_other_y, color=attacker_color, linestyle=:dash, linewidth=2, label="$sol_name Defender's Belief (other)", alpha=belief_opacity)
     
     # --- LQ Solution Trajectory ---
     lq_sol = @lift lq_sol_history[$current_timestep]
@@ -505,11 +468,11 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_posit
     Label(time_slider_grid[1, 1], "Time:")
     Label(time_slider_grid[1, 3], @lift("$(Int($current_timestep))"))
 
-    iteration_slider_grid = slider_grid[2, 1] = GridLayout(tellwidth=false)
-    iteration_slider = Slider(iteration_slider_grid[1, 2], range=0:1, startvalue=1)
-    on(iteration_slider.value) do val; current_iteration[] = val; end
-    Label(iteration_slider_grid[1, 1], "Iteration:")
-    Label(iteration_slider_grid[1, 3], @lift("$(show_solver_iterations[] ? ($num_iterations > 0 ? string(round($current_iteration, digits=2)) : "N/A") : "Final")"))
+    # iteration_slider_grid = slider_grid[2, 1] = GridLayout(tellwidth=false)
+    # iteration_slider = Slider(iteration_slider_grid[1, 2], range=0:1, startvalue=1)
+    # on(iteration_slider.value) do val; current_iteration[] = val; end
+    # Label(iteration_slider_grid[1, 1], "Iteration:")
+    # Label(iteration_slider_grid[1, 3], @lift("$(show_solver_iterations[] ? ($num_iterations > 0 ? string(round($current_iteration, digits=2)) : "N/A") : "Final")"))
 
     plan_time_slider_grid = slider_grid[3, 1] = GridLayout(tellwidth=false)
     plan_length = @lift begin
@@ -543,7 +506,7 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_posit
         ("Belief Traj", belief_opacity, false, 1.0, 0.0),
         ("Non-Robust Plan", non_robust_plan_opacity, true, plan_opacity, 0.0),
         ("Robust Plan", robust_plan_opacity, true, plan_opacity, 0.0),
-        ("Show Iters", show_solver_iterations, false, true, false),
+        # ("Show Iters", show_solver_iterations, false, true, false),
         ("Observations", observation_opacity, false, 1.0, 0.0),
         ("Nature", nature_opacity, false, 1.0, 0.0),
         ("Show Arrows", show_arrows, false, true, false),
