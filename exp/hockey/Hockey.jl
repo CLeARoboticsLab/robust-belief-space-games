@@ -392,15 +392,15 @@ function receding_horizon_main(file_id::String=""; horizon=15, planning_horizon=
         )
     dummy_attacker_costs = BeliefCost(
         (bs, us) -> norm(us[Block(1)]),
-        (bs) -> norm(bs.beliefs[1].belief_mean[1:2]),
+        (bs) -> norm(bs.beliefs[1].belief_covariance),
     )
     dummy_defender_costs = BeliefCost(
         (bs, us) -> norm(us[Block(2)]),
-        (bs) -> norm(bs.beliefs[2].belief_mean[1:2]),
+        (bs) -> norm(bs.beliefs[2].belief_covariance),
     )
     dummy_nature_costs = BeliefCost(
         (bs, us) -> norm(us[Block(3)]),
-        (bs) -> norm(bs.beliefs[3].belief_mean[1:2]),
+        (bs) -> -norm(bs.beliefs[2].belief_covariance),
     )
     
     # --- Shared Parameters ---
