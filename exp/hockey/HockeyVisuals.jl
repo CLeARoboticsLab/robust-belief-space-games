@@ -330,8 +330,22 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_posit
     arrows!(ax, non_robust_defender_plan, non_robust_defender_actions, color=defender_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($non_robust_plan_opacity > 0.1 && $show_arrows))
 
     robust_planned_us = @lift isempty($planned_us) || length($planned_us) < 2 ? [] : $planned_us[2]
-    robust_attacker_actions = @lift isempty($robust_planned_us) ? Point2f[] : [Point2f(u[Block(1)]) for u in $robust_planned_us]
-    robust_defender_actions = @lift isempty($robust_planned_us) ? Point2f[] : [Point2f(u[Block(2)]) for u in $robust_planned_us]
+    robust_attacker_actions = @lift begin
+        if isempty($robust_planned_us)
+            Point2f[]
+        else
+            # Check if the controls have at least 2 blocks before accessing them
+            [Point2f(u[Block(1)]) for u in $robust_planned_us if length(u.blocks) >= 1]
+        end
+    end
+    robust_defender_actions = @lift begin
+        if isempty($robust_planned_us)
+            Point2f[]
+        else
+            # Check if the controls have at least 2 blocks before accessing them
+            [Point2f(u[Block(2)]) for u in $robust_planned_us if length(u.blocks) >= 2]
+        end
+    end
     
     arrows!(ax, robust_attacker_plan, robust_attacker_actions, color=attacker_color, linewidth=2, arrowsize=10, alpha=0.5, visible=@lift($robust_plan_opacity > 0.1 && $attacker_belief_opacity > 0.1 && $show_arrows))
 
@@ -346,10 +360,15 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_posit
             sols = solution_history[$current_timestep]
 
             robust_controls = sols[2][2]
-            nature_controls = [u[Block(3)] for u in robust_controls]
-            actions_on_attacker = [Point2f(nature_control[1:dims.belief[1]]) for nature_control in nature_controls]
-            actions_on_defender = [Point2f(nature_control[dims.belief[1] + 1:end]) for nature_control in nature_controls]
-            (actions_on_attacker, actions_on_defender)
+            # Check if nature controls exist (robust scenario with 3 players)
+            if !isempty(robust_controls) && length(robust_controls[1].blocks) >= 3
+                nature_controls = [u[Block(3)] for u in robust_controls]
+                actions_on_attacker = [Point2f(nature_control[1:dims.belief[1]]) for nature_control in nature_controls]
+                actions_on_defender = [Point2f(nature_control[dims.belief[1] + 1:end]) for nature_control in nature_controls]
+                (actions_on_attacker, actions_on_defender)
+            else
+                (Point2f[], Point2f[])
+            end
         else
             (Point2f[], Point2f[])
         end
