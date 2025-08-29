@@ -3,7 +3,19 @@ mutable struct Regularizations
     belief_reg::Float64
 end
 
-function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, warm_start=nothing)
+function create_warm_start_strategy(warm_start_controls::Vector{BlockVector})
+    """
+    Creates a strategy that returns the warm start controls at each time step.
+    This allows us to use the current beliefs as the starting point while 
+    applying the warm start controls to generate the initial trajectory.
+    """
+    return [
+        (belief::Beliefs) -> warm_start_controls[t] 
+        for t in 1:length(warm_start_controls)
+    ]
+end
+
+function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, warm_start=nothing, save_intermediate_solutions=false)
     if DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
@@ -12,7 +24,10 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         dummy_strategy = get_dummy_strategy(game)
         nominal_beliefs, nominal_controls = rollout_strategy(game, dummy_strategy)
     else
-        nominal_beliefs, nominal_controls = warm_start
+        # Use current beliefs as starting point and warm start controls to generate trajectory
+        warm_start_beliefs, warm_start_controls = warm_start
+        warm_start_strategy = create_warm_start_strategy(warm_start_controls)
+        nominal_beliefs, nominal_controls = rollout_strategy(game, warm_start_strategy)
     end
     new_cost = calculate_costs(game, nominal_beliefs, nominal_controls)    
     old_cost = 1/ϵ_converge^2 * new_cost
@@ -22,7 +37,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     intermediate_solutions = [(nominal_beliefs, nominal_controls)]
     feed_forward_norms_history = Vector{Vector{Float64}}()
     kkt_error_history = Vector{Vector{Float64}}()
-    cur_ff_norm = 1
+    # cur_ff_norm = 1
     push!(feed_forward_norms_history, [Inf])
     push!(kkt_error_history, [Inf])
 
@@ -46,8 +61,10 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         feedback_terms, feed_forward_norms, kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
         candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, kkt_error_norms, regularizations)
 
-        push!(feed_forward_norms_history, feed_forward_norms)
-        push!(kkt_error_history, norm.(kkt_error_norms))
+        if save_intermediate_solutions
+            push!(feed_forward_norms_history, feed_forward_norms)
+            push!(kkt_error_history, norm.(kkt_error_norms))
+        end
         
         improvements = (old_cost .- new_cost)./abs.(old_cost)
 
@@ -65,7 +82,9 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             old_cost = new_cost
             regularizations.control_reg *= 0.98
             regularizations.belief_reg *= 0.98
-            push!(intermediate_solutions, (candidate_beliefs, candidate_controls))
+            if save_intermediate_solutions
+                push!(intermediate_solutions, (candidate_beliefs, candidate_controls))
+            end
             
             # Store the maximum feed_forward norm as a condition number proxy
             # Higher norms often indicate worse conditioning of the optimization problem
@@ -74,10 +93,11 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
             else
                 max_cond = 0.0
             end
-            
-            push!(cond, max_cond)
+            if save_intermediate_solutions
+                push!(cond, max_cond)
+            end
             improvement_iterations += 1
-            cur_ff_norm = length(feed_forward_norms_history)
+            # cur_ff_norm = length(feed_forward_norms_history)
             
             if DEBUG
                 open(DEBUG_FILE, "a") do f
@@ -100,7 +120,11 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     # println("Final control stationarity error: ", round(mean(norm.(final_kkt_error_norms)), digits=6))
     println("error stats: \n\tmax: ", round(max(kkt_error_history[end]...), digits=3), " min: ", round(min(kkt_error_history[end]...), digits=3), " mean: ", round(mean(kkt_error_history[end]), digits=3), " std: ", round(std(kkt_error_history[end]), digits=3), " median: ", round(median(kkt_error_history[end]), digits=3))
     
-    return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], kkt_error_history[2:end], cond
+    if save_intermediate_solutions
+        return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], kkt_error_history[2:end], cond
+    else
+        return nominal_beliefs, nominal_controls
+    end
 end
 
 # TODO: take a gradient step on one player's control (IBR style)
