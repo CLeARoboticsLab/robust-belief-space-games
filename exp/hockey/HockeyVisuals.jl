@@ -544,7 +544,7 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_posit
         end
     end
 
-    Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
+    # Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
     
     set_close_to!(time_slider, 1)
 end
