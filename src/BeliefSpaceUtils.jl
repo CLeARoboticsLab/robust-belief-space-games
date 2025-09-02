@@ -1,5 +1,5 @@
 import Base.vec
-import Base: round, copy
+import Base: round
 using ForwardDiff: Dual
 
 struct Belief
@@ -24,20 +24,12 @@ function vec(belief::Belief)
     return [belief.belief_mean; Base.vec(belief.belief_covariance)]
 end
 
-function Base.copy(belief::Belief)
-    return Belief(copy(belief.belief_mean), copy(belief.belief_covariance), belief.belief_dim)
-end
-
 struct Beliefs
     beliefs::Vector{Belief}
 end
 
 Base.iterate(b::Beliefs, state...) = iterate(b.beliefs, state...)
 Base.length(b::Beliefs) = length(b.beliefs)
-
-function Base.copy(beliefs::Beliefs)
-    return Beliefs([copy(belief) for belief in beliefs.beliefs])
-end
 
 function means(beliefs::Beliefs)
     return mortar([belief.belief_mean for belief in beliefs.beliefs])
