@@ -7,8 +7,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-# using CairoMakie
-using GLMakie
+using CairoMakie
+# using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -17,7 +17,7 @@ using Statistics
 
 struct DummyEnvironment end
 
-include("HockeyVisuals.jl")
+# include("HockeyVisuals.jl")
 
 function TrajectoryGamesBase.get_constraints(::DummyEnvironment, player_index)
     (state) -> Symbolics.Num[]
@@ -72,38 +72,38 @@ function defender_cost(xs, us; goal_position)
 end
 
 function shot_probability(attacker_pos, defender_pos, goal_p1, goal_p2)
-    # u = defender_pos - attacker_pos
-    # v = (goal_p1 + goal_p2) / 2 - attacker_pos
+    u = defender_pos - attacker_pos
+    v = (goal_p1 + goal_p2) / 2 - attacker_pos
 
-    # nu = dot(u, u)
-    # nv = dot(v, v)
+    nu = dot(u, u)
+    nv = dot(v, v)
 
-    # return -1 * dot(u, v) / (nv + nu + 1e-9) + -1 * nv
+    return -1 * dot(u, v) / (nv + nu + 1e-9) + -1 * nv
 
-    attacker_to_goal = (goal_p1 + goal_p2) / 2 - attacker_pos
-    attacker_to_defender = defender_pos - attacker_pos
+    # attacker_to_goal = (goal_p1 + goal_p2) / 2 - attacker_pos
+    # attacker_to_defender = defender_pos - attacker_pos
     
-    goal_dist_sq = dot(attacker_to_goal, attacker_to_goal)
-    defender_dist_sq = dot(attacker_to_defender, attacker_to_defender)
+    # goal_dist_sq = dot(attacker_to_goal, attacker_to_goal)
+    # defender_dist_sq = dot(attacker_to_defender, attacker_to_defender)
     
-    alignment_numerator = dot(attacker_to_goal, attacker_to_defender)
-    alignment_denominator = goal_dist_sq + defender_dist_sq + 1e-3  # Small regularization
-    alignment = alignment_numerator / alignment_denominator
+    # alignment_numerator = dot(attacker_to_goal, attacker_to_defender)
+    # alignment_denominator = goal_dist_sq + defender_dist_sq + 1e-3  # Small regularization
+    # alignment = alignment_numerator / alignment_denominator
     
-    defensive_coverage = 0.5 * (1.0 + tanh(3.0 * alignment))  # Smooth sigmoid: 0 to 1 as alignment goes from -∞ to +∞
+    # defensive_coverage = 0.5 * (1.0 + tanh(3.0 * alignment))  # Smooth sigmoid: 0 to 1 as alignment goes from -∞ to +∞
     
-    # Shot probability components
+    # # Shot probability components
     
-    # 1. Proximity factor: closer to goal = higher shot probability
-    proximity_factor = 1.0 / (1.0 + 0.5 * goal_dist_sq)
+    # # 1. Proximity factor: closer to goal = higher shot probability
+    # proximity_factor = 1.0 / (1.0 + 0.5 * goal_dist_sq)
     
-    # 2. Coverage reduction: good defender positioning reduces shot probability
-    coverage_factor = 1.0 - 0.7 * defensive_coverage
+    # # 2. Coverage reduction: good defender positioning reduces shot probability
+    # coverage_factor = 1.0 - 0.7 * defensive_coverage
     
-    # 3. Positioning penalty: penalize when defender is NOT between attacker and goal
-    positioning_penalty = 3.0 * (1.0 - defensive_coverage)
+    # # 3. Positioning penalty: penalize when defender is NOT between attacker and goal
+    # positioning_penalty = 3.0 * (1.0 - defensive_coverage)
     
-    return proximity_factor * coverage_factor + positioning_penalty
+    # return proximity_factor * coverage_factor + positioning_penalty
 end
 
 function main()
@@ -179,6 +179,8 @@ end
 
 dt = 0.3
 n=2
+state_dim = 4
+control_dim = 2
 goal_position = [
     [0.25, -1.5],
     [-0.25, -1.5],
@@ -190,14 +192,15 @@ function M_static(u)
     return 0.1 * I
 end
 function M_state_based(x)
-    dist = dot(x - goal_center + [0, 3], x - goal_center + [0, 3])
+    dist = dot(x[1:2] - goal_center + [0, 3], x[1:2] - goal_center + [0, 3])
     return 0.1 * I * dist
 end
 function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
+    dt2 = 0.5 * dt^2
     BlockVector(
             mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
-            [1 0; 0 1] * xᵢ +
-            [1 0; 0 1] * uᵢ +
+            [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
+            [dt2 0; 0 dt2; dt 0; 0 dt] * uᵢ +
             M_static(xᵢ) * mᵢ
         end,
         length.(xs.blocks)
@@ -205,13 +208,13 @@ function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
 end
     # Sensor Models
 function N_state_based(x)
-    dist = dot(x - goal_center + [0, 3], x - goal_center + [0, 3])
+    dist = dot(x[1:2] - goal_center + [0, 3], x[1:2] - goal_center + [0, 3])
     return 1 * I * dist
 end
 function h_low_noise(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0; 0 1] * xᵢ + 0.1 * I * nᵢ
+            I(state_dim) * xᵢ + 0.1 * I * nᵢ
         end,
         length.(xs.blocks)
     )
@@ -220,7 +223,7 @@ end
 function h_state_based(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0; 0 1] * xᵢ + N_state_based(xᵢ) * nᵢ
+            I(state_dim) * xᵢ + N_state_based(xᵢ) * nᵢ
         end,
         length.(xs.blocks)
     )
@@ -229,7 +232,7 @@ end
 function h_medium_noise(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0; 0 1] * xᵢ + 1 * I * nᵢ
+            I(state_dim) * xᵢ + 1 * I * nᵢ
         end,
         length.(xs.blocks)
     )
@@ -238,7 +241,7 @@ end
 function h_high_noise(xs::BlockVector, ns::BlockVector)
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            [1 0; 0 1] * xᵢ + 10 * I * nᵢ
+            I(state_dim) * xᵢ + 10 * I * nᵢ
         end,
         length.(xs.blocks)
     )
@@ -401,12 +404,12 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
     end
 
     gt_initial_state = mortar([
-        [0.75, 5.0],  # Attacker
-        [-0.75, 1.5], # Defender
+        [0.75, 5.0, 0.0, 0.0],  # Attacker
+        [-0.75, 1.5, 0.0, 0.0], # Defender
     ])
     initial_belief_covariance = [
-        [0.1 0; 0 0.1],
-        [0.1 0; 0 0.1],
+        [0.1 0 0 0; 0 0.1 0 0; 0 0 0.25 0; 0 0 0 0.25],
+        [0.1 0 0 0; 0 0.1 0 0; 0 0 0.25 0; 0 0 0 0.25],
     ]
     initial_beliefs = Beliefs([
         Belief(gt_initial_state[Block(1)], initial_belief_covariance[1]), # Attacker's belief of attacker
@@ -426,21 +429,9 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
             (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance),
             (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
         )
-    dummy_attacker_costs = BeliefCost(
-        (bs, us) -> norm(us[Block(1)]),
-        (bs) -> norm(bs.beliefs[1].belief_mean[1:2]),
-    )
-    dummy_defender_costs = BeliefCost(
-        (bs, us) -> norm(us[Block(2)]),
-        (bs) -> norm(bs.beliefs[2].belief_mean[1:2]),
-    )
-    dummy_nature_costs = BeliefCost(
-        (bs, us) -> norm(us[Block(3)]),
-        (bs) -> norm(bs.beliefs[3].belief_mean[1:2]),
-    )
     
     # --- Shared Parameters ---
-    dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
+    dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[control_dim for _ in 1:2], belief=[state_dim for _ in 1:4], sensor=[state_dim for _ in 1:4])
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
     robust = [false, true]
     
@@ -456,31 +447,32 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
         (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations) # ekf_update
     )
 
-    println("\n--- Running Medium Noise Sensor Scenario ---")
-    Random.seed!(random_seed)
-    solutions["medium_noise_sensor"] = run_receding_horizon_scenario(
-        gt_initial_state, initial_beliefs, costs, robust, dims,
-        horizon, planning_horizon, random_seed,
-        (f, gt_initial_state, [h_medium_noise, h_medium_noise]), # environment
-        (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations) # ekf_update with h₂
-    )
+    # println("\n--- Running Medium Noise Sensor Scenario ---")
+    # Random.seed!(random_seed)
+    # solutions["medium_noise_sensor"] = run_receding_horizon_scenario(
+    #     gt_initial_state, initial_beliefs, costs, robust, dims,
+    #     horizon, planning_horizon, random_seed,
+    #     (f, gt_initial_state, [h_medium_noise, h_medium_noise]), # environment
+    #     (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations) # ekf_update with h₂
+    # )
 
-    println("\n--- Running High Noise Sensor Scenario ---")
-    Random.seed!(random_seed)
-    solutions["high_noise_sensor"] = run_receding_horizon_scenario(
-        gt_initial_state, initial_beliefs, costs, robust, dims,
-        horizon, planning_horizon, random_seed,
-        (f, gt_initial_state, [h_high_noise, h_high_noise]), # environment
-        (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations) # ekf_update with h₂
-    )
+    # println("\n--- Running High Noise Sensor Scenario ---")
+    # Random.seed!(random_seed)
+    # solutions["high_noise_sensor"] = run_receding_horizon_scenario(
+    #     gt_initial_state, initial_beliefs, costs, robust, dims,
+    #     horizon, planning_horizon, random_seed,
+    #     (f, gt_initial_state, [h_high_noise, h_high_noise]), # environment
+    #     (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations) # ekf_update with h₂
+    # )
 
     @save "exp/hockey/outputs/rh_$file_id.jld2" solutions goal_position
+    println("Saved solution with file id: $file_id")
     
-    visualize_receding_horizon_solution(
-        solutions,
-        goal_position;
-        dims=dims
-    )
+    # visualize_receding_horizon_solution(
+    #     solutions,
+    #     goal_position;
+    #     dims=dims
+    # )
 end
 
 function run_receding_horizon_scenario(
@@ -510,15 +502,15 @@ function run_receding_horizon_scenario(
     for t in 1:horizon-planning_horizon
         println("Receding Horizon Step $t / $(horizon-planning_horizon)")
         
-        lq_horizon = 10
-        lq_initial_states = [
-            [current_gt_state[Block(1)]..., 0.0, 0.0],
-            [current_gt_state[Block(2)]..., 0.0, 0.0]
-        ]
-        lq_game = hockey_game(; horizon = lq_horizon, goal_position = goal_position)
-        mcp_game = MCPGame(lq_game, lq_horizon, vcat(lq_initial_states...); debug=false)
-        lq_sol = solve(mcp_game; debug=false, warm_start=false)
-        push!(lq_sol_history, lq_sol)
+        # lq_horizon = 10
+        # lq_initial_states = [
+        #     [current_gt_state[Block(1)]..., 0.0, 0.0],
+        #     [current_gt_state[Block(2)]..., 0.0, 0.0]
+        # ]
+        # lq_game = hockey_game(; horizon = lq_horizon, goal_position = goal_position)
+        # mcp_game = MCPGame(lq_game, lq_horizon, vcat(lq_initial_states...); debug=false)
+        # lq_sol = solve(mcp_game; debug=false, warm_start=false)
+        # push!(lq_sol_history, lq_sol)
 
         sols = Vector{Any}(undef, dims.n)
         for ii in 1:dims.n
