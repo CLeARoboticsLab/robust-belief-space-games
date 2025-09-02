@@ -15,7 +15,7 @@ function create_warm_start_strategy(warm_start_controls::Vector{BlockVector})
     ]
 end
 
-function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG_FILE, warm_start=nothing, save_intermediate_solutions=false)
+function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG_FILE, warm_start=nothing, save_intermediate_solutions=false)
     if DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
@@ -38,8 +38,9 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     feed_forward_norms_history = Vector{Vector{Float64}}()
     kkt_error_history = Vector{Vector{Float64}}()
     # cur_ff_norm = 1
-    push!(feed_forward_norms_history, [Inf])
-    push!(kkt_error_history, [Inf])
+    # push!(feed_forward_norms_history, [Inf])
+    # push!(kkt_error_history, [Inf])
+    kkt_error_norms = nothing
 
     cond = Float64[]
 
@@ -58,12 +59,12 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         #         println(f)
         #     end
         # end
-        feedback_terms, feed_forward_norms, kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
-        candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, kkt_error_norms, regularizations)
+        feedback_terms, feed_forward_norms, new_kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
+        candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, new_kkt_error_norms, regularizations)
 
         if save_intermediate_solutions
             push!(feed_forward_norms_history, feed_forward_norms)
-            push!(kkt_error_history, norm.(kkt_error_norms))
+            push!(kkt_error_history, norm.(new_kkt_error_norms))
         end
         
         improvements = (old_cost .- new_cost)./abs.(old_cost)
@@ -75,8 +76,10 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
         # println("\tCost decr: $cost_decreased, ff_norm decr: $feed_forward_norm_decreased")
         if step_accepted
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
-            
-            if all(improvements .< ϵ_converge) && mean(norm.(vcat(kkt_error_norms...))) < ϵ_converge
+            kkt_error_norms = new_kkt_error_norms
+
+            # if all(improvements .< ϵ_converge) && mean(norm.(vcat(kkt_error_norms...))) < ϵ_converge
+            if mean(norm.(kkt_error_norms)) < ϵ_converge
                 break
             end
             old_cost = new_cost
@@ -118,8 +121,8 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-3, debug_file=DEBUG
     # Compute final control stationarity error
     # _, _, final_kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
     # println("Final control stationarity error: ", round(mean(norm.(final_kkt_error_norms)), digits=6))
-    println("error stats: \n\tmax: ", round(max(kkt_error_history[end]...), digits=3), " min: ", round(min(kkt_error_history[end]...), digits=3), " mean: ", round(mean(kkt_error_history[end]), digits=3), " std: ", round(std(kkt_error_history[end]), digits=3), " median: ", round(median(kkt_error_history[end]), digits=3))
-    
+    # println("error stats: \n\tmax: ", round(max(kkt_error_norms...), digits=3), " min: ", round(min(kkt_error_norms...), digits=3), " mean: ", round(mean(kkt_error_norms), digits=3), " std: ", round(std(kkt_error_norms), digits=3), " median: ", round(median(kkt_error_norms), digits=3))
+    println("error mean: ", round(mean(norm.(kkt_error_norms)), digits=7))
     if save_intermediate_solutions
         return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], kkt_error_history[2:end], cond
     else
