@@ -40,7 +40,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
     # cur_ff_norm = 1
     # push!(feed_forward_norms_history, [Inf])
     # push!(kkt_error_history, [Inf])
-    kkt_error_norms = nothing
+    kkt_error_norms = [Inf]
 
     cond = Float64[]
 
@@ -60,23 +60,18 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         #     end
         # end
         feedback_terms, feed_forward_norms, new_kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
-        candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, new_kkt_error_norms, regularizations)
+        candidate_beliefs, candidate_controls, new_cost, step_accepted, candidate_kkt_error = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, kkt_error_norms, regularizations)
 
         if save_intermediate_solutions
             push!(feed_forward_norms_history, feed_forward_norms)
             push!(kkt_error_history, norm.(new_kkt_error_norms))
         end
         
-        improvements = (old_cost .- new_cost)./abs.(old_cost)
+        println("iter: $iterations, error: ", candidate_kkt_error)
 
-        # @printf("[s %3d / %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, improvement_iterations, mean(feed_forward_norms_history[cur_ff_norm]), mean(feed_forward_norms), regularizations.control_reg, α)
-        # println("\tOld costs: ", join([@sprintf("%.3f", c) for c in old_cost], ", "))
-        # println("\tNew costs: ", join([@sprintf("%.3f", c) for c in new_cost], ", "))
-        # println("\tImprovements: ", join([@sprintf("%.3f", imp) for imp in improvements], ", "))
-        # println("\tCost decr: $cost_decreased, ff_norm decr: $feed_forward_norm_decreased")
         if step_accepted
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
-            kkt_error_norms = new_kkt_error_norms
+            kkt_error_norms = candidate_kkt_error
 
             # if all(improvements .< ϵ_converge) && mean(norm.(vcat(kkt_error_norms...))) < ϵ_converge
             if mean(norm.(kkt_error_norms)) < ϵ_converge
@@ -91,16 +86,17 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
             
             # Store the maximum feed_forward norm as a condition number proxy
             # Higher norms often indicate worse conditioning of the optimization problem
-            if !isempty(feedback_terms)
-                max_cond = maximum(norm.(feedback_terms[end][1]))
-            else
-                max_cond = 0.0
-            end
-            if save_intermediate_solutions
-                push!(cond, max_cond)
-            end
+            # if !isempty(feedback_terms)
+            #     max_cond = maximum(norm.(feedback_terms[end][1]))
+            # else
+            #     max_cond = 0.0
+            # end
+            # if save_intermediate_solutions
+            #     push!(cond, max_cond)
+            # end
             improvement_iterations += 1
             # cur_ff_norm = length(feed_forward_norms_history)
+            println("\t step accepted, $improvement_iterations / $iterations")
             
             if DEBUG
                 open(DEBUG_FILE, "a") do f
@@ -404,7 +400,7 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
         end
     end
 
-    return candidate_beliefs, candidate_controls, new_costs, !alpha_limit_hit
+    return candidate_beliefs, candidate_controls, new_costs, !alpha_limit_hit, candidate_kkt_error
 end
 
 
