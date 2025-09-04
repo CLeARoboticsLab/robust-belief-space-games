@@ -67,7 +67,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
             push!(kkt_error_history, norm.(new_kkt_error_norms))
         end
         
-        improvements = (old_cost .- new_cost)./abs.(old_cost)
+        # println("iter: $iterations, error: ", candidate_kkt_error)
 
         # @printf("[s %3d / %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, improvement_iterations, mean(feed_forward_norms_history[cur_ff_norm]), mean(feed_forward_norms), regularizations.control_reg, α)
         # println("\tOld costs: ", join([@sprintf("%.3f", c) for c in old_cost], ", "))
@@ -101,6 +101,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
             end
             improvement_iterations += 1
             # cur_ff_norm = length(feed_forward_norms_history)
+            # println("\t step accepted, $improvement_iterations / $iterations")
             
             if DEBUG
                 open(DEBUG_FILE, "a") do f
