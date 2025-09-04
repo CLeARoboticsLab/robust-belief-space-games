@@ -253,7 +253,7 @@ function box_bounds(belief::Belief)
     left = (belief.belief_mean[1] < -3) ? 5 * belief.belief_mean[1]^2 : 0
     # right = max(100 * exp(belief.belief_mean[1] - 8) - 1, 0)
     right = (belief.belief_mean[1] > 3) ? 5 * belief.belief_mean[1]^2 : 0
-    return 1 * (bottom + top + left + right)
+    return 5 * (bottom + top + left + right)
 end
 function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Belief)
 
@@ -281,14 +281,14 @@ function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_de
     shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(1)], us[Block(1)]) # Attacker is player 1
     attacker_covariance = explicit_covariance ? tr(belief_over_attacker.belief_covariance) : 0
-    return 1 * steal_prob + -1 * shot_prob + 1 * control_effort + box_bounds(belief_over_attacker) + attacker_covariance
+    return 1 * steal_prob + -2 * shot_prob + 1 * control_effort + box_bounds(belief_over_attacker) + attacker_covariance
 end    
 function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
     shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(2)], us[Block(2)]) # Defender is player 2
     defender_covariance = explicit_covariance ? tr(belief_over_defender.belief_covariance) : 0
-    return -1 * steal_prob + 1 * shot_prob + 1 * control_effort + box_bounds(belief_over_defender) + defender_covariance
+    return -1 * steal_prob + 1 * shot_prob + 0.5 * control_effort + box_bounds(belief_over_defender) + defender_covariance
 end
 function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector; explicit_covariance=false, control_effort_weight=3)
     return -defender_non_terminal_cost(belief_over_attacker, belief_over_defender, us) + control_effort_weight*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
@@ -401,8 +401,13 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
     end
 
     gt_initial_state = mortar([
+<<<<<<< HEAD
         [0.75, 5.0],  # Attacker
         [-0.75, 1.5], # Defender
+=======
+        [0.0, 5.0, 0.5, 0.0],  # Attacker
+        [0.0, 1.5, 0.0, 0.0], # Defender
+>>>>>>> 8288060 (ran exp)
     ])
     initial_belief_covariance = [
         [0.1 0; 0 0.1],
@@ -449,7 +454,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
 
     println("--- Running Low Noise Sensor Scenario ---")
     Random.seed!(random_seed)
-    solutions["low_noise_sensor"] = run_receding_horizon_scenario(
+    solutions["low_noise_sensor_robust"] = run_receding_horizon_scenario(
         gt_initial_state, initial_beliefs, costs, robust, dims,
         horizon, planning_horizon, random_seed,
         (f, gt_initial_state, [h_low_noise, h_low_noise]), # environment
@@ -458,7 +463,11 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
 
     println("\n--- Running Medium Noise Sensor Scenario ---")
     Random.seed!(random_seed)
+<<<<<<< HEAD
     solutions["medium_noise_sensor"] = run_receding_horizon_scenario(
+=======
+    solutions["medium_noise_sensor_robust"] = run_receding_horizon_scenario(
+>>>>>>> 8288060 (ran exp)
         gt_initial_state, initial_beliefs, costs, robust, dims,
         horizon, planning_horizon, random_seed,
         (f, gt_initial_state, [h_medium_noise, h_medium_noise]), # environment
@@ -467,7 +476,39 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
 
     println("\n--- Running High Noise Sensor Scenario ---")
     Random.seed!(random_seed)
+<<<<<<< HEAD
     solutions["high_noise_sensor"] = run_receding_horizon_scenario(
+=======
+    solutions["high_noise_sensor_robust"] = run_receding_horizon_scenario(
+        gt_initial_state, initial_beliefs, costs, robust, dims,
+        horizon, planning_horizon, random_seed,
+        (f, gt_initial_state, [h_high_noise, h_high_noise]), # environment
+        (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations) # ekf_update with h₂
+    )
+
+    robust = [false, false]
+    println("--- Running Low Noise Sensor Scenario ---")
+    Random.seed!(random_seed)
+    solutions["low_noise_sensor_non_robust"] = run_receding_horizon_scenario(
+        gt_initial_state, initial_beliefs, costs, robust, dims,
+        horizon, planning_horizon, random_seed,
+        (f, gt_initial_state, [h_low_noise, h_low_noise]), # environment
+        (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations) # ekf_update
+    )
+
+    println("\n--- Running Medium Noise Sensor Scenario ---")
+    Random.seed!(random_seed)
+    solutions["medium_noise_sensor_non_robust"] = run_receding_horizon_scenario(
+        gt_initial_state, initial_beliefs, costs, robust, dims,
+        horizon, planning_horizon, random_seed,
+        (f, gt_initial_state, [h_medium_noise, h_medium_noise]), # environment
+        (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations) # ekf_update with h₂
+    )
+
+    println("\n--- Running High Noise Sensor Scenario ---")
+    Random.seed!(random_seed)
+    solutions["high_noise_sensor_non_robust"] = run_receding_horizon_scenario(
+>>>>>>> 8288060 (ran exp)
         gt_initial_state, initial_beliefs, costs, robust, dims,
         horizon, planning_horizon, random_seed,
         (f, gt_initial_state, [h_high_noise, h_high_noise]), # environment
@@ -507,8 +548,8 @@ function run_receding_horizon_scenario(
     draw_from_normal = () -> BlockVector(rand(normal_distribution), dims.states)
     draw_from_normal_fake = () -> BlockVector(zeros(sum(dims.states)), dims.states)
 
-    for t in 1:horizon-planning_horizon
-        println("Receding Horizon Step $t / $(horizon-planning_horizon)")
+    for t in 1:horizon-1
+        println("Receding Horizon Step $t / $horizon")
         
         lq_horizon = 10
         lq_initial_states = [
@@ -526,7 +567,7 @@ function run_receding_horizon_scenario(
                 environments[ii],
                 costs[ii],
                 current_beliefs,
-                planning_horizon,
+                min(planning_horizon, horizon - t + 1),
                 dims,
                 current_gt_state,
                 robust[ii])
