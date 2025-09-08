@@ -1,2 +1,5 @@
 **/outputs/
 /test
+**.png
+**.jld2
+**.csv
