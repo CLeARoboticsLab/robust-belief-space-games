@@ -123,11 +123,13 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
     # _, _, final_kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
     # println("Final control stationarity error: ", round(mean(norm.(final_kkt_error_norms)), digits=6))
     # println("error stats: \n\tmax: ", round(max(kkt_error_norms...), digits=3), " min: ", round(min(kkt_error_norms...), digits=3), " mean: ", round(mean(kkt_error_norms), digits=3), " std: ", round(std(kkt_error_norms), digits=3), " median: ", round(median(kkt_error_norms), digits=3))
-    println("error mean: ", round(mean(norm.(kkt_error_norms)), digits=7))
+    if !isnothing(kkt_error_norms)
+        println("error mean: ", round(mean(norm.(kkt_error_norms)), digits=7))
+    end
     if save_intermediate_solutions
         return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], kkt_error_history[2:end], cond
     else
-        return nominal_beliefs, nominal_controls
+        return nominal_beliefs, nominal_controls, kkt_error_norms
     end
 end
 
