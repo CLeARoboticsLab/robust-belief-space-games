@@ -368,6 +368,31 @@ function safe_eigen(A)
     # end
 end
 
+# Global wrapper functions to avoid JLD2 serialization issues
+function attacker_non_terminal_wrapper(bs, us; explicit_covariance=false)
+    attacker_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us; explicit_covariance=explicit_covariance)
+end
+
+function attacker_terminal_wrapper(bs)
+    attacker_terminal_cost(bs.beliefs[1], bs.beliefs[2])
+end
+
+function defender_non_terminal_wrapper(bs, us; explicit_covariance=false)
+    defender_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance)
+end
+
+function defender_terminal_wrapper(bs)
+    defender_terminal_cost(bs.beliefs[3], bs.beliefs[4])
+end
+
+function nature_non_terminal_wrapper(bs, us; explicit_covariance=false)
+    nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance)
+end
+
+function nature_terminal_wrapper(bs)
+    nature_terminal_cost(bs.beliefs[3], bs.beliefs[4])
+end
+
 function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=5, override=false, random_seed=1, explicit_covariance=false)
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
@@ -395,18 +420,9 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
         Belief(gt_initial_state[Block(1)], initial_belief_covariance[1]), # Defender's belief of attacker
         Belief(gt_initial_state[Block(2)], initial_belief_covariance[2]), # Defender's belief of defender
     ])
-    attacker_cost = BeliefCost(
-            (bs, us) -> attacker_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us; explicit_covariance=explicit_covariance),
-            (bs) -> attacker_terminal_cost(bs.beliefs[1], bs.beliefs[2]),
-        )
-        defender_cost = BeliefCost(
-            (bs, us) -> defender_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance),
-            (bs) -> defender_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
-        )
-        nature_cost = BeliefCost(
-            (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance),
-            (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4]),
-        )
+    attacker_cost = BeliefCost(attacker_non_terminal_wrapper, attacker_terminal_wrapper)
+    defender_cost = BeliefCost(defender_non_terminal_wrapper, defender_terminal_wrapper)
+    nature_cost = BeliefCost(nature_non_terminal_wrapper, nature_terminal_wrapper)
     
     # --- Shared Parameters ---
     dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[control_dim for _ in 1:2], belief=[state_dim for _ in 1:4], sensor=[state_dim for _ in 1:4])
@@ -599,5 +615,13 @@ function run_receding_horizon_scenario(
         push!(gt_state_history, current_gt_state)
         push!(all_observations, observations)
     end
-    return (gt_state_history, all_observations, solution_history, cond_history, lq_sol_history)
+    games = [BeliefGame(
+        environments[ii],
+        costs[ii],
+        current_beliefs,
+        planning_horizon,
+        dims,
+        current_gt_state,
+        robust[ii]) for ii in 1:dims.n]
+    return (gt_state_history, all_observations, solution_history, cond_history, lq_sol_history, games)
 end
