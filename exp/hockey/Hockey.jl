@@ -1,3 +1,4 @@
+module Hockey
 using Infiltrator
 using TrajectoryGamesBase
 using TrajectoryGamesExamples
@@ -15,8 +16,12 @@ using Distributions
 using Random
 using Statistics
 
-include("../Utils.jl")
-using .Utils
+include("../KKTErrorTracker.jl")
+using .KKTErrorTracker
+
+include("./HockeyVisuals.jl")
+
+export hockey_game, receding_horizon_main, attacker_cost, defender_cost, attacker_non_terminal_cost, defender_non_terminal_cost, nature_non_terminal_cost, attacker_terminal_cost, defender_terminal_cost, nature_terminal_cost, player_cost_components
 
 struct DummyEnvironment end
 
@@ -257,32 +262,93 @@ function shot_probability(belief_over_attacker::Belief, belief_over_defender::Be
     defender_pos_uncertainty = explicit_covariance ? 10 * tr(belief_over_defender.belief_covariance) : 0
     return shot_probability(attacker_pos, defender_pos, goal_position[1], goal_position[2]) - attacker_pos_uncertainty + defender_pos_uncertainty
 end
-function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
+function attacker_non_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
     shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(1)], us[Block(1)]) # Attacker is player 1
     attacker_covariance = explicit_covariance ? tr(belief_over_attacker.belief_covariance) : 0
-    return 1 * steal_prob + -2 * shot_prob + 1 * control_effort + box_bounds(belief_over_attacker) + attacker_covariance
-end    
-function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
+    bounds = box_bounds(belief_over_attacker)
+    return (; steal_prob, shot_prob = -2 * shot_prob, control_effort, bounds, attacker_covariance)
+end
+
+function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
+    components = attacker_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance)
+    return sum(components)
+end
+
+function defender_non_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
     shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(2)], us[Block(2)]) # Defender is player 2
     defender_covariance = explicit_covariance ? tr(belief_over_defender.belief_covariance) : 0
-    return -1 * steal_prob + 1 * shot_prob + 0.5 * control_effort + box_bounds(belief_over_defender) + defender_covariance
+    bounds = box_bounds(belief_over_defender)
+    return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds, defender_covariance)
 end
+
+function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
+    components = defender_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance)
+    return sum(components)
+end
+
+function nature_non_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector; explicit_covariance=false, control_effort_weight=3)
+    defender_components = defender_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance)
+    control_effort = control_effort_weight * dot(us[Block(3)], us[Block(3)])
+    bounds = box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
+    return (; defender_components = -sum(defender_components), control_effort, bounds)
+end
+
 function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector; explicit_covariance=false, control_effort_weight=3)
-    return -defender_non_terminal_cost(belief_over_attacker, belief_over_defender, us) + control_effort_weight*dot(us[Block(3)], us[Block(3)]) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
+    components = nature_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance, control_effort_weight)
+    return sum(components)
 end
+
+function attacker_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
+    shot_prob = -5 * shot_probability(belief_over_attacker, belief_over_defender)
+    bounds = box_bounds(belief_over_attacker)
+    return (; shot_prob, bounds)
+end
+
 function attacker_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
-    return -5 * shot_probability(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_attacker)
+    components = attacker_terminal_cost_components(belief_over_attacker, belief_over_defender; explicit_covariance)
+    return sum(components)
 end
+
+function defender_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
+    shot_prob = 5 * shot_probability(belief_over_attacker, belief_over_defender)
+    bounds = box_bounds(belief_over_defender)
+    return (; shot_prob, bounds)
+end
+
 function defender_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
-    return 5 * shot_probability(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_defender)
+    components = defender_terminal_cost_components(belief_over_attacker, belief_over_defender; explicit_covariance)
+    return sum(components)
 end
+
+function nature_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief)
+    defender_components = defender_terminal_cost_components(belief_over_attacker, belief_over_defender)
+    bounds = box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
+    return (; defender_components = -sum(defender_components), bounds)
+end
+
 function nature_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
-    return -defender_terminal_cost(belief_over_attacker, belief_over_defender) + box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
+    components = nature_terminal_cost_components(belief_over_attacker, belief_over_defender)
+    return sum(components)
 end
+
+const player_cost_components = (
+    attacker = (
+        non_terminal = attacker_non_terminal_cost_components,
+        terminal = attacker_terminal_cost_components,
+    ),
+    defender = (
+        non_terminal = defender_non_terminal_cost_components,
+        terminal = defender_terminal_cost_components,
+    ),
+    nature = (
+        non_terminal = nature_non_terminal_cost_components,
+        terminal = nature_terminal_cost_components,
+    )
+)
 
 function belief_main(sol_number=2, override_solution=false)
     solution_filename = "exp/hockey/outputs/hockey_solution_$sol_number.jld2"
@@ -368,32 +434,8 @@ function safe_eigen(A)
     # end
 end
 
-# Global wrapper functions to avoid JLD2 serialization issues
-function attacker_non_terminal_wrapper(bs, us; explicit_covariance=false)
-    attacker_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us; explicit_covariance=explicit_covariance)
-end
 
-function attacker_terminal_wrapper(bs)
-    attacker_terminal_cost(bs.beliefs[1], bs.beliefs[2])
-end
-
-function defender_non_terminal_wrapper(bs, us; explicit_covariance=false)
-    defender_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance)
-end
-
-function defender_terminal_wrapper(bs)
-    defender_terminal_cost(bs.beliefs[3], bs.beliefs[4])
-end
-
-function nature_non_terminal_wrapper(bs, us; explicit_covariance=false)
-    nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance)
-end
-
-function nature_terminal_wrapper(bs)
-    nature_terminal_cost(bs.beliefs[3], bs.beliefs[4])
-end
-
-function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=5, override=false, random_seed=1, explicit_covariance=false)
+function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=5, override=false, random_seed=1, explicit_covariance=false, trials=10)
     global goal_position
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
@@ -420,16 +462,25 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
         Belief(gt_initial_state[Block(1)], initial_belief_covariance[1]), # Defender's belief of attacker
         Belief(gt_initial_state[Block(2)], initial_belief_covariance[2]), # Defender's belief of defender
     ])
-    attacker_cost = BeliefCost(attacker_non_terminal_wrapper, attacker_terminal_wrapper)
-    defender_cost = BeliefCost(defender_non_terminal_wrapper, defender_terminal_wrapper)
-    nature_cost = BeliefCost(nature_non_terminal_wrapper, nature_terminal_wrapper)
+    attacker_cost = BeliefCost(
+        (bs, us) -> attacker_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us; explicit_covariance=explicit_covariance),
+        (bs) -> attacker_terminal_cost(bs.beliefs[1], bs.beliefs[2])
+    )
+    defender_cost = BeliefCost(
+        (bs, us) -> defender_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance),
+        (bs) -> defender_terminal_cost(bs.beliefs[3], bs.beliefs[4])
+    )
+    nature_cost = BeliefCost(
+        (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance),
+        (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4])
+    )
     
     # --- Shared Parameters ---
     dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[control_dim for _ in 1:2], belief=[state_dim for _ in 1:4], sensor=[state_dim for _ in 1:4])
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
     
     # --- Run Scenarios ---
-    for trial in 1:10
+    for trial in 1:trials
         solutions = Dict()
         robust = [false, true]
         println("--- Running Low Noise Sensor Scenario (Trial $trial) ---")
@@ -563,15 +614,15 @@ function run_receding_horizon_scenario(
             if !isnothing(kkt_error_norms)
                 # Convert the kkt_error_norms to individual trajectory values
                 kkt_trajectory = norm.(kkt_error_norms)
-                Utils.record_rh_kkt_error!(
+                KKTErrorTracker.record_rh_kkt_error!(
                     "BeliefGame", 
                     kkt_trajectory, 
                     trial_number, 
                     t; 
                     player=ii,
                     robust=robust[ii],
-                    iteration_count=0,  # This would need to be extracted from solve if available
-                    convergence_status=:unknown,  # This would need to be extracted from solve if available
+                    iteration_count=-1,
+                    convergence_status=:unknown,
                     additional_data=Dict{String, Any}(
                         "scenario_name" => scenario_name,
                         "planning_horizon" => min(planning_horizon, horizon - t + 1),
@@ -615,13 +666,6 @@ function run_receding_horizon_scenario(
         push!(gt_state_history, current_gt_state)
         push!(all_observations, observations)
     end
-    games = [BeliefGame(
-        environments[ii],
-        costs[ii],
-        current_beliefs,
-        planning_horizon,
-        dims,
-        current_gt_state,
-        robust[ii]) for ii in 1:dims.n]
-    return (gt_state_history, all_observations, solution_history, cond_history, lq_sol_history, games)
+    return (gt_state_history, all_observations, solution_history, cond_history, lq_sol_history)
+end
 end
