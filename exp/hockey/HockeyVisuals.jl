@@ -1,195 +1,195 @@
-function test_shot_probability_viz()
-    fig = Figure(resolution=(1000, 800))
-    ax = Axis(fig[1, 1],
-        title="Shot Probability Visualization",
-        xlabel="x position",
-        ylabel="y position",
-        aspect=1
-    )
-    deregister_interaction!(ax, :rectanglezoom)
+# function test_shot_probability_viz()
+#     fig = Figure(resolution=(1000, 800))
+#     ax = Axis(fig[1, 1],
+#         title="Shot Probability Visualization",
+#         xlabel="x position",
+#         ylabel="y position",
+#         aspect=1
+#     )
+#     deregister_interaction!(ax, :rectanglezoom)
 
-    attacker_pos = Observable(Point2f(0.75, 5.0))
-    defender_pos = Observable(Point2f(-0.75, 1.5))
-    goal_p1 = Point2f(-1.5, 0.25)
-    goal_p2 = Point2f(-1.5, -0.25)
+#     attacker_pos = Observable(Point2f(0.75, 5.0))
+#     defender_pos = Observable(Point2f(-0.75, 1.5))
+#     goal_p1 = Point2f(-1.5, 0.25)
+#     goal_p2 = Point2f(-1.5, -0.25)
 
-    # The goal
-    lines!(ax, [goal_p1, goal_p2], color=:green, linewidth=5, label="Goal")
+#     # The goal
+#     lines!(ax, [goal_p1, goal_p2], color=:green, linewidth=5, label="Goal")
     
-    # The players
-    attacker_plot = scatter!(ax, attacker_pos, color=:blue, markersize=20, label="Attacker")
-    defender_plot = scatter!(ax, defender_pos, color=:red, markersize=20, label="Defender")
+#     # The players
+#     attacker_plot = scatter!(ax, attacker_pos, color=:blue, markersize=20, label="Attacker")
+#     defender_plot = scatter!(ax, defender_pos, color=:red, markersize=20, label="Defender")
     
-    # The angles
-    # shooting_angle = @lift(attacker_shooting_angle($attacker_pos, goal_p1, goal_p2))
-    # blocking_angle = @lift(defender_blocking_angle($attacker_pos, $defender_pos))
-    shot_prob = @lift(shot_probability($attacker_pos, $defender_pos, goal_p1, goal_p2))
+#     # The angles
+#     # shooting_angle = @lift(attacker_shooting_angle($attacker_pos, goal_p1, goal_p2))
+#     # blocking_angle = @lift(defender_blocking_angle($attacker_pos, $defender_pos))
+#     shot_prob = @lift(shot_probability($attacker_pos, $defender_pos, goal_p1, goal_p2))
 
-    # Angle visualizations
-    poly!(ax, @lift([$attacker_pos, goal_p1, goal_p2]), color=(:blue, 0.2), strokecolor=:blue, strokewidth=1, pickable=false)
+#     # Angle visualizations
+#     poly!(ax, @lift([$attacker_pos, goal_p1, goal_p2]), color=(:blue, 0.2), strokecolor=:blue, strokewidth=1, pickable=false)
 
-    defender_range = 0.1
-    poly_blocking_points = @lift begin
-        v = $defender_pos - $attacker_pos
-        # Avoid division by zero if points are on top of each other
-        if norm(v) > 1e-9
-            vn = v / norm(v)
-            # rotate by 90 degrees
-            guard_vec = defender_range * [0.0 1.0; -1.0 0.0] * vn
-            p1 = $defender_pos + guard_vec
-            p2 = $defender_pos - guard_vec
-            [$attacker_pos, p1, p2]
-        else
-            [$attacker_pos, $attacker_pos, $attacker_pos]
-        end
-    end
-    poly!(ax, poly_blocking_points, color=(:red, 0.2), strokecolor=:red, strokewidth=1, pickable=false)
+#     defender_range = 0.1
+#     poly_blocking_points = @lift begin
+#         v = $defender_pos - $attacker_pos
+#         # Avoid division by zero if points are on top of each other
+#         if norm(v) > 1e-9
+#             vn = v / norm(v)
+#             # rotate by 90 degrees
+#             guard_vec = defender_range * [0.0 1.0; -1.0 0.0] * vn
+#             p1 = $defender_pos + guard_vec
+#             p2 = $defender_pos - guard_vec
+#             [$attacker_pos, p1, p2]
+#         else
+#             [$attacker_pos, $attacker_pos, $attacker_pos]
+#         end
+#     end
+#     poly!(ax, poly_blocking_points, color=(:red, 0.2), strokecolor=:red, strokewidth=1, pickable=false)
     
-    # Manual dragging interaction
-    dragged_plot = Observable{Any}(nothing)
-    register_interaction!(ax, :manual_drag) do event::MouseEvent, axis
-        if event.type === MouseEventTypes.leftdown
-            plt, _ = pick(axis)
-            if plt === attacker_plot || plt === defender_plot
-                dragged_plot[] = plt
-                return Consume(true)
-            end
-        elseif event.type === MouseEventTypes.leftdrag
-            if !isnothing(dragged_plot[])
-                pos = Point2f(mouseposition(axis))
-                if dragged_plot[] === attacker_plot
-                    attacker_pos[] = pos
-                elseif dragged_plot[] === defender_plot
-                    defender_pos[] = pos
-                end
-                return Consume(true)
-            end
-        elseif event.type === MouseEventTypes.leftup
-            if !isnothing(dragged_plot[])
-                dragged_plot[] = nothing
-                return Consume(true)
-            end
-        end
-        return Consume(false)
-    end
+#     # Manual dragging interaction
+#     dragged_plot = Observable{Any}(nothing)
+#     register_interaction!(ax, :manual_drag) do event::MouseEvent, axis
+#         if event.type === MouseEventTypes.leftdown
+#             plt, _ = pick(axis)
+#             if plt === attacker_plot || plt === defender_plot
+#                 dragged_plot[] = plt
+#                 return Consume(true)
+#             end
+#         elseif event.type === MouseEventTypes.leftdrag
+#             if !isnothing(dragged_plot[])
+#                 pos = Point2f(mouseposition(axis))
+#                 if dragged_plot[] === attacker_plot
+#                     attacker_pos[] = pos
+#                 elseif dragged_plot[] === defender_plot
+#                     defender_pos[] = pos
+#                 end
+#                 return Consume(true)
+#             end
+#         elseif event.type === MouseEventTypes.leftup
+#             if !isnothing(dragged_plot[])
+#                 dragged_plot[] = nothing
+#                 return Consume(true)
+#             end
+#         end
+#         return Consume(false)
+#     end
 
-    # Text display
-    angle_text = @lift """
-    Shot Likelihood: $(dual_round($shot_prob, digits=3))
-    """
-        # Attacker Angle: $(dual_round(rad2deg($shooting_angle), digits=1))°
-    # Defender Angle: $(dual_round(rad2deg($blocking_angle), digits=1))°
+#     # Text display
+#     angle_text = @lift """
+#     Shot Likelihood: $(dual_round($shot_prob, digits=3))
+#     """
+#         # Attacker Angle: $(dual_round(rad2deg($shooting_angle), digits=1))°
+#     # Defender Angle: $(dual_round(rad2deg($blocking_angle), digits=1))°
     
-    Label(fig[2, 1], angle_text, fontsize=20, tellwidth=false)
+#     Label(fig[2, 1], angle_text, fontsize=20, tellwidth=false)
 
-    axislegend(ax)
-    display(fig)
-    return fig
-end
+#     axislegend(ax)
+#     display(fig)
+#     return fig
+# end
 
-function get_position_uncertainty_ellipse(mean_pos, cov, confidence=0.95)
-    # Ensure we only use the position components of the covariance
-    pos_cov = cov[1:2, 1:2]
-    E = safe_eigen(pos_cov)
-    scale = sqrt(-2 * log(1 - confidence)) 
-    t = range(0, 2π, 100)
+# function get_position_uncertainty_ellipse(mean_pos, cov, confidence=0.95)
+#     # Ensure we only use the position components of the covariance
+#     pos_cov = cov[1:2, 1:2]
+#     E = safe_eigen(pos_cov)
+#     scale = sqrt(-2 * log(1 - confidence)) 
+#     t = range(0, 2π, 100)
     
-    # Parametric equation for an ellipse
-    return [Point2f(scale * E.vectors * [sqrt(E.values[1])*cos(θ), sqrt(E.values[2])*sin(θ)] + mean_pos[1:2]) for θ in t]
-end
+#     # Parametric equation for an ellipse
+#     return [Point2f(scale * E.vectors * [sqrt(E.values[1])*cos(θ), sqrt(E.values[2])*sin(θ)] + mean_pos[1:2]) for θ in t]
+# end
 
-function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; graph_name="belief_hockey")
-    robust_beliefs = sol[1]
-    non_robust_beliefs = non_robust_sol[1]
+# function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; graph_name="belief_hockey")
+#     robust_beliefs = sol[1]
+#     non_robust_beliefs = non_robust_sol[1]
 
-    # Plotting Vars
-    robust_attacker_color = :blue
-    robust_defender_color = :red
-    non_robust_attacker_color = :purple
-    non_robust_defender_color = :purple
+#     # Plotting Vars
+#     robust_attacker_color = :blue
+#     robust_defender_color = :red
+#     non_robust_attacker_color = :purple
+#     non_robust_defender_color = :purple
 
-    robust_attacker_means = [bs.beliefs[1].belief_mean for bs in robust_beliefs]
-    robust_defender_means = [bs.beliefs[2].belief_mean for bs in robust_beliefs]
-    non_robust_attacker_means = [bs.beliefs[1].belief_mean for bs in non_robust_beliefs]
-    non_robust_defender_means = [bs.beliefs[2].belief_mean for bs in non_robust_beliefs]
+#     robust_attacker_means = [bs.beliefs[1].belief_mean for bs in robust_beliefs]
+#     robust_defender_means = [bs.beliefs[2].belief_mean for bs in robust_beliefs]
+#     non_robust_attacker_means = [bs.beliefs[1].belief_mean for bs in non_robust_beliefs]
+#     non_robust_defender_means = [bs.beliefs[2].belief_mean for bs in non_robust_beliefs]
 
-    fig = Figure()
+#     fig = Figure()
 
-    # --- Top Row: Axis and Legend ---
-    ax = Axis(fig[1, 1],
-        title="Hockey Game Trajectories",
-        xlabel="x position",
-        ylabel="y position",
-    )
+#     # --- Top Row: Axis and Legend ---
+#     ax = Axis(fig[1, 1],
+#         title="Hockey Game Trajectories",
+#         xlabel="x position",
+#         ylabel="y position",
+#     )
     
-    # --- Bottom Row: Controls ---
-    control_grid = fig[2, 1:2] = GridLayout(tellheight=false)
+#     # --- Bottom Row: Controls ---
+#     control_grid = fig[2, 1:2] = GridLayout(tellheight=false)
     
-    # Observables
-    current_timestep = Observable(1)
-    robust_opacity = Observable(1.0)
-    non_robust_opacity = Observable(0.3)
+#     # Observables
+#     current_timestep = Observable(1)
+#     robust_opacity = Observable(1.0)
+#     non_robust_opacity = Observable(0.3)
 
-    lines!(ax, [m[1] for m in robust_attacker_means], [m[2] for m in robust_attacker_means], label="Robust Attacker", color=robust_attacker_color, linewidth=3, alpha=robust_opacity)
-    lines!(ax, [m[1] for m in robust_defender_means], [m[2] for m in robust_defender_means], label="Robust Defender", color=robust_defender_color, linewidth=3, alpha=robust_opacity)
-    lines!(ax, [m[1] for m in non_robust_attacker_means], [m[2] for m in non_robust_attacker_means], label="Non-Robust", color=non_robust_attacker_color, linewidth=2, alpha=non_robust_opacity)
-    lines!(ax, [m[1] for m in non_robust_defender_means], [m[2] for m in non_robust_defender_means], color=non_robust_defender_color, linewidth=2, alpha=non_robust_opacity)
+#     lines!(ax, [m[1] for m in robust_attacker_means], [m[2] for m in robust_attacker_means], label="Robust Attacker", color=robust_attacker_color, linewidth=3, alpha=robust_opacity)
+#     lines!(ax, [m[1] for m in robust_defender_means], [m[2] for m in robust_defender_means], label="Robust Defender", color=robust_defender_color, linewidth=3, alpha=robust_opacity)
+#     lines!(ax, [m[1] for m in non_robust_attacker_means], [m[2] for m in non_robust_attacker_means], label="Non-Robust", color=non_robust_attacker_color, linewidth=2, alpha=non_robust_opacity)
+#     lines!(ax, [m[1] for m in non_robust_defender_means], [m[2] for m in non_robust_defender_means], color=non_robust_defender_color, linewidth=2, alpha=non_robust_opacity)
 
-    robust_attacker_pos = @lift(Point2f(robust_attacker_means[$current_timestep][1:2]))
-    robust_defender_pos = @lift(Point2f(robust_defender_means[$current_timestep][1:2]))
-    non_robust_attacker_pos = @lift(Point2f(non_robust_attacker_means[$current_timestep][1:2]))
-    non_robust_defender_pos = @lift(Point2f(non_robust_defender_means[$current_timestep][1:2]))
+#     robust_attacker_pos = @lift(Point2f(robust_attacker_means[$current_timestep][1:2]))
+#     robust_defender_pos = @lift(Point2f(robust_defender_means[$current_timestep][1:2]))
+#     non_robust_attacker_pos = @lift(Point2f(non_robust_attacker_means[$current_timestep][1:2]))
+#     non_robust_defender_pos = @lift(Point2f(non_robust_defender_means[$current_timestep][1:2]))
     
-    scatter!(ax, robust_attacker_pos, color=robust_attacker_color, markersize=20, alpha=robust_opacity)
-    scatter!(ax, robust_defender_pos, color=robust_defender_color, markersize=20, alpha=robust_opacity)
-    scatter!(ax, non_robust_attacker_pos, color=non_robust_attacker_color, markersize=15, alpha=non_robust_opacity)
-    scatter!(ax, non_robust_defender_pos, color=non_robust_defender_color, markersize=15, alpha=non_robust_opacity)
+#     scatter!(ax, robust_attacker_pos, color=robust_attacker_color, markersize=20, alpha=robust_opacity)
+#     scatter!(ax, robust_defender_pos, color=robust_defender_color, markersize=20, alpha=robust_opacity)
+#     scatter!(ax, non_robust_attacker_pos, color=non_robust_attacker_color, markersize=15, alpha=non_robust_opacity)
+#     scatter!(ax, non_robust_defender_pos, color=non_robust_defender_color, markersize=15, alpha=non_robust_opacity)
 
-    # Goal
-    goal_posts = [[p[1] for p in goal_position], [p[2] for p in goal_position]]
-    lines!(ax, goal_posts[1], goal_posts[2], label="Goal", color=:green, linewidth=5)
+#     # Goal
+#     goal_posts = [[p[1] for p in goal_position], [p[2] for p in goal_position]]
+#     lines!(ax, goal_posts[1], goal_posts[2], label="Goal", color=:green, linewidth=5)
 
-    rob_att_ellipse_pts = Observable(Point2f[])
-    rob_def_ellipse_pts = Observable(Point2f[])
-    non_rob_att_ellipse_pts = Observable(Point2f[])
-    non_rob_def_ellipse_pts = Observable(Point2f[])
+#     rob_att_ellipse_pts = Observable(Point2f[])
+#     rob_def_ellipse_pts = Observable(Point2f[])
+#     non_rob_att_ellipse_pts = Observable(Point2f[])
+#     non_rob_def_ellipse_pts = Observable(Point2f[])
 
-    # Position uncertainty ellipses
-    poly!(ax, rob_att_ellipse_pts, color=(robust_attacker_color, 0.2), strokecolor=(robust_attacker_color, 0.2), strokewidth=2, alpha=robust_opacity)
-    poly!(ax, rob_def_ellipse_pts, color=(robust_defender_color, 0.2), strokecolor=(robust_defender_color, 0.2), strokewidth=2, alpha=robust_opacity)
-    poly!(ax, non_rob_att_ellipse_pts, color=(non_robust_attacker_color, 0.2), strokecolor=(non_robust_attacker_color, 0.2), strokewidth=2, alpha=non_robust_opacity)
-    poly!(ax, non_rob_def_ellipse_pts, color=(non_robust_defender_color, 0.2), strokecolor=(non_robust_defender_color, 0.2), strokewidth=2, alpha=non_robust_opacity)
+#     # Position uncertainty ellipses
+#     poly!(ax, rob_att_ellipse_pts, color=(robust_attacker_color, 0.2), strokecolor=(robust_attacker_color, 0.2), strokewidth=2, alpha=robust_opacity)
+#     poly!(ax, rob_def_ellipse_pts, color=(robust_defender_color, 0.2), strokecolor=(robust_defender_color, 0.2), strokewidth=2, alpha=robust_opacity)
+#     poly!(ax, non_rob_att_ellipse_pts, color=(non_robust_attacker_color, 0.2), strokecolor=(non_robust_attacker_color, 0.2), strokewidth=2, alpha=non_robust_opacity)
+#     poly!(ax, non_rob_def_ellipse_pts, color=(non_robust_defender_color, 0.2), strokecolor=(non_robust_defender_color, 0.2), strokewidth=2, alpha=non_robust_opacity)
 
-    Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
+#     Legend(fig[1, 2], ax, tellheight=false, tellwidth=true)
     
-    slider = Slider(control_grid[1, 1], range=1:length(robust_attacker_means), startvalue=1)
-    on(slider.value) do val; current_timestep[] = val; end
+#     slider = Slider(control_grid[1, 1], range=1:length(robust_attacker_means), startvalue=1)
+#     on(slider.value) do val; current_timestep[] = val; end
     
-    Label(control_grid[1, 2], "Time:")
-    Label(control_grid[1, 3], @lift("$(Int($current_timestep))"))
+#     Label(control_grid[1, 2], "Time:")
+#     Label(control_grid[1, 3], @lift("$(Int($current_timestep))"))
 
-    button_grid = control_grid[2, 1:3] = GridLayout(tellwidth = false)
-    focus_robust_btn = Button(button_grid[1, 1], label="Focus Robust")
-    focus_non_robust_btn = Button(button_grid[1, 2], label="Focus Non-Robust")
-    show_both_btn = Button(button_grid[1, 3], label="Show Both")
+#     button_grid = control_grid[2, 1:3] = GridLayout(tellwidth = false)
+#     focus_robust_btn = Button(button_grid[1, 1], label="Focus Robust")
+#     focus_non_robust_btn = Button(button_grid[1, 2], label="Focus Non-Robust")
+#     show_both_btn = Button(button_grid[1, 3], label="Show Both")
     
-    on(focus_robust_btn.clicks) do n; robust_opacity[] = 1.0; non_robust_opacity[] = 0.1; end
-    on(focus_non_robust_btn.clicks) do n; robust_opacity[] = 0.1; non_robust_opacity[] = 1.0; end
-    on(show_both_btn.clicks) do n; robust_opacity[] = 0.7; non_robust_opacity[] = 0.7; end
-    on(current_timestep) do val
-        # Update position uncertainty ellipses
-        rob_att_ellipse_pts[] = get_position_uncertainty_ellipse(robust_attacker_pos[], robust_beliefs[val].beliefs[1].belief_covariance)
-        rob_def_ellipse_pts[] = get_position_uncertainty_ellipse(robust_defender_pos[], robust_beliefs[val].beliefs[2].belief_covariance)
-        non_rob_att_ellipse_pts[] = get_position_uncertainty_ellipse(non_robust_attacker_pos[], non_robust_beliefs[val].beliefs[1].belief_covariance)
-        non_rob_def_ellipse_pts[] = get_position_uncertainty_ellipse(non_robust_defender_pos[], non_robust_beliefs[val].beliefs[2].belief_covariance)
+#     on(focus_robust_btn.clicks) do n; robust_opacity[] = 1.0; non_robust_opacity[] = 0.1; end
+#     on(focus_non_robust_btn.clicks) do n; robust_opacity[] = 0.1; non_robust_opacity[] = 1.0; end
+#     on(show_both_btn.clicks) do n; robust_opacity[] = 0.7; non_robust_opacity[] = 0.7; end
+#     on(current_timestep) do val
+#         # Update position uncertainty ellipses
+#         rob_att_ellipse_pts[] = get_position_uncertainty_ellipse(robust_attacker_pos[], robust_beliefs[val].beliefs[1].belief_covariance)
+#         rob_def_ellipse_pts[] = get_position_uncertainty_ellipse(robust_defender_pos[], robust_beliefs[val].beliefs[2].belief_covariance)
+#         non_rob_att_ellipse_pts[] = get_position_uncertainty_ellipse(non_robust_attacker_pos[], non_robust_beliefs[val].beliefs[1].belief_covariance)
+#         non_rob_def_ellipse_pts[] = get_position_uncertainty_ellipse(non_robust_defender_pos[], non_robust_beliefs[val].beliefs[2].belief_covariance)
         
-    end
+#     end
     
-    set_close_to!(slider, 1)
+#     set_close_to!(slider, 1)
 
-    display(fig)
-    save("exp/hockey/outputs/$graph_name.png", fig)
-end
+#     display(fig)
+#     save("exp/hockey/outputs/$graph_name.png", fig)
+# end
 
 function visualize_receding_horizon_solutions_multi_figure(solutions::Dict, goal_position; dims = (; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2]))
     # Create separate figures for each solution
