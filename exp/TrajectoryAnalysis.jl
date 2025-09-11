@@ -23,7 +23,7 @@ using .Hockey
 export TrajectoryAnalysisEntry, TrajectoryAnalysisTracker, TRAJECTORY_TRACKER, clear_trajectory_tracker!,
     load_and_analyze_solution_files, compute_belief_covariance_traces, compute_player_distances,
     compute_belief_deviations, effect_of_nature, get_trajectory_summary, create_trajectory_analysis_plots, get_trajectory_details,
-    create_yarnball_plot_for_cost_components
+    create_yarnball_plot_for_cost_components, compare_robust_vs_nonrobust_actions
 
 """
     TrajectoryAnalysisEntry
@@ -90,10 +90,9 @@ function load_and_analyze_solution_files(;prefix="rh_multi-trial")
     end
     
     all_files = readdir(output_dir)
-    solution_files = [joinpath(output_dir, f) for f in all_files if startswith(f, prefix) && endswith(f, ".jld2")]
+    solution_files = [joinpath(output_dir, f) for f in all_files if startswith(f, prefix) && endswith(f, ".jld2") && !endswith(f, "data.jld2")]
     
     println("Found $(length(solution_files)) solution files")
-    
     for solution_file in solution_files
         @load solution_file solutions goal_position
         
@@ -279,10 +278,170 @@ function get_trajectory_summary()
         scenario_planned_trajectory_costs = [calculate_planned_trajectory_costs(e, explicit_covariance) for e in group_entries]
         all_planned_costs[base] = scenario_planned_trajectory_costs
     end
+    
+    compare_robust_vs_nonrobust_actions(TRAJECTORY_TRACKER.entries)
 
     create_yarnball_plot_for_cost_components(all_planned_costs)
 
     return
+end
+
+"""
+    compare_robust_vs_nonrobust_actions(all_entries)
+
+Create grid plots showing action differences between robust and non-robust cases.
+"""
+function compare_robust_vs_nonrobust_actions(all_entries)
+    # Group entries by noise level
+    noise_groups = Dict{String, Vector{TrajectoryAnalysisEntry}}()
+    
+    for entry in all_entries
+        # Extract noise level from scenario name (e.g., "low_robust_1" -> "low")
+        parts = split(entry.scenario_name, "_")
+        if length(parts) >= 1
+            noise_level = parts[1]
+            if !haskey(noise_groups, noise_level)
+                noise_groups[noise_level] = TrajectoryAnalysisEntry[]
+            end
+            push!(noise_groups[noise_level], entry)
+        end
+    end
+    
+    # Create plots for each noise level
+    for (noise_level, entries) in noise_groups
+        # Separate robust and non-robust entries
+        robust_entries = [e for e in entries if e.robust]
+        non_robust_entries = [e for e in entries if !e.robust]
+        
+        if isempty(robust_entries) || isempty(non_robust_entries)
+            println("Skipping action comparison for $noise_level: missing robust or non-robust entries")
+            continue
+        end
+        
+        println("Creating action difference plots for $noise_level noise level...")
+        create_action_difference_plots(robust_entries, non_robust_entries, noise_level)
+    end
+end
+
+"""
+    create_action_difference_plots(robust_entries, non_robust_entries, noise_level)
+
+Create grid plots showing action differences between robust and non-robust cases.
+"""
+function create_action_difference_plots(robust_entries, non_robust_entries, noise_level)
+    # Determine the number of RH steps and control dimensions
+    min_rh_steps = min(length(robust_entries[1].solution_history), length(non_robust_entries[1].solution_history))
+    
+    # Get control vector dimensions from first entry
+    first_robust_sols = robust_entries[1].solution_history[1]
+    if length(first_robust_sols) >= 2
+        attacker_controls = first_robust_sols[1][2]  # (beliefs, controls) for attacker
+        if !isempty(attacker_controls)
+            control_dim = length(attacker_controls[1])
+        else
+            control_dim = 2  # Default fallback
+        end
+    else
+        control_dim = 2  # Default fallback
+    end
+    
+    # Create separate plots for attacker and defender
+    for player_idx in 1:2
+        player_name = player_idx == 1 ? "attacker" : "defender"
+        
+        # Create figure with grid: rows = RH steps, columns = 1 + control_dim
+        fig = Figure(size=(400 * (1 + control_dim), 300 * min_rh_steps))
+        Label(fig[0, :], text = "$noise_level noise - $player_name action differences (Robust vs Non-Robust)", fontsize = 20)
+        
+        for rh_step in 1:min_rh_steps
+            # Collect all trial data for this RH step
+            all_norm_diffs = Float64[]
+            all_element_diffs = [Float64[] for _ in 1:control_dim]
+            
+            for trial_num in 1:min(length(robust_entries), length(non_robust_entries))
+                robust_entry = robust_entries[trial_num]
+                non_robust_entry = non_robust_entries[trial_num]
+                
+                robust_sols = robust_entry.solution_history[rh_step]
+                non_robust_sols = non_robust_entry.solution_history[rh_step]
+                
+                if length(robust_sols) >= player_idx && length(non_robust_sols) >= player_idx
+                    robust_controls = robust_sols[player_idx][2]  # (beliefs, controls)
+                    non_robust_controls = non_robust_sols[player_idx][2]
+                    
+                    if !isempty(robust_controls) && !isempty(non_robust_controls)
+                        min_horizon = min(length(robust_controls), length(non_robust_controls))
+                        
+                        for t in 1:min_horizon
+                            diff_vector = robust_controls[t][1:length(non_robust_controls[t])] - non_robust_controls[t]
+                            norm_diff = norm(diff_vector)
+                            push!(all_norm_diffs, norm_diff)
+                            
+                            for i in 1:control_dim
+                                if i <= length(diff_vector)
+                                    push!(all_element_diffs[i], diff_vector[i])
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            # Plot norm differences
+            ax_norm = Axis(fig[rh_step, 1], 
+                title = rh_step == 1 ? "L2 Norm" : "",
+                xlabel = rh_step == min_rh_steps ? "Planning Horizon Step" : "",
+                ylabel = "RH Step $rh_step"
+            )
+            
+            if !isempty(all_norm_diffs)
+                # Reshape data for plotting (assuming we have data for each planning step)
+                n_trials = min(length(robust_entries), length(non_robust_entries))
+                horizon_length = length(all_norm_diffs) ÷ n_trials
+                
+                if horizon_length > 0
+                    for trial in 1:n_trials
+                        start_idx = (trial - 1) * horizon_length + 1
+                        end_idx = min(trial * horizon_length, length(all_norm_diffs))
+                        trial_data = all_norm_diffs[start_idx:end_idx]
+                        
+                        lines!(ax_norm, 1:length(trial_data), trial_data, 
+                               color=(:blue, 0.3), linewidth=1.5)
+                    end
+                end
+            end
+            
+            # Plot element-wise differences
+            for elem in 1:control_dim
+                ax_elem = Axis(fig[rh_step, elem + 1], 
+                    title = rh_step == 1 ? "Element $elem" : "",
+                    xlabel = rh_step == min_rh_steps ? "Planning Horizon Step" : "",
+                    ylabel = rh_step == 1 ? "RH Step $rh_step" : ""
+                )
+                
+                if !isempty(all_element_diffs[elem])
+                    n_trials = min(length(robust_entries), length(non_robust_entries))
+                    horizon_length = length(all_element_diffs[elem]) ÷ n_trials
+                    
+                    if horizon_length > 0
+                        for trial in 1:n_trials
+                            start_idx = (trial - 1) * horizon_length + 1
+                            end_idx = min(trial * horizon_length, length(all_element_diffs[elem]))
+                            trial_data = all_element_diffs[elem][start_idx:end_idx]
+                            
+                            lines!(ax_elem, 1:length(trial_data), trial_data, 
+                                   color=(:red, 0.3), linewidth=1.5)
+                        end
+                    end
+                end
+            end
+        end
+        
+        # Save the plot
+        filename = "exp/hockey/outputs/action_differences_$(noise_level)_$(player_name).png"
+        save(filename, fig)
+        println("Saved action difference plot to $filename")
+    end
 end
 
 """
@@ -493,41 +652,46 @@ function create_yarnball_plot_for_cost_components(all_planned_costs)
         num_rh_steps = length(scenario_costs[1])
         if num_rh_steps == 0 continue end
 
-        for rh_step in 1:num_rh_steps
-            # one trial's data to get keys
-            first_trial_data = scenario_costs[1]
-            if rh_step > length(first_trial_data) continue end
-            rh_step_data_for_keys = first_trial_data[rh_step]
-            player_names = collect(keys(rh_step_data_for_keys))
-
-            # Get all unique components across all players for this rh_step
-            all_components = Set{Symbol}()
-            for player_name in player_names
-                first_plan_traj = rh_step_data_for_keys[player_name]
-                if !isempty(first_plan_traj)
-                    for step in first_plan_traj
-                        union!(all_components, keys(step))
+        # Get all unique components across all RH steps and players
+        all_components = Set{Symbol}()
+        player_names = Set{Symbol}()
+        
+        for trial_data in scenario_costs
+            for rh_step in 1:min(length(trial_data), num_rh_steps)
+                rh_step_data = trial_data[rh_step]
+                for player_name in keys(rh_step_data)
+                    push!(player_names, player_name)
+                    plan_traj_costs = rh_step_data[player_name]
+                    if !isempty(plan_traj_costs)
+                        for step in plan_traj_costs
+                            union!(all_components, keys(step))
+                        end
                     end
                 end
             end
-            component_names = sort(collect(all_components), by=string)
+        end
+        
+        component_names = sort(collect(all_components), by=string)
+        player_names = sort(collect(player_names))
+        
+        if isempty(component_names) || isempty(player_names) continue end
+        
+        # Create grid: rows = RH steps, columns = cost components
+        num_components = length(component_names)
+        num_rh_steps_actual = min(num_rh_steps, 10)  # Limit to first 10 RH steps for readability
+        
+        fig = Figure(size=(400 * num_components, 300 * num_rh_steps_actual))
+        Label(fig[0, :], text = "$scenario - Cost Components Over Time", fontsize = 24)
+        
+        player_colors = Dict(zip(player_names, [:blue, :red, :green, :orange, :purple]))
 
-            if isempty(component_names) || isempty(player_names) continue end
-            
-            num_components = length(component_names)
-            num_cols = ceil(Int, sqrt(num_components))
-            num_rows = ceil(Int, num_components / num_cols)
-
-            fig = Figure(size=(500 * num_cols, 400 * num_rows))
-            Label(fig[0, :], text = "$scenario (planning stage $rh_step)", fontsize = 24)
-            
-            player_colors = Dict(zip(player_names, [:blue, :red, :green, :orange, :purple]))
-
+        for rh_step in 1:num_rh_steps_actual
             for (comp_idx, component) in enumerate(component_names)
-                row = ceil(Int, comp_idx / num_cols)
-                col = mod1(comp_idx, num_cols)
-
-                ax = Axis(fig[row, col], title=string(component))
+                ax = Axis(fig[rh_step, comp_idx], 
+                    title = rh_step == 1 ? string(component) : "",  # Only show component name on top row
+                    xlabel = rh_step == num_rh_steps_actual ? "Planning Horizon Step" : "",  # Only show xlabel on bottom row
+                    ylabel = comp_idx == 1 ? "RH Step $rh_step" : ""  # Only show ylabel on left column
+                )
 
                 for player_name in player_names
                     color = player_colors[player_name]
@@ -540,17 +704,21 @@ function create_yarnball_plot_for_cost_components(all_planned_costs)
                         
                         component_trajectory = [get(step, component, 0.0) for step in plan_traj_costs]
 
-                        lines!(ax, 1:length(component_trajectory), component_trajectory, color=(color, 0.3))
+                        lines!(ax, 1:length(component_trajectory), component_trajectory, 
+                               color=(color, 0.3), linewidth=1.5)
                     end
                 end
 
-                elements = [LineElement(color = player_colors[p], linestyle = :solid) for p in player_names]
-                axislegend(ax, elements, string.(player_names), "Players")
+                # Add legend only to the first subplot
+                if rh_step == 1 && comp_idx == 1
+                    elements = [LineElement(color = player_colors[p], linestyle = :solid) for p in player_names]
+                    axislegend(ax, elements, string.(player_names), "Players")
+                end
             end
-            
-            save("exp/hockey/outputs/yarnball_$(scenario)_stage_$(rh_step).png", fig)
-            println("Saved yarnball plot to exp/hockey/outputs/yarnball_$(scenario)_stage_$(rh_step).png")
         end
+        
+        save("exp/hockey/outputs/yarnball_$(scenario)_cost_grid.png", fig)
+        println("Saved yarnball cost grid plot to exp/hockey/outputs/yarnball_$(scenario)_cost_grid.png")
     end
 end
 
