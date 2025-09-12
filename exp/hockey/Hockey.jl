@@ -266,9 +266,13 @@ function attacker_non_terminal_cost_components(belief_over_attacker::Belief, bel
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
     shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(1)], us[Block(1)]) # Attacker is player 1
-    attacker_covariance = explicit_covariance ? tr(belief_over_attacker.belief_covariance) : 0
+    attacker_covariance = tr(belief_over_attacker.belief_covariance)
     bounds = box_bounds(belief_over_attacker)
-    return (; steal_prob, shot_prob = -2 * shot_prob, control_effort, bounds, attacker_covariance)
+    if explicit_covariance
+        return (; steal_prob, shot_prob = -2 * shot_prob, control_effort, bounds, attacker_covariance)
+    else
+        return (; steal_prob, shot_prob = -2 * shot_prob, control_effort, bounds)
+    end
 end
 
 function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
@@ -280,9 +284,13 @@ function defender_non_terminal_cost_components(belief_over_attacker::Belief, bel
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
     shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
     control_effort = dot(us[Block(2)], us[Block(2)]) # Defender is player 2
-    defender_covariance = explicit_covariance ? tr(belief_over_defender.belief_covariance) : 0
     bounds = box_bounds(belief_over_defender)
-    return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds, defender_covariance)
+    defender_covariance = tr(belief_over_defender.belief_covariance)
+    if explicit_covariance
+        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds, defender_covariance)
+    else
+        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds)
+    end
 end
 
 function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
