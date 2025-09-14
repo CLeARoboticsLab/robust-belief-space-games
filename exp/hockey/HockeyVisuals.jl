@@ -87,16 +87,16 @@
 #     return fig
 # end
 
-# function get_position_uncertainty_ellipse(mean_pos, cov, confidence=0.95)
-#     # Ensure we only use the position components of the covariance
-#     pos_cov = cov[1:2, 1:2]
-#     E = safe_eigen(pos_cov)
-#     scale = sqrt(-2 * log(1 - confidence)) 
-#     t = range(0, 2π, 100)
+function get_position_uncertainty_ellipse(mean_pos, cov, confidence=0.95)
+    # Ensure we only use the position components of the covariance
+    pos_cov = cov[1:2, 1:2]
+    E = safe_eigen(pos_cov)
+    scale = sqrt(-2 * log(1 - confidence)) 
+    t = range(0, 2π, 100)
     
-#     # Parametric equation for an ellipse
-#     return [Point2f(scale * E.vectors * [sqrt(E.values[1])*cos(θ), sqrt(E.values[2])*sin(θ)] + mean_pos[1:2]) for θ in t]
-# end
+    # Parametric equation for an ellipse
+    return [Point2f(scale * E.vectors * [sqrt(E.values[1])*cos(θ), sqrt(E.values[2])*sin(θ)] + mean_pos[1:2]) for θ in t]
+end
 
 # function visualize_belief_hockey_solution(sol, non_robust_sol, goal_position; graph_name="belief_hockey")
 #     robust_beliefs = sol[1]
