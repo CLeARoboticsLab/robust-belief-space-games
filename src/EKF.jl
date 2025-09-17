@@ -13,7 +13,7 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
     H = ForwardDiff.jacobian(H_fn, vcat(means(beliefs)...))
     N = ForwardDiff.jacobian(N_fn, zero_noise)
 
-    Σ = BlockDiagonal([b.belief_covariance for b in beliefs.beliefs])
+    Σ = BlockDiagonal([b.belief_covariance for b in beliefs]) #removed redundant .beliefs - remove comment after review
     Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
     
     S = H * Γ * H' + N * N'
@@ -26,9 +26,9 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
         @view temp[Block(dim), Block(dim)]
     end
     if is_robust
-        n = length(control.blocks) - is_robust
+        n = length(control.blocks) - 1 #is_robust asserted to be true
         disturbed_expected_dynamics = expected_dynamics[Block(1):Block(n)] + control[Block(n+1)]
-        g = [vcat(disturbed_expected_dynamics, expected_dynamics[Block(n+1):Block(n^2)]); Base.vec(covs_extraced)]
+        g = [(disturbed_expected_dynamics; expected_dynamics[Block(n+1):Block(n^2)]); Base.vec(covs_extraced)] #removed unnecessary function call
     else
         g = [expected_dynamics; Base.vec(covs_extraced)]
     end
@@ -56,7 +56,7 @@ end
 
 function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
     old_debug = DEBUG
-    global DEBUG = false
+    global DEBUG = false #TODO: Remove use of global var. manipulation
     function mean_grad(x)
         return ekf_update(
             unvec(x[1:total_size(beliefs)], dims(beliefs)),

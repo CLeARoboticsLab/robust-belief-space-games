@@ -44,8 +44,9 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
 
     cond = Float64[]
 
-    while true
     # while max(feed_forward_norms_history[end]...) > ϵ_converge
+    while true
+        #region - Debug Statements (commented)
         # if DEBUG
         #     open(DEBUG_FILE, "a") do f
         #         println(f, "[solve] beliefs and controls")
@@ -59,6 +60,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         #         println(f)
         #     end
         # end
+        #endregion
         feedback_terms, feed_forward_norms, new_kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
         candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, new_kkt_error_norms, regularizations)
 
@@ -66,7 +68,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
             push!(feed_forward_norms_history, feed_forward_norms)
             push!(kkt_error_history, norm.(new_kkt_error_norms))
         end
-        
+        #region - Print Statements (commented)
         # println("iter: $iterations, error: ", candidate_kkt_error)
 
         # @printf("[s %3d / %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, improvement_iterations, mean(feed_forward_norms_history[cur_ff_norm]), mean(feed_forward_norms), regularizations.control_reg, α)
@@ -74,6 +76,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         # println("\tNew costs: ", join([@sprintf("%.3f", c) for c in new_cost], ", "))
         # println("\tImprovements: ", join([@sprintf("%.3f", imp) for imp in improvements], ", "))
         # println("\tCost decr: $cost_decreased, ff_norm decr: $feed_forward_norm_decreased")
+        #endregion
         if step_accepted
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             kkt_error_norms = new_kkt_error_norms
@@ -83,26 +86,21 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
                 break
             end
             old_cost = new_cost
-            regularizations.control_reg *= 0.98
+            regularizations.control_reg *= 0.98 #TODO: Convert to global variable
             regularizations.belief_reg *= 0.98
-            if save_intermediate_solutions
-                push!(intermediate_solutions, (candidate_beliefs, candidate_controls))
-            end
-            
-            # Store the maximum feed_forward norm as a condition number proxy
-            # Higher norms often indicate worse conditioning of the optimization problem
-            if !isempty(feedback_terms)
-                max_cond = maximum(norm.(feedback_terms[end][1]))
-            else
-                max_cond = 0.0
-            end
-            if save_intermediate_solutions
-                push!(cond, max_cond)
-            end
             improvement_iterations += 1
+
             # cur_ff_norm = length(feed_forward_norms_history)
             # println("\t step accepted, $improvement_iterations / $iterations")
-            
+
+            if save_intermediate_solutions
+                # Store the maximum feed_forward norm as a condition number proxy
+                # Higher norms often indicate worse conditioning of the optimization problem
+                max_cond = isempty(feedback_terms) ? 0.0 : maximum(norm.(feedback_terms[end][1]))
+                push!(intermediate_solutions, (candidate_beliefs, candidate_controls))
+                push!(cond, max_cond)
+            end
+
             if DEBUG
                 open(DEBUG_FILE, "a") do f
                     println(f, "[solve] Iteration $iterations - Control stationarity error: $current_stationarity_error")
@@ -112,11 +110,12 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
             if regularizations.control_reg > 1000
                 break
             end
-            regularizations.control_reg *= 1.3
+            regularizations.control_reg *= 1.3 #TODO: Convert to global variable
             regularizations.belief_reg *= 1.3
         end
         iterations += 1
     end
+
     println("Converged in $improvement_iterations / $iterations iterations")
     
     # Compute final control stationarity error
@@ -126,11 +125,12 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
     if !isnothing(kkt_error_norms)
         println("error mean: ", round(mean(norm.(kkt_error_norms)), digits=7))
     end
+    
     if save_intermediate_solutions
         return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], kkt_error_history[2:end], cond
-    else
-        return nominal_beliefs, nominal_controls, kkt_error_norms
     end
+    
+    return nominal_beliefs, nominal_controls, kkt_error_norms
 end
 
 # TODO: take a gradient step on one player's control (IBR style)
