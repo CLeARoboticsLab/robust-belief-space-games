@@ -23,8 +23,7 @@ using .Hockey
 export TrajectoryAnalysisEntry, TrajectoryAnalysisTracker, TRAJECTORY_TRACKER, clear_trajectory_tracker!,
     load_and_analyze_solution_files, compute_belief_covariance_traces, compute_player_distances,
     compute_belief_deviations, effect_of_nature, get_trajectory_summary, create_trajectory_analysis_plots, get_trajectory_details,
-    create_yarnball_plot_for_cost_components, compare_robust_vs_nonrobust_actions,
-    create_defender_cost_grid_plot
+    create_yarnball_plot_for_cost_components, compare_robust_vs_nonrobust_actions
 
 """
     TrajectoryAnalysisEntry
@@ -136,7 +135,7 @@ function load_and_analyze_solution_files(;prefix="rh_multi-trial")
                 continue
             end
             gt_state_history, all_observations, solution_history, cond_history, lq_sol_history = solution_data
-                
+            
             # TODO: save the cost functions with the solution data.
             explicit_covariance = false
             attacker_cost = BeliefCost(
@@ -283,7 +282,6 @@ function get_trajectory_summary()
     compare_robust_vs_nonrobust_actions(TRAJECTORY_TRACKER.entries)
 
     create_yarnball_plot_for_cost_components(all_planned_costs, TRAJECTORY_TRACKER.entries)
-    create_defender_cost_grid_plot(all_planned_costs, TRAJECTORY_TRACKER.entries)
 
     return
 end
@@ -319,7 +317,7 @@ function compare_robust_vs_nonrobust_actions(all_entries)
             println("Skipping action comparison for $noise_level: missing robust or non-robust entries")
             continue
         end
-
+        
         println("Creating action difference plots for $noise_level noise level...")
         create_action_difference_plots(robust_entries, non_robust_entries, noise_level)
     end
@@ -338,11 +336,11 @@ function create_action_difference_plots(robust_entries, non_robust_entries, nois
     first_robust_sols = robust_entries[1].solution_history[1]
     if length(first_robust_sols) >= 2
         attacker_controls = first_robust_sols[1][2]  # (beliefs, controls) for attacker
-        # if !isempty(attacker_controls)
-        #     control_dim = length(attacker_controls[1])
-        # else
+        if !isempty(attacker_controls)
+            control_dim = length(attacker_controls[1])
+        else
             control_dim = 2  # Default fallback
-        # end
+        end
     else
         control_dim = 2  # Default fallback
     end
@@ -375,15 +373,14 @@ function create_action_difference_plots(robust_entries, non_robust_entries, nois
                         min_horizon = min(length(robust_controls), length(non_robust_controls))
                         
                         for t in 1:min_horizon
-                            robust_control = robust_controls[t]
-                            non_robust_control = non_robust_controls[t]
-                            control_indices = player_idx == 1 ? (1:control_dim) : ((control_dim + 1):(2 * control_dim))
-
-                            diff_vector = robust_control[control_indices] - non_robust_control[control_indices]
+                            diff_vector = robust_controls[t][1:length(non_robust_controls[t])] - non_robust_controls[t]
                             norm_diff = norm(diff_vector)
                             push!(all_norm_diffs, norm_diff)
+                            
                             for i in 1:control_dim
-                                push!(all_element_diffs[i], diff_vector[i])
+                                if i <= length(diff_vector)
+                                    push!(all_element_diffs[i], diff_vector[i])
+                                end
                             end
                         end
                     end
@@ -436,10 +433,10 @@ function create_action_difference_plots(robust_entries, non_robust_entries, nois
                                    color=(:red, 0.3), linewidth=1.5)
                         end
                     end
+                end
+            end
         end
-    end
-end
-
+        
         # Save the plot
         filename = "exp/hockey/outputs/action_differences_$(noise_level)_$(player_name).png"
         save(filename, fig)
@@ -453,66 +450,74 @@ end
 Calculate the costs incurred for the actual executed trajectory using each player's own beliefs.
 """
 function compute_executed_trajectory_costs(entry::TrajectoryAnalysisEntry, explicit_covariance::Bool)
-    player_names = [:attacker, :defender]
-
+    player_names = [:attacker, :defender, :nature]
+    
     if isempty(entry.gt_state_history) || isempty(entry.solution_history)
         return []
     end
     
     executed_costs = []
-
+    num_players = 2
+    
     for t in 1:length(entry.gt_state_history)
         cost_breakdown = Dict()
-
+        
+        # Get the solution data for this time step
         if t > length(entry.solution_history)
             continue
         end
+        
         sols = entry.solution_history[t]
-
-        for (player_idx, player_name) in enumerate(player_names)
-            if player_idx > length(sols)
-                continue
-            end
+        
+        for (player_idx, player_name) in enumerate(player_names[1:num_players])
             beliefs_traj, controls_traj = sols[player_idx]
-
-            if isempty(beliefs_traj) || isempty(controls_traj)
-                cost_breakdown[player_name] = NamedTuple()
-                continue
-            end
-
-            current_beliefs = beliefs_traj[1]
-            executed_control = controls_traj[1]
-
-            belief_indices = if player_name == :attacker
-                (1, 2)
-            else # defender's beliefs
-                (3, 4)
-            end
-
-            if length(current_beliefs.beliefs) < belief_indices[2]
+            
+            if isempty(beliefs_traj) || isempty(controls_traj) || t > length(controls_traj)
                 cost_breakdown[player_name] = NamedTuple()
                 continue
             end
             
-            attacker_belief = current_beliefs.beliefs[belief_indices[1]]
-            defender_belief = current_beliefs.beliefs[belief_indices[2]]
-            
-            if t == length(entry.gt_state_history)
-                costs = Hockey.player_cost_components[player_name].terminal(
-                    attacker_belief,
-                    defender_belief;
-                    explicit_covariance=explicit_covariance
-                )
+            # Get the beliefs for this time step
+            if t <= length(beliefs_traj)
+                current_beliefs = beliefs_traj[1]
+                
+                belief_indices = if player_name == :attacker
+                    (1, 2)
+                else # defender's beliefs are third (over attacker), fourth (over defender)
+                    (3, 4)
+                end
+                
+                # Extract the specific beliefs for this player
+                if length(current_beliefs.beliefs) >= belief_indices[2]
+                    attacker_belief = current_beliefs.beliefs[belief_indices[1]]
+                    defender_belief = current_beliefs.beliefs[belief_indices[2]]
+                    
+                    # Calculate cost components using the player's own beliefs
+                    if t == length(entry.gt_state_history)
+                        costs = Hockey.player_cost_components[player_name].terminal(
+                            attacker_belief,
+                            defender_belief;
+                            explicit_covariance=explicit_covariance
+                        )
+                    else
+                        executed_control = controls_traj[1]
+                        costs = Hockey.player_cost_components[player_name].non_terminal(
+                            attacker_belief, 
+                            defender_belief,
+                            executed_control;
+                            explicit_covariance=explicit_covariance
+                        )
+                    end
+                    
+                    cost_breakdown[player_name] = costs
+                else
+                    cost_breakdown[player_name] = NamedTuple()
+                end
             else
-                costs = Hockey.player_cost_components[player_name].non_terminal(
-                    attacker_belief, 
-                    defender_belief,
-                    executed_control;
-                    explicit_covariance=explicit_covariance
-                )
+                cost_breakdown[player_name] = NamedTuple()
             end
-            cost_breakdown[player_name] = costs
         end
+        
         push!(executed_costs, cost_breakdown)
     end
     
@@ -722,390 +727,174 @@ end
 function create_yarnball_plot_for_cost_components(all_planned_costs, all_entries)
     println("Generating yarnball plots for cost components...")
 
-    # Group entries by noise level for combined plotting
-    noise_level_groups = Dict{String, Dict{String, Any}}()
-    for (scenario, costs) in all_planned_costs
-        parts = split(scenario, "_")
-        noise_level = parts[1]
-        robust_type = contains(scenario, "non_robust") ? "non_robust" : "robust"
+    for (scenario, scenario_costs) in all_planned_costs # scenario_costs is for all trials of a scenario
+        
+        if isempty(scenario_costs) continue end
+        num_rh_steps = length(scenario_costs[1])
+        if num_rh_steps == 0 continue end
 
-        if !haskey(noise_level_groups, noise_level)
-            noise_level_groups[noise_level] = Dict("robust" => [], "non_robust" => [])
-        end
-        noise_level_groups[noise_level][robust_type] = costs
-    end
-
-    for (noise_level, scenario_costs_map) in noise_level_groups
-        robust_costs = get(scenario_costs_map, "robust", [])
-        non_robust_costs = get(scenario_costs_map, "non_robust", [])
-
-        if isempty(robust_costs) && isempty(non_robust_costs) continue end
-
-        # Determine dimensions and components from available data
-        sample_costs = !isempty(robust_costs) ? robust_costs : non_robust_costs
-        num_rh_steps = isempty(sample_costs) ? 0 : length(sample_costs[1])
-
-        # Get all unique components and players
+        # Get all unique components across all RH steps and players
         all_components = Set{Symbol}()
         player_names = Set{Symbol}()
         
-        for trial_data in vcat(robust_costs, non_robust_costs)
-            for rh_step_data in trial_data
+        for trial_data in scenario_costs
+            for rh_step in 1:min(length(trial_data), num_rh_steps)
+                rh_step_data = trial_data[rh_step]
                 for player_name in keys(rh_step_data)
                     push!(player_names, player_name)
-                    for step in rh_step_data[player_name]
-                        union!(all_components, keys(step))
+                    plan_traj_costs = rh_step_data[player_name]
+                    if !isempty(plan_traj_costs)
+                        for step in plan_traj_costs
+                            union!(all_components, keys(step))
+                        end
                     end
                 end
             end
         end
         
         component_names = sort(collect(all_components), by=string)
-        sorted_player_names = sort(collect(player_names), by=string)
+        player_names = sort(collect(player_names))
         
-        if isempty(component_names) || isempty(sorted_player_names) continue end
-
-        # Create grid
+        if isempty(component_names) || isempty(player_names) continue end
+        
+        # Create grid: rows = RH steps + 1 (for executed trajectory), columns = cost components + 1 (for total cost)
         num_components = length(component_names)
-        num_rh_steps_actual = min(num_rh_steps, 10)
-        num_rows = num_rh_steps_actual + 1
-        num_cols = num_components + 1
+        num_rh_steps_actual = min(num_rh_steps, 10)  # Limit to first 10 RH steps for readability
+        num_rows = num_rh_steps_actual + 1  # +1 for executed trajectory row
+        num_cols = num_components + 1  # +1 for total cost column
         
         fig = Figure(size=(400 * num_cols, 300 * num_rows))
-        Label(fig[0, :], text = "$noise_level - Cost Components Over Time", fontsize = 24)
+        Label(fig[0, :], text = "$scenario - Cost Components Over Time", fontsize = 24)
         
-        colors = Dict(
-            :robust_attacker => :blue,
-            :robust_defender => :red,
-            :non_robust_attacker => :cyan,
-            :non_robust_defender => :orange
-        )
-
-        plot_data = Dict(
-            "robust" => robust_costs,
-            "non_robust" => non_robust_costs
-        )
+        player_colors = Dict(zip(player_names, [:blue, :red, :green, :orange, :purple]))
 
         for rh_step in 1:num_rh_steps_actual
             for (comp_idx, component) in enumerate(component_names)
                 ax = Axis(fig[rh_step, comp_idx], 
-                    title = rh_step == 1 ? string(component) : "",
-                    xlabel = rh_step == num_rh_steps_actual ? "Planning Horizon Step" : "",
-                    ylabel = comp_idx == 1 ? "RH Step $rh_step" : ""
+                    title = rh_step == 1 ? string(component) : "",  # Only show component name on top row
+                    xlabel = rh_step == num_rh_steps_actual ? "Planning Horizon Step" : "",  # Only show xlabel on bottom row
+                    ylabel = comp_idx == 1 ? "RH Step $rh_step" : ""  # Only show ylabel on left column
                 )
 
-                for (robust_type, cost_data) in plot_data
-                    if isempty(cost_data) continue end
-                    for player_name in sorted_player_names
-                        color_key = Symbol("$(robust_type)_$(player_name)")
-                        color = colors[color_key]
-                        for trial_data in cost_data
-                            if rh_step > length(trial_data) continue end
-                            rh_step_data = trial_data[rh_step] 
-                            if !haskey(rh_step_data, player_name) continue end
-                            plan_traj_costs = rh_step_data[player_name]
-                            if isempty(plan_traj_costs) continue end
-                            
-                            component_trajectory = [get(step, component, 0.0) for step in plan_traj_costs]
-                            lines!(ax, 1:length(component_trajectory), component_trajectory, color=(color, 0.3), linewidth=1.5)
-                        end
-                    end
-                end
-            end
-
-            # Plot total cost column
-            ax_total = Axis(fig[rh_step, num_cols], 
-                title = rh_step == 1 ? "Total Cost" : "",
-                xlabel = rh_step == num_rh_steps_actual ? "Planning Horizon Step" : "",
-                ylabel = ""
-            )
-            for (robust_type, cost_data) in plot_data
-                if isempty(cost_data) continue end
-                for player_name in sorted_player_names
-                    color_key = Symbol("$(robust_type)_$(player_name)")
-                    color = colors[color_key]
-                    for trial_data in cost_data
+                for player_name in player_names
+                    color = player_colors[player_name]
+                    for trial_data in scenario_costs # loop over trials
                         if rh_step > length(trial_data) continue end
                         rh_step_data = trial_data[rh_step] 
                         if !haskey(rh_step_data, player_name) continue end
                         plan_traj_costs = rh_step_data[player_name]
                         if isempty(plan_traj_costs) continue end
                         
-                        total_trajectory = [sum(values(step)) for step in plan_traj_costs]
-                        lines!(ax_total, 1:length(total_trajectory), total_trajectory, color=(color, 0.3), linewidth=1.5)
-                    end
-                end
-            end
-        end
-
-        # Get entries for the current noise level
-        scenario_entries_map = Dict(
-            "robust" => [e for e in all_entries if e.noise_level == noise_level && e.robust],
-            "non_robust" => [e for e in all_entries if e.noise_level == noise_level && !e.robust]
-        )
-
-        # Plot executed trajectory costs (bottom row)
-        for (comp_idx, component) in enumerate(component_names)
-            ax = Axis(fig[num_rows, comp_idx], 
-                xlabel = "Execution Time Step",
-                ylabel = "Executed Cost"
-            )
-            
-            for (robust_type, entries) in scenario_entries_map
-                if isempty(entries) continue end
-                for player_name in sorted_player_names
-                    color_key = Symbol("$(robust_type)_$(player_name)")
-                    color = colors[color_key]
-                    for entry in entries
-                        executed_costs = compute_executed_trajectory_costs(entry, false)
-                        
-                        if !isempty(executed_costs)
-                            component_trajectory = Float64[]
-                            for time_step_costs in executed_costs
-                                if haskey(time_step_costs, player_name) && !isempty(time_step_costs[player_name])
-                                    push!(component_trajectory, get(time_step_costs[player_name], component, 0.0))
-                end
-            end
-            
-                            if !isempty(component_trajectory)
-                                lines!(ax, 1:length(component_trajectory), component_trajectory, color=(color, 0.3), linewidth=1.5)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        # Plot total cost for executed trajectory (bottom right)
-        ax_executed_total = Axis(fig[num_rows, num_cols], 
-            xlabel = "Execution Time Step"
-        )
-        
-        for (robust_type, entries) in scenario_entries_map
-            if isempty(entries) continue end
-            for player_name in sorted_player_names
-                color_key = Symbol("$(robust_type)_$(player_name)")
-                color = colors[color_key]
-                for entry in entries
-                    executed_costs = compute_executed_trajectory_costs(entry, false)
-                    
-                    if !isempty(executed_costs)
-                        total_trajectory = Float64[]
-                        for time_step_costs in executed_costs
-                            if haskey(time_step_costs, player_name) && !isempty(time_step_costs[player_name])
-                                push!(total_trajectory, sum(values(time_step_costs[player_name])))
-        end
-    end
-    
-                        if !isempty(total_trajectory)
-                            lines!(ax_executed_total, 1:length(total_trajectory), total_trajectory, color=(color, 0.3), linewidth=1.5)
-                        end
-                    end
-                end
-            end
-        end
-
-        # Legend
-        if num_rh_steps_actual > 0 && num_components > 0
-            legend_elements = [
-                LineElement(color = colors[:robust_attacker], linestyle = :solid),
-                LineElement(color = colors[:robust_defender], linestyle = :solid),
-                LineElement(color = colors[:non_robust_attacker], linestyle = :solid),
-                LineElement(color = colors[:non_robust_defender], linestyle = :solid)
-            ]
-            legend_labels = ["Robust Attacker", "Robust Defender", "Non-Robust Attacker", "Non-Robust Defender"]
-            axislegend(Axis(fig[1,1]), legend_elements, legend_labels, "Players")
-        end
-        
-        save("exp/hockey/outputs/yarnball_$(noise_level)_cost_grid.png", fig)
-        println("Saved combined yarnball cost grid plot to exp/hockey/outputs/yarnball_$(noise_level)_cost_grid.png")
-    end
-end
-
-function create_defender_cost_grid_plot(all_planned_costs, all_entries)
-    println("Generating defender-only yarnball plots for cost components...")
-
-    # Group entries by noise level for combined plotting
-    noise_level_groups = Dict{String, Dict{String, Any}}()
-    for (scenario, costs) in all_planned_costs
-        parts = split(scenario, "_")
-        noise_level = parts[1]
-        robust_type = contains(scenario, "non_robust") ? "non_robust" : "robust"
-
-        if !haskey(noise_level_groups, noise_level)
-            noise_level_groups[noise_level] = Dict("robust" => [], "non_robust" => [])
-        end
-        noise_level_groups[noise_level][robust_type] = costs
-    end
-
-    for (noise_level, scenario_costs_map) in noise_level_groups
-        robust_costs = get(scenario_costs_map, "robust", [])
-        non_robust_costs = get(scenario_costs_map, "non_robust", [])
-
-        if isempty(robust_costs) && isempty(non_robust_costs) continue end
-
-        # Determine dimensions and components from available data
-        sample_costs = !isempty(robust_costs) ? robust_costs : non_robust_costs
-        num_rh_steps = isempty(sample_costs) ? 0 : length(sample_costs[1])
-
-        # Get all unique components for the defender
-        all_components = Set{Symbol}()
-        for trial_data in vcat(robust_costs, non_robust_costs)
-            for rh_step_data in trial_data
-                if haskey(rh_step_data, :defender)
-                    for step in rh_step_data[:defender]
-                        union!(all_components, keys(step))
-                    end
-                end
-            end
-        end
-        
-        component_names = sort(collect(all_components), by=string)
-        
-        if isempty(component_names) continue end
-
-        # Create grid
-        num_components = length(component_names)
-        num_rh_steps_actual = min(num_rh_steps, 10)
-        num_rows = num_rh_steps_actual + 1
-        num_cols = num_components + 1
-        
-        fig = Figure(size=(400 * num_cols, 300 * num_rows))
-        Label(fig[0, :], text = "$noise_level - Defender Cost Components", fontsize = 24)
-        
-        colors = Dict(
-            :robust_defender => :red,
-            :non_robust_defender => :orange
-        )
-
-        plot_data = Dict(
-            "robust" => robust_costs,
-            "non_robust" => non_robust_costs
-        )
-
-        for rh_step in 1:num_rh_steps_actual
-            for (comp_idx, component) in enumerate(component_names)
-                ax = Axis(fig[rh_step, comp_idx], 
-                    title = rh_step == 1 ? string(component) : "",
-                    xlabel = rh_step == num_rh_steps_actual ? "Planning Horizon Step" : "",
-                    ylabel = comp_idx == 1 ? "RH Step $rh_step" : ""
-                )
-
-                for (robust_type, cost_data) in plot_data
-                    if isempty(cost_data) continue end
-                    color_key = Symbol("$(robust_type)_defender")
-                    color = colors[color_key]
-                    for trial_data in cost_data
-                        if rh_step > length(trial_data) continue end
-                        rh_step_data = trial_data[rh_step] 
-                        if !haskey(rh_step_data, :defender) continue end
-                        plan_traj_costs = rh_step_data[:defender]
-                        if isempty(plan_traj_costs) continue end
-                        
                         component_trajectory = [get(step, component, 0.0) for step in plan_traj_costs]
-                        lines!(ax, 1:length(component_trajectory), component_trajectory, color=(color, 0.3), linewidth=1.5)
+
+                        lines!(ax, 1:length(component_trajectory), component_trajectory, 
+                               color=(color, 0.3), linewidth=1.5)
                     end
                 end
-            end
 
-            # Plot total cost column
+                # Add legend only to the first subplot
+                if rh_step == 1 && comp_idx == 1
+                    elements = [LineElement(color = player_colors[p], linestyle = :solid) for p in player_names]
+                    axislegend(ax, elements, string.(player_names), "Players")
+                end
+            end
+            
+            # Plot total cost column for planned trajectories
             ax_total = Axis(fig[rh_step, num_cols], 
                 title = rh_step == 1 ? "Total Cost" : "",
                 xlabel = rh_step == num_rh_steps_actual ? "Planning Horizon Step" : "",
-                ylabel = ""
+                ylabel = "RH Step $rh_step"
             )
-            for (robust_type, cost_data) in plot_data
-                if isempty(cost_data) continue end
-                color_key = Symbol("$(robust_type)_defender")
-                color = colors[color_key]
-                for trial_data in cost_data
+            
+            for player_name in player_names
+                color = player_colors[player_name]
+                for trial_data in scenario_costs
                     if rh_step > length(trial_data) continue end
                     rh_step_data = trial_data[rh_step] 
-                    if !haskey(rh_step_data, :defender) continue end
-                    plan_traj_costs = rh_step_data[:defender]
+                    if !haskey(rh_step_data, player_name) continue end
+                    plan_traj_costs = rh_step_data[player_name]
                     if isempty(plan_traj_costs) continue end
                     
-                    total_trajectory = [sum(values(step)) for step in plan_traj_costs]
-                    lines!(ax_total, 1:length(total_trajectory), total_trajectory, color=(color, 0.3), linewidth=1.5)
+                    # Calculate total cost for each step
+                    total_trajectory = Float64[]
+                    for step in plan_traj_costs
+                        total_cost = sum(values(step))
+                        push!(total_trajectory, total_cost)
+                    end
+                    
+                    lines!(ax_total, 1:length(total_trajectory), total_trajectory, 
+                           color=(color, 0.3), linewidth=1.5)
                 end
             end
         end
-
-        # Get entries for the current noise level
-        scenario_entries_map = Dict(
-            "robust" => [e for e in all_entries if e.noise_level == noise_level && e.robust],
-            "non_robust" => [e for e in all_entries if e.noise_level == noise_level && !e.robust]
-        )
-
+        
+        # Get entries for this scenario
+        scenario_entries = [e for e in all_entries if base_group(e.scenario_name) == scenario]
+        
         # Plot executed trajectory costs (bottom row)
         for (comp_idx, component) in enumerate(component_names)
             ax = Axis(fig[num_rows, comp_idx], 
+                title = string(component),
                 xlabel = "Execution Time Step",
-                ylabel = "Executed Cost"
+                ylabel = "Executed"
             )
             
-            for (robust_type, entries) in scenario_entries_map
-                if isempty(entries) continue end
-                color_key = Symbol("$(robust_type)_defender")
-                color = colors[color_key]
-                for entry in entries
-                    executed_costs = compute_executed_trajectory_costs(entry, false)
+            for player_name in player_names
+                color = player_colors[player_name]
+                for entry in scenario_entries
+                    # Compute executed trajectory costs
+                    executed_costs = compute_executed_trajectory_costs(entry, false)  # explicit_covariance = false
                     
-                    if !isempty(executed_costs)
+                    if !isempty(executed_costs) && haskey(executed_costs[1], player_name)
                         component_trajectory = Float64[]
                         for time_step_costs in executed_costs
-                            if haskey(time_step_costs, :defender) && !isempty(time_step_costs[:defender])
-                                push!(component_trajectory, get(time_step_costs[:defender], component, 0.0))
+                            if haskey(time_step_costs, player_name) && !isempty(time_step_costs[player_name])
+                                cost_value = get(time_step_costs[player_name], component, 0.0)
+                                push!(component_trajectory, cost_value)
                             end
                         end
                         
                         if !isempty(component_trajectory)
-                            lines!(ax, 1:length(component_trajectory), component_trajectory, color=(color, 0.3), linewidth=1.5)
+                            lines!(ax, 1:length(component_trajectory), component_trajectory, 
+                                   color=(color, 0.3), linewidth=1.5)
                         end
                     end
                 end
             end
         end
-
+        
         # Plot total cost for executed trajectory (bottom right)
         ax_executed_total = Axis(fig[num_rows, num_cols], 
-            xlabel = "Execution Time Step"
+            title = "Total Cost",
+            xlabel = "Execution Time Step",
+            ylabel = "Executed"
         )
         
-        for (robust_type, entries) in scenario_entries_map
-            if isempty(entries) continue end
-            color_key = Symbol("$(robust_type)_defender")
-            color = colors[color_key]
-            for entry in entries
+        for player_name in player_names
+            color = player_colors[player_name]
+            for entry in scenario_entries
+                # Compute executed trajectory costs
                 executed_costs = compute_executed_trajectory_costs(entry, false)
                 
-                if !isempty(executed_costs)
+                if !isempty(executed_costs) && haskey(executed_costs[1], player_name)
                     total_trajectory = Float64[]
                     for time_step_costs in executed_costs
-                        if haskey(time_step_costs, :defender) && !isempty(time_step_costs[:defender])
-                            push!(total_trajectory, sum(values(time_step_costs[:defender])))
+                        if haskey(time_step_costs, player_name) && !isempty(time_step_costs[player_name])
+                            total_cost = sum(values(time_step_costs[player_name]))
+                            push!(total_trajectory, total_cost)
                         end
                     end
                     
                     if !isempty(total_trajectory)
-                        lines!(ax_executed_total, 1:length(total_trajectory), total_trajectory, color=(color, 0.3), linewidth=1.5)
+                        lines!(ax_executed_total, 1:length(total_trajectory), total_trajectory, 
+                               color=(color, 0.3), linewidth=1.5)
                     end
                 end
             end
         end
-
-        # Legend
-        if num_rh_steps_actual > 0 && num_components > 0
-            legend_elements = [
-                LineElement(color = colors[:robust_defender], linestyle = :solid),
-                LineElement(color = colors[:non_robust_defender], linestyle = :solid)
-            ]
-            legend_labels = ["Robust Defender", "Non-Robust Defender"]
-            axislegend(Axis(fig[1,1]), legend_elements, legend_labels, "Players")
-        end
         
-        save("exp/hockey/outputs/yarnball_$(noise_level)_defender_cost_grid.png", fig)
-        println("Saved combined yarnball defender cost grid plot to exp/hockey/outputs/yarnball_$(noise_level)_defender_cost_grid.png")
+        save("exp/hockey/outputs/yarnball_$(scenario)_cost_grid.png", fig)
+        println("Saved yarnball cost grid plot to exp/hockey/outputs/yarnball_$(scenario)_cost_grid.png")
     end
 end
 
