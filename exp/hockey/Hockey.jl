@@ -8,8 +8,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-using CairoMakie
-# using GLMakie
+#using CairoMakie
+using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -23,9 +23,30 @@ include("./HockeyVisuals.jl")
 
 export hockey_game, receding_horizon_main, attacker_cost, defender_cost, attacker_non_terminal_cost, defender_non_terminal_cost, nature_non_terminal_cost, attacker_terminal_cost, defender_terminal_cost, nature_terminal_cost, player_cost_components
 
-struct DummyEnvironment end
+#region: Environment Parameters
+@enum PlayerID begin
+    Attacker = 0
+    Defender = 1
+    Nature = 2
+end
+dt = 0.3
+ϵ = eps()
+n=2
+state_dim = 4
+control_dim = 2
+goal_position = [[0.25, -1.5], [-0.25, -1.5]]
+goal_center = (goal_position[1] + goal_position[2]) / 2
+gt_initial_state = mortar([
+    [0.0, 5.0, 0.5, 0.0],  # Attacker
+    [0.0, 1.5, 0.0, 0.0], # Defender
+])
+initial_belief_covariance = [
+    [0.1 0 0 0; 0 0.1 0 0; 0 0 0.25 0; 0 0 0 0.25],
+    [0.1 0 0 0; 0 0.1 0 0; 0 0 0.25 0; 0 0 0 0.25],
+]
+#endregion
 
-# include("HockeyVisuals.jl")
+struct DummyEnvironment end
 
 function TrajectoryGamesBase.get_constraints(::DummyEnvironment, player_index)
     (state) -> Symbolics.Num[]
@@ -60,6 +81,50 @@ function hockey_game(;
     )
 end
 
+function box_bounds(belief::Belief)
+    # bottom = max(100 * exp(-(belief.belief_mean[2] + 5)) - 1, 0)
+    bottom = (belief.belief_mean[2] < 0) ? 5 * belief.belief_mean[2]^2 : 0
+    # top = max(100 * exp(belief.belief_mean[2] - 10) - 1, 0)
+    top = (belief.belief_mean[2] > 3) ? 5 * belief.belief_mean[2]^2 : 0
+    # left = max(100 * exp(-(belief.belief_mean[1]+8)) - 1, 0)
+    left = (belief.belief_mean[1] < -3) ? 5 * belief.belief_mean[1]^2 : 0
+    # right = max(100 * exp(belief.belief_mean[1] - 8) - 1, 0)
+    right = (belief.belief_mean[1] > 3) ? 5 * belief.belief_mean[1]^2 : 0
+    return 5 * (bottom + top + left + right)
+end
+
+function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Belief)
+
+    attacker_pos = length(belief_over_attacker.belief_mean) == 4 ? belief_over_attacker.belief_mean[1:2] : belief_over_attacker.belief_mean
+    defender_pos = length(belief_over_defender.belief_mean) == 4 ? belief_over_defender.belief_mean[1:2] : belief_over_defender.belief_mean
+
+    sq_dist = dot(attacker_pos - defender_pos, attacker_pos - defender_pos)
+    
+    # attacker_pos_uncertainty = 10 * tr(belief_over_attacker.belief_covariance)
+    # defender_pos_uncertainty = 10 * tr(belief_over_defender.belief_covariance)
+    
+    # return max(0, 10 - sq_dist) + attacker_pos_uncertainty - defender_pos_uncertainty
+    return max(0, 10 - sq_dist)
+end
+
+function shot_probability(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
+    attacker_pos = length(belief_over_attacker.belief_mean) == 4 ? belief_over_attacker.belief_mean[1:2] : belief_over_attacker.belief_mean
+    defender_pos = length(belief_over_defender.belief_mean) == 4 ? belief_over_defender.belief_mean[1:2] : belief_over_defender.belief_mean
+    
+    attacker_pos_uncertainty = explicit_covariance ? 10 * tr(belief_over_attacker.belief_covariance) : 0
+    defender_pos_uncertainty = explicit_covariance ? 10 * tr(belief_over_defender.belief_covariance) : 0
+    return shot_probability(attacker_pos, defender_pos, goal_position[1], goal_position[2]) - attacker_pos_uncertainty + defender_pos_uncertainty
+end
+
+function shot_probability(attacker_pos, defender_pos, goal_p1, goal_p2)
+    u = defender_pos - attacker_pos
+    v = (goal_p1 + goal_p2) / 2 - attacker_pos
+
+    nu = dot(u, u)
+    nv = dot(v, v)
+
+    return -1 * dot(u, v) / (nv + nu + eps()) #+ -1 * nv proximity_factor * coverage_factor + positioning_penalty
+end
 
 function attacker_cost(xs, us; goal_position)
     return mapreduce(+, eachindex(xs)) do t
@@ -79,15 +144,11 @@ function defender_cost(xs, us; goal_position)
     end
 end
 
-function shot_probability(attacker_pos, defender_pos, goal_p1, goal_p2)
-    u = defender_pos - attacker_pos
-    v = (goal_p1 + goal_p2) / 2 - attacker_pos
-
-    nu = dot(u, u)
-    nv = dot(v, v)
-
-    return -1 * dot(u, v) / (nv + nu + 1e-9) #+ -1 * nv proximity_factor * coverage_factor + positioning_penalty
-end
+cost_dict = Dict(
+    Attacker => attacker_cost,
+    Defender => defender_cost,
+    Nature => defender_cost
+)
 
 function main()
     horizon = 20
@@ -160,15 +221,6 @@ function main()
     save("exp/hockey/outputs/hockey_solution.png", fig)
 end
 
-dt = 0.3
-n=2
-state_dim = 4
-control_dim = 2
-goal_position = [
-    [0.25, -1.5],
-    [-0.25, -1.5],
-]
-goal_center = (goal_position[1] + goal_position[2]) / 2
 # Environment
     # Dynamics
 function M_static(u)
@@ -178,7 +230,7 @@ function M_state_based(x)
     dist = dot(x[1:2] - goal_center + [0, 3], x[1:2] - goal_center + [0, 3])
     return 0.1 * I * dist
 end
-function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
+function f(xs::BlockVector, us::BlockVector, ms::BlockVector)   
     dt2 = 0.5 * dt^2
     BlockVector(
             mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
@@ -189,18 +241,10 @@ function f(xs::BlockVector, us::BlockVector, ms::BlockVector)
         length.(xs.blocks)
     )
 end
-    # Sensor Models
+#region: Sensor Models
 function N_state_based(x)
     dist = dot(x[1:2] - goal_center + [0, 3], x[1:2] - goal_center + [0, 3])
     return 1 * I * dist
-end
-function h_low_noise(xs::BlockVector, ns::BlockVector)
-    BlockVector(
-        mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            I(state_dim) * xᵢ + 0.1 * I * nᵢ
-        end,
-        length.(xs.blocks)
-    )
 end
 
 function h_state_based(xs::BlockVector, ns::BlockVector)
@@ -212,56 +256,28 @@ function h_state_based(xs::BlockVector, ns::BlockVector)
     )
 end
 
-function h_medium_noise(xs::BlockVector, ns::BlockVector)
+function h_noise(xs::BlockVector, ns::BlockVector; I_mag::Int = 1) 
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            I(state_dim) * xᵢ + 1 * I * nᵢ
+            I(state_dim) * xᵢ + I_mag * I * nᵢ
         end,
         length.(xs.blocks)
     )
 end
 
-function h_high_noise(xs::BlockVector, ns::BlockVector)
-    BlockVector(
-        mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
-            I(state_dim) * xᵢ + 10 * I * nᵢ
-        end,
-        length.(xs.blocks)
-    )
-end
-# Cost
-function box_bounds(belief::Belief)
-    # bottom = max(100 * exp(-(belief.belief_mean[2] + 5)) - 1, 0)
-    bottom = (belief.belief_mean[2] < 0) ? 5 * belief.belief_mean[2]^2 : 0
-    # top = max(100 * exp(belief.belief_mean[2] - 10) - 1, 0)
-    top = (belief.belief_mean[2] > 3) ? 5 * belief.belief_mean[2]^2 : 0
-    # left = max(100 * exp(-(belief.belief_mean[1]+8)) - 1, 0)
-    left = (belief.belief_mean[1] < -3) ? 5 * belief.belief_mean[1]^2 : 0
-    # right = max(100 * exp(belief.belief_mean[1] - 8) - 1, 0)
-    right = (belief.belief_mean[1] > 3) ? 5 * belief.belief_mean[1]^2 : 0
-    return 5 * (bottom + top + left + right)
-end
-function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Belief)
+h_low_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs, ns; I_mag = 0.1)
+h_mid_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs, ns; I_mag = 1)
+h_high_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs,ns; I_mag = 10)
 
-    attacker_pos = length(belief_over_attacker.belief_mean) == 4 ? belief_over_attacker.belief_mean[1:2] : belief_over_attacker.belief_mean
-    defender_pos = length(belief_over_defender.belief_mean) == 4 ? belief_over_defender.belief_mean[1:2] : belief_over_defender.belief_mean
+h_noise_dict = Dict(
+    "low" => h_low_noise,
+    "mid" => h_mid_noise,
+    "high" => h_high_noise,
+)
+#endregion
 
-    sq_dist = dot(attacker_pos - defender_pos, attacker_pos - defender_pos)
-    
-    # attacker_pos_uncertainty = 10 * tr(belief_over_attacker.belief_covariance)
-    # defender_pos_uncertainty = 10 * tr(belief_over_defender.belief_covariance)
-    
-    # return max(0, 10 - sq_dist) + attacker_pos_uncertainty - defender_pos_uncertainty
-    return max(0, 10 - sq_dist)
-end
-function shot_probability(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
-    attacker_pos = length(belief_over_attacker.belief_mean) == 4 ? belief_over_attacker.belief_mean[1:2] : belief_over_attacker.belief_mean
-    defender_pos = length(belief_over_defender.belief_mean) == 4 ? belief_over_defender.belief_mean[1:2] : belief_over_defender.belief_mean
-    
-    attacker_pos_uncertainty = explicit_covariance ? 10 * tr(belief_over_attacker.belief_covariance) : 0
-    defender_pos_uncertainty = explicit_covariance ? 10 * tr(belief_over_defender.belief_covariance) : 0
-    return shot_probability(attacker_pos, defender_pos, goal_position[1], goal_position[2]) - attacker_pos_uncertainty + defender_pos_uncertainty
-end
+#region: Cost
+#TODO: merge cost functions [differentiate using enum]
 function attacker_non_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
     steal_prob = steal_liklihood(belief_over_attacker, belief_over_defender)
     shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
@@ -273,11 +289,6 @@ function attacker_non_terminal_cost_components(belief_over_attacker::Belief, bel
     else
         return (; steal_prob, shot_prob = -2 * shot_prob, control_effort, bounds)
     end
-end
-
-function attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
-    components = attacker_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance)
-    return sum(components)
 end
 
 function defender_non_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
@@ -293,21 +304,11 @@ function defender_non_terminal_cost_components(belief_over_attacker::Belief, bel
     end
 end
 
-function defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false)
-    components = defender_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance)
-    return sum(components)
-end
-
 function nature_non_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector; explicit_covariance=false, control_effort_weight=3)
     defender_components = defender_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance)
     control_effort = control_effort_weight * dot(us[Block(3)], us[Block(3)])
     bounds = box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
     return (; defender_components = -sum(defender_components), control_effort, bounds)
-end
-
-function nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector; explicit_covariance=false, control_effort_weight=3)
-    components = nature_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance, control_effort_weight)
-    return sum(components)
 end
 
 function attacker_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
@@ -316,20 +317,10 @@ function attacker_terminal_cost_components(belief_over_attacker::Belief, belief_
     return (; shot_prob, bounds)
 end
 
-function attacker_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
-    components = attacker_terminal_cost_components(belief_over_attacker, belief_over_defender; explicit_covariance)
-    return sum(components)
-end
-
 function defender_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
     shot_prob = 5 * shot_probability(belief_over_attacker, belief_over_defender)
     bounds = box_bounds(belief_over_defender)
     return (; shot_prob, bounds)
-end
-
-function defender_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
-    components = defender_terminal_cost_components(belief_over_attacker, belief_over_defender; explicit_covariance)
-    return sum(components)
 end
 
 function nature_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief)
@@ -338,10 +329,36 @@ function nature_terminal_cost_components(belief_over_attacker::Belief, belief_ov
     return (; defender_components = -sum(defender_components), bounds)
 end
 
-function nature_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief)
-    components = nature_terminal_cost_components(belief_over_attacker, belief_over_defender)
-    return sum(components)
-end
+#region: Component sum wrappers
+attacker_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false) =
+    sum(attacker_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance))
+
+defender_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us; explicit_covariance=false) =
+    sum(defender_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance))
+
+nature_non_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector; explicit_covariance=false, control_effort_weight=3) =
+    sum(nature_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance, control_effort_weight))
+
+attacker_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false) =
+    sum(attacker_terminal_cost_components(belief_over_attacker, belief_over_defender; explicit_covariance))
+
+defender_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false) =
+    sum(defender_terminal_cost_components(belief_over_attacker, belief_over_defender; explicit_covariance))
+
+nature_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief) =
+    sum(nature_terminal_cost_components(belief_over_attacker, belief_over_defender))
+
+non_terminal_cost_dict = Dict(
+    Attacker => attacker_non_terminal_cost,
+    Defender => defender_non_terminal_cost,
+    Nature => nature_non_terminal_cost   
+)
+terminal_cost_dict = Dict(
+    Attacker => attacker_terminal_cost,
+    Defender => defender_terminal_cost,
+    Nature => nature_terminal_cost
+)
+#endregion
 
 const player_cost_components = (
     attacker = (
@@ -357,6 +374,7 @@ const player_cost_components = (
         terminal = nature_terminal_cost_components,
     )
 )
+#endregion
 
 function belief_main(sol_number=2, override_solution=false)
     solution_filename = "exp/hockey/outputs/hockey_solution_$sol_number.jld2"
@@ -431,39 +449,34 @@ function belief_main(sol_number=2, override_solution=false)
     visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
 end
 
-function safe_eigen(A)
+function safe_eigen(A) #Why not just override eigen. Isn't this strictly better. - Henry
     # try
-        A_reg = A + 1e-8 * I(size(A, 1))
+        A_reg = A + ϵ * I(size(A, 1))
         E = eigen(A_reg)
-        return (values = max.(E.values, 1e-6), vectors = E.vectors)
+        return (values = max.(E.values, ϵ), vectors = E.vectors)
     # catch
     #     n = size(A, 1)
-    #     return (values = fill(1e-6, n), vectors = Matrix(I, n, n))
+    #     return (values = fill(ϵ, n), vectors = Matrix(I, n, n))
     # end
 end
 
-
+#
 function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=5, override=false, random_seed=1, explicit_covariance=false, trials=10)
     global goal_position
+    local gt_initial_state = deepcopy(Hockey.gt_initial_state)
+    local initial_belief_covariance = deepcopy(Hockey.initial_belief_covariance)
+
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
         @load "exp/hockey/outputs/rh_$file_id.jld2" solutions goal_position
-        # visualize_receding_horizon_solution(
-        #     solutions, 
-        #     goal_position;
-        #     dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
-        # )
+        visualize_receding_horizon_solution(
+            solutions, 
+            goal_position;
+            dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
+        )
         return
     end
 
-    gt_initial_state = mortar([
-        [0.0, 5.0, 0.5, 0.0],  # Attacker
-        [0.0, 1.5, 0.0, 0.0], # Defender
-    ])
-    initial_belief_covariance = [
-        [0.1 0 0 0; 0 0.1 0 0; 0 0 0.25 0; 0 0 0 0.25],
-        [0.1 0 0 0; 0 0.1 0 0; 0 0 0.25 0; 0 0 0 0.25],
-    ]
     initial_beliefs = Beliefs([
         Belief(gt_initial_state[Block(1)], initial_belief_covariance[1]), # Attacker's belief of attacker
         Belief(gt_initial_state[Block(2)], initial_belief_covariance[2]), # Attacker's belief of defender
@@ -486,77 +499,24 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
     # --- Shared Parameters ---
     dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[control_dim for _ in 1:2], belief=[state_dim for _ in 1:4], sensor=[state_dim for _ in 1:4])
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
-    
     # --- Run Scenarios ---
     for trial in 1:trials
         solutions = Dict()
-        robust = [false, true]
-        println("--- Running Low Noise Sensor Scenario (Trial $trial) ---")
-        Random.seed!(random_seed)
-        solutions["low_robust_$trial"] = run_receding_horizon_scenario(
-            gt_initial_state, initial_beliefs, costs, robust, dims,
-            horizon, planning_horizon, random_seed,
-            (f, gt_initial_state, [h_low_noise, h_low_noise]), # environment
-            (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations), # ekf_update
-            trial,
-            "low_robust_$trial"
-        )
-
-        println("\n--- Running Medium Noise Sensor Scenario (Trial $trial) ---")
-        Random.seed!(random_seed)
-        solutions["medium_robust_$trial"] = run_receding_horizon_scenario(
-            gt_initial_state, initial_beliefs, costs, robust, dims,
-            horizon, planning_horizon, random_seed,
-            (f, gt_initial_state, [h_medium_noise, h_medium_noise]), # environment
-            (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations), # ekf_update with h₂
-            trial,
-            "medium_robust_$trial"
-        )
-
-        println("\n--- Running High Noise Sensor Scenario (Trial $trial) ---")
-        Random.seed!(random_seed)
-        solutions["high_robust_$trial"] = run_receding_horizon_scenario(
-            gt_initial_state, initial_beliefs, costs, robust, dims,
-            horizon, planning_horizon, random_seed,
-            (f, gt_initial_state, [h_high_noise, h_high_noise]), # environment
-            (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations), # ekf_update with h₂
-            trial,
-            "high_robust_$trial"
-        )
-
-        robust = [false, false]
-        println("--- Running Low Noise Sensor Scenario (Trial $trial) ---")
-        Random.seed!(random_seed)
-        solutions["low_non_robust_$trial"] = run_receding_horizon_scenario(
-            gt_initial_state, initial_beliefs, costs, robust, dims,
-            horizon, planning_horizon, random_seed,
-            (f, gt_initial_state, [h_low_noise, h_low_noise]), # environment
-            (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations), # ekf_update
-            trial,
-            "low_non_robust_$trial"
-        )
-
-        println("\n--- Running Medium Noise Sensor Scenario (Trial $trial) ---")
-        Random.seed!(random_seed)
-        solutions["medium_non_robust_$trial"] = run_receding_horizon_scenario(
-            gt_initial_state, initial_beliefs, costs, robust, dims,
-            horizon, planning_horizon, random_seed,
-            (f, gt_initial_state, [h_medium_noise, h_medium_noise]), # environment
-            (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations), # ekf_update with h₂
-            trial,
-            "medium_non_robust_$trial"
-        )
-
-        println("\n--- Running High Noise Sensor Scenario (Trial $trial) ---")
-        Random.seed!(random_seed)
-        solutions["high_non_robust_$trial"] = run_receding_horizon_scenario(
-            gt_initial_state, initial_beliefs, costs, robust, dims,
-            horizon, planning_horizon, random_seed,
-            (f, gt_initial_state, [h_high_noise, h_high_noise]), # environment
-            (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations), # ekf_update with h₂
-            trial,
-            "high_non_robust_$trial"
-        )
+        for robust in [[false,true],[false,false]]
+            for int in ["low","medium","high"]
+                println("--- Running $(uppercasefirst(int)) Noise Sensor Scenario (Trial $trial) ---")
+                Random.seed!(random_seed)
+                noise = h_noise_dict[int]
+                solutions["$(int)_robust_$trial"] = run_receding_horizon_scenario(
+                    gt_initial_state, initial_beliefs, costs, robust, dims,
+                    horizon, planning_horizon, random_seed,
+                    (f, gt_initial_state, [noise, noise]), # environment
+                    (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations), # ekf_update
+                    trial,
+                    "$(int)_robust_$trial"
+                )
+            end
+        end
         @save "exp/hockey/outputs/rh_$(file_id)_$trial.jld2" solutions goal_position
         println("Saved solution with file id: $file_id, trial $trial")
     end
