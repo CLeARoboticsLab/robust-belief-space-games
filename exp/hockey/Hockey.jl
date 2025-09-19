@@ -502,18 +502,19 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
     # --- Run Scenarios ---
     for trial in 1:trials
         solutions = Dict()
-        for robust in [[false,true],[false,false]]
+        for type in [([false,true], "robust"),([false,false], "non_robust")]
+            robust, type_str = type
             for int in ["low","medium","high"]
                 println("--- Running $(uppercasefirst(int)) Noise Sensor Scenario (Trial $trial) ---")
                 Random.seed!(random_seed)
                 noise = h_noise_dict[int]
-                solutions["$(int)_robust_$trial"] = run_receding_horizon_scenario(
+                solutions["$(int)_$(type_str)_$trial"] = run_receding_horizon_scenario(
                     gt_initial_state, initial_beliefs, costs, robust, dims,
                     horizon, planning_horizon, random_seed,
                     (f, gt_initial_state, [noise, noise]), # environment
                     (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations), # ekf_update
                     trial,
-                    "$(int)_robust_$trial"
+                    "$(int)_$(type_str)_$trial"
                 )
             end
         end
