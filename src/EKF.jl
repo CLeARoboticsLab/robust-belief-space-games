@@ -1,6 +1,6 @@
 function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
-    stacked_controls = mortar([control.blocks[1:end - is_robust]..., control.blocks...])
+    stacked_controls = mortar([control.blocks[1:end - is_robust]...])
     expected_dynamics = dynamics(means(beliefs), stacked_controls, zero_noise)
 
     A_fn(x) = Vector(dynamics(x, stacked_controls, zero_noise))
