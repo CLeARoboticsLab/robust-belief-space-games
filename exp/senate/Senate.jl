@@ -1,4 +1,4 @@
-module Congress
+module Senate
 using Infiltrator
 using RobustBeliefGame
 using LinearAlgebra
@@ -16,19 +16,26 @@ export receding_horizon_main
     non_robust_activist = 1
     robust_activist = 2
 end
-num_senators = 3
 dims = 2 #opinion space dimensions
 
 cost_params = Dict(
-    non_robust_activist => [(;pos = [0,0], scale = [0,1], control_weight=(;direction=1, effort=1))],
-    robust_activist => [(;pos = [0,1], scale = [1,0], control_weight=(;direction=1, effort=1))],
+    non_robust_activist => (;pos = [[1,1]], scale = [[1,2]], control_weight=(;direction=1.0, control_cost=1.0)),
+    robust_activist => (;pos = [[3,0]], scale = [[2,1]], control_weight=(;direction=1.0, control_cost=1.0)),
 ) 
 # Ideally, we can "save" cost functions by storing the parameters of components used to generate the cost.
 # This can somewhat approximate multi-modal preferences by generating multiple ellipsoids.
 state_dim_per_senator = (;mean=dims, covariance=dims^2)
-# x = [x_pos, y_pos] per senator; From Henry: Consider adding uncertainty along each axes
-control_dim_per_senator = (;effort=1)
+# x = [x_pos, y_pos] per senator;
+control_dim_per_senator = (;direction=1, effort=1)
 # u = [direction, effort] per senator per activist; From Henry: Do we need direction, isn't it just towards the activist position determined by the effort distribution
+ground_truth_senator_states = mortar([
+        [2, 0.5],
+        [1.5, 0],
+        [2, -0.5],
+    ])
+num_senators = length(ground_truth_senator_states.blocks)
+initial_beliefs = Beliefs([Belief(ground_truth_senator_states[Block(i)], 0.2 * Symmetric(I(dims))) for i in 1:num_senators])
+
 
 # All changes to game parameters should flow from info above
 
@@ -36,45 +43,67 @@ control_dim_per_senator = (;effort=1)
 random_seed = 1
 num_activists = length(instances(ActivistID))
 
-function ellipsoidal_preference_generator(pos::Vector, scale:: Vector)
+function ellipsoidal_preference_generator(pos::Vector, scale::Vector; nature=false)
     function (point::Vector)
-        if length(point) != dims || length(scale) != dims || length(point) != dims #Assert equal dimensions
+        if length(point) != dims || length(scale[1]) != dims || length(point) != dims #Assert equal dimensions
             throw(DimensionMismatch("Opinion dimensions are not uniform, $(size(pos)), $(size(scale)), $(size(point))"))
         end
-        return sum((point[i]-pos[i])^2/scale[i] for i in 1:length(point))
+        mapreduce(+, zip(pos, scale)) do (pos_mode, scale_mode)
+            mapreduce(+, 1:dims) do i
+                (nature ? -1 : 1) * (point[i]-pos_mode[i])^2/scale_mode[i]
+            end
+        end
     end
 end
-function control_cost_generator(effort::Float64)
-    function (u::BlockVector)
-        effort * sum(control[2] for control in u.blocks)^2
-        # Some smooth function of total effort, derivative=0 near 1 (and below 1), positive above 1 and below 0.
-        #i.e. the derivative should be a bowl shape, but I'm not sure i want a parabola-like thing since that just encourages control effort to the minimum.
-        # Also, I don't want negative control effort elements, which means we should impose some sort of soft constraint.
 
-        #Henry: Not a fan of the naming of effort, confuses whether its an actual value or a multiplier, also isn't [2] OutOfBounds
+function u_transform(u::BlockVector)
+    BlockVector(mapreduce(vcat, u.blocks) do u_i
+        [u_i[1] % (2π), u_i[2]^2]
+    end, length.(u.blocks))
+end
+
+function control_cost_generator(control_effort; nature=false)
+    if nature
+        function (u::BlockVector)
+            control_effort * sum([dot(u[Block(i)], u[Block(i)]) for i in 1:num_activists]...)
+        end
+    else
+        function (u::BlockVector)
+            transformed_u = u_transform(u)
+            control_effort * sum(u[2] for u in transformed_u.blocks)
+        end
     end
 end
 
 # For now, terminal should just be preference cost, nonterminal is preference cost + control cost
-function non_terminal_cost_components(preference_ellipsoid::Function, control_function::Function, senator_beliefs::BlockVector, u::BlockVector )
-    preference = sum(preference_ellipsoid(pos[0],pos[1]) for pos in senator_beliefs.blocks)
+function non_terminal_cost_components(preference_ellipsoids::Function, control_function::Function, senator_beliefs::BlockVector, u::BlockVector )
+    preference = sum(preference_ellipsoids(pos) for pos in senator_beliefs.blocks)
     control = control_function(u)
     return (;preference, control)
 end
 
-function terminal_cost_components(preference_ellipsoid::Function, senator_beliefs::BlockVector)
-    preference = sum(preference_ellipsoid(pos[0],pos[1]) for pos in senator_beliefs.blocks)
+function terminal_cost_components(preference_ellipsoids::Function, senator_beliefs::BlockVector)
+    preference = sum(preference_ellipsoids(pos) for pos in senator_beliefs.blocks)
     return (;preference)
 end
 
-non_terminal_cost(preference_ellipsoid::Function, control::Function, senator_beliefs::BlockVector, u::BlockVector) = 
-    sum(non_terminal_cost_components(preference_ellipsoid, control, senator_beliefs,u))
-    
-terminal_cost(preference_ellipsoid::Function, senator_beliefs::BlockVector) = 
-    sum(terminal_cost_components(preference_ellipsoid, senator_beliefs))
+function non_terminal_cost_generator(cost_params::NamedTuple, ellipsoids::Function; nature=false)
+    function (beliefs::Beliefs, u::BlockVector)
+        sum(non_terminal_cost_components(ellipsoids,
+        control_cost_generator(cost_params.control_weight.control_cost; nature=nature),
+        means(beliefs), u))
+    end
+end
+
+function terminal_cost_generator(cost_params::NamedTuple, ellipsoids::Function; nature=false)
+    function (beliefs::Beliefs)
+        sum(terminal_cost_components(ellipsoids, means(beliefs)))
+    end
+end
 
 function f(x::BlockVector, u::BlockVector, ms::BlockVector)
-    us_per_senator = [vcat([u[Block(sum(control_dim_per_senator) * num_senators * (j-1) + i)] for j in 1:num_activists]) for i in 1:num_senators]
+    transformed_u = u_transform(u)
+    us_per_senator = [vcat([transformed_u[Block(num_activists * (i-1) + j)] for j in 1:num_activists]) for i in 1:num_senators]
     BlockVector(mapreduce(vcat, zip(x.blocks, us_per_senator, ms.blocks)) do (x, us, m)
         x_move = sum([cos(u[1]) * u[2] for u in us])
         y_move = sum([sin(u[1]) * u[2] for u in us])
@@ -82,30 +111,67 @@ function f(x::BlockVector, u::BlockVector, ms::BlockVector)
     end, [state_dim_per_senator.mean for _ in 1:num_senators])
 end
 
-function sensor_model(x::BlockVector, ns::BlockVector)
+function h(x::BlockVector, ns::BlockVector)
     return x + ns
 end
 
 #Assertions for global variables
 function init_checks()
-    if (length(non_robust_activist["pos"]) != dims || length(robust_activist["pos"]) != dims ||
-         length(non_robust_activist["scale"]) != dims || length(robust_activist["scale"]) != dims)
+    if (length(non_robust_activist.pos) != dims || length(robust_activist.pos) != dims ||
+         length(non_robust_activist.scale) != dims || length(robust_activist.scale) != dims)
         throw(ErrorException("Position or scale dimension mismatch with opinion"))
     end
-    if sum(non_robust_activist["scale"]) != 1 || sum(robust_activist["scale"]) != 1
+    if sum(non_robust_activist.scale) != 1 || sum(robust_activist.scale) != 1
         throw(ErrorException("Scale does not add up to 1")) 
         #Consider helping normalize instead of throwing an exception
-        # if sum(non_robust_activist["scale"]) != 1 || sum(robust_activist["scale"]) == 0
+        # if sum(non_robust_activist.scale) != 1 || sum(robust_activist.scale) == 0
         #     throw(ErrorException("Scale is zero vector"))
         # end
-        # non_robust_activist["scale"] /= norm(non_robust_activist["scale"])
-        # robust_activist["scale"] /= norm(robust_activist["scale"])
+        # non_robust_activist.scale /= norm(non_robust_activist.scale)
+        # robust_activist.scale /= norm(robust_activist.scale)
     end
 end
     
 
-function receding_horizon_main()
-    init_checks()
+function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=5, override=false, random_seed=1, explicit_covariance=false, trials=10)
+    solution_filename = "exp/senate/outputs/rh_$file_id.jld2"
+
+    if isfile(solution_filename) && !override
+        println("Loading solution from $solution_filename")
+        @load solution_filename robust_sol non_robust_sol
+        return
+    end
+    # init_checks()
     Random.seed!(random_seed)
+    ellipsoids = [ellipsoidal_preference_generator(cost_params[non_robust_activist].pos, cost_params[non_robust_activist].scale),
+                  ellipsoidal_preference_generator(cost_params[robust_activist].pos, cost_params[robust_activist].scale),
+                  ellipsoidal_preference_generator(cost_params[robust_activist].pos, cost_params[robust_activist].scale; nature=true)]
+    costs = [BeliefCost(non_terminal_cost_generator(cost_params[non_robust_activist], ellipsoids[1]), terminal_cost_generator(cost_params[non_robust_activist], ellipsoids[1])),
+              BeliefCost(non_terminal_cost_generator(cost_params[robust_activist], ellipsoids[2]), terminal_cost_generator(cost_params[robust_activist], ellipsoids[2])),
+              BeliefCost(non_terminal_cost_generator(cost_params[robust_activist], ellipsoids[3]; nature=true), terminal_cost_generator(cost_params[robust_activist], ellipsoids[3]; nature=true))]
+
+    environment = BeliefEnvironment(f, ground_truth_senator_states, h)
+    non_robust_senate_game = BeliefGame(
+            environment,
+            [costs[1], costs[2]],
+            initial_beliefs,
+            horizon,
+            (; n=2, states=length.(ground_truth_senator_states.blocks), controls=[sum(control_dim_per_senator) for _ in 1:(num_senators*num_activists)], belief=length.(ground_truth_senator_states.blocks), sensor=[state_dim_per_senator.mean * num_senators for _ in 1:num_activists]),
+            ground_truth_senator_states,
+            false,
+        )
+    robust_senate_game = BeliefGame(
+            environment,
+            [costs[1], costs[2], costs[3]],
+            initial_beliefs,
+            horizon,
+            (; n=2, states=length.(ground_truth_senator_states.blocks), controls=[sum(control_dim_per_senator) for _ in 1:(num_senators*num_activists)], belief=length.(ground_truth_senator_states.blocks), sensor=[state_dim_per_senator.mean * num_senators for _ in 1:num_activists]),
+            ground_truth_senator_states,
+            true,
+        )
+    non_robust_sol = solve(non_robust_senate_game; debug=true)
+    # robust_sol = solve(robust_senate_game; debug=true)
+    println("Saving solution to $solution_filename")
+    @save solution_filename robust_sol non_robust_sol
 end
 end # module
