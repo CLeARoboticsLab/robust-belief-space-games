@@ -8,8 +8,8 @@ using BlockArrays
 using Makie
 using Makie.GeometryBasics
 using Symbolics
-#using CairoMakie
-using GLMakie
+# using CairoMakie
+# using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -19,7 +19,7 @@ using Statistics
 include("../KKTErrorTracker.jl")
 using .KKTErrorTracker
 
-include("./HockeyVisuals.jl")
+# include("./HockeyVisuals.jl")
 
 export hockey_game, receding_horizon_main, attacker_cost, defender_cost, attacker_non_terminal_cost, defender_non_terminal_cost, nature_non_terminal_cost, attacker_terminal_cost, defender_terminal_cost, nature_terminal_cost, player_cost_components
 
@@ -266,12 +266,12 @@ function h_noise(xs::BlockVector, ns::BlockVector; I_mag::Float64 = 1.0)
 end
 
 h_low_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs, ns; I_mag = 0.1)
-h_mid_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs, ns; I_mag = 1)
-h_high_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs,ns; I_mag = 10)
+h_mid_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs, ns; I_mag = 1.0)
+h_high_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs,ns; I_mag = 10.0)
 
 h_noise_dict = Dict(
     "low" => h_low_noise,
-    "mid" => h_mid_noise,
+    "medium" => h_mid_noise,
     "high" => h_high_noise,
 )
 #endregion
@@ -446,7 +446,7 @@ function belief_main(sol_number=2, override_solution=false)
         @save solution_filename robust_sol non_robust_sol goal_position
     end
     plot_feed_forward_norms(robust_sol[4])
-    visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
+    # visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
 end
 
 function safe_eigen(A) #Why not just override eigen. Isn't this strictly better. - Henry
@@ -469,11 +469,11 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
         @load "exp/hockey/outputs/rh_$file_id.jld2" solutions goal_position
-        visualize_receding_horizon_solution(
-            solutions, 
-            goal_position;
-            dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
-        )
+        # visualize_receding_horizon_solution(
+        #     solutions, 
+        #     goal_position;
+        #     dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
+        # )
         return
     end
 
@@ -505,7 +505,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
         for type in [([false,true], "robust"),([false,false], "non_robust")]
             robust, type_str = type
             for int in ["low","medium","high"]
-                println("--- Running $(uppercasefirst(int)) Noise Sensor Scenario (Trial $trial) ---")
+                println("--- Running $(uppercasefirst(type_str)) $(uppercasefirst(int)) Noise Sensor Scenario (Trial $trial) ---")
                 Random.seed!(random_seed)
                 noise = h_noise_dict[int]
                 solutions["$(int)_$(type_str)_$trial"] = run_receding_horizon_scenario(
