@@ -1,39 +1,64 @@
-function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false, bleh=false)
-    zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
-    stacked_controls = mortar([control.blocks[1:end - is_robust]...])
-    expected_dynamics = dynamics(means(beliefs), stacked_controls, zero_noise)
+function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false, n_players=2)
+    num_beliefs_per_player = length(beliefs.beliefs) ÷ n_players
+    g_player_parts = Vector{Vector{eltype(beliefs.beliefs[1].belief_mean)}}(undef, n_players)
+    W_player_parts = Vector{Matrix{eltype(beliefs.beliefs[1].belief_mean)}}(undef, n_players)
 
-    A_fn(x) = Vector(dynamics(x, stacked_controls, zero_noise))
-    M_fn(x) = Vector(dynamics(means(beliefs), stacked_controls, x))
-    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), stacked_controls, zero_noise), zero_noise))
+    for i in 1:n_players
+        player_belief_indices = (i-1)*num_beliefs_per_player+1:i*num_beliefs_per_player
+        player_beliefs = Beliefs(beliefs.beliefs[player_belief_indices])
+        g_player_parts[i], W_player_parts[i] = ekf_update_per_player(player_beliefs, control, dynamics, sensor_model, is_robust=(is_robust && i == 1))
+    end
+    
+    g = vcat(g_player_parts...)
+    W = BlockDiagonal(W_player_parts)
+
+    return g, W
+end
+
+function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
+    zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
+    expected_dynamics = dynamics(BlockVector(means(beliefs), dims(beliefs)), control, zero_noise)
+
+    A_fn(x) = Vector(dynamics(BlockVector(x, dims(beliefs)), control, zero_noise))
+    M_fn(x) = Vector(dynamics(means(beliefs), control, x))
+    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), control, zero_noise), zero_noise))
     N_fn(x) = Vector(sensor_model(expected_dynamics, x))
     
     A = ForwardDiff.jacobian(A_fn, means(beliefs))
     M = ForwardDiff.jacobian(M_fn, zero_noise)
-    H = ForwardDiff.jacobian(H_fn, vcat(means(beliefs)...))
+    H = ForwardDiff.jacobian(H_fn, means(beliefs))
     N = ForwardDiff.jacobian(N_fn, zero_noise)
 
-    Σ = BlockDiagonal([b.belief_covariance for b in beliefs]) #removed redundant .beliefs - remove comment after review
+    Σ = BlockDiagonal([b.belief_covariance for b in beliefs])
     Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
     
     S = H * Γ * H' + N * N'
-    Q, R = qr(S)
-    K_transpose = R \ (Q' * (H * Γ))
-    K = dual_round.(K_transpose', digits = 5)
+    K = dual_round.((Γ * H') / S, digits=5)
 
-    temp = BlockArray(Symmetric(dual_round.(Γ - K * H * Γ, digits=5)), dims(beliefs), dims(beliefs))
-    covs_extraced = mapreduce(hcat, 1:length(beliefs.beliefs)) do dim
-        @view temp[Block(dim), Block(dim)]
-    end
-    if is_robust
-        n = length(control.blocks) - 1 #is_robust asserted to be true
-        disturbed_expected_dynamics = expected_dynamics[Block(1):Block(n)] + control[Block(n+1)]
-        g = [(disturbed_expected_dynamics; expected_dynamics[Block(n+1):Block(n^2)]); Base.vec(covs_extraced)] #removed unnecessary function call
-    else
-        g = [expected_dynamics; Base.vec(covs_extraced)]
+    updated_covs_matrix = Symmetric(dual_round.(Γ - K * H * Γ, digits=5))
+    
+    new_beliefs_for_player = Vector{Belief}(undef, length(beliefs))
+    current_idx = 1
+    player_belief_dims = dims(beliefs)
+
+    for i in 1:length(beliefs)
+        dim_i = player_belief_dims[i]
+        cov_range = current_idx:(current_idx + dim_i - 1)
+        
+        mean_i = expected_dynamics.blocks[i]
+        if is_robust
+            mean_i += control.blocks[end][sum(dims(beliefs)[1:i-1])+1:sum(dims(beliefs)[1:i])]
+        end
+        cov_i = Symmetric(updated_covs_matrix[cov_range, cov_range])
+
+        new_beliefs_for_player[i] = Belief(mean_i, cov_i)
+
+        current_idx += dim_i
     end
 
-    W = [dual_round.(real.(my_matrix_sqrt(K * H * Γ + ϵ * I)), digits=5); zeros((sum(dims(beliefs).^2), sum(dims(beliefs))))]
+    g = vec(Beliefs(new_beliefs_for_player))
+
+    W = [dual_round.(real.(my_matrix_sqrt(K * H * Γ + ϵ * I)), digits=5); zeros(sum(d^2 for d in dims(beliefs)), sum(dims(beliefs)))]
 
     return g, W
 end
@@ -54,53 +79,37 @@ function my_matrix_sqrt(A; max_iterations = 10)
     return Y * sqrt(old_norm)
 end
 
-function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
+function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false, n_players=2)
     old_debug = DEBUG
     global DEBUG = false #TODO: Remove use of global var. manipulation
-    function mean_grad(x)
-        return ekf_update(
-            unvec(x[1:total_size(beliefs)], dims(beliefs)),
-            BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control))),
-            dynamics,
-            sensor_model;
-            is_robust=is_robust)[1]
+
+    function g_grad_wrapper(x)
+        current_beliefs = unvec(x[1:total_size(beliefs)], dims(beliefs))
+        current_controls = BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control)))
+        g, _ = ekf_update(current_beliefs, current_controls, dynamics, sensor_model; is_robust=is_robust, n_players=n_players)
+        return g
     end
-    function cov_grad(x)
-        return ekf_update(
-            unvec(x[1:total_size(beliefs)], dims(beliefs)), 
-            BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control))),
-            dynamics,
-            sensor_model;
-            is_robust=is_robust)[2]
+
+    function W_grad_wrapper(x)
+        current_beliefs = unvec(x[1:total_size(beliefs)], dims(beliefs))
+        current_controls = BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control)))
+        _, W = ekf_update(current_beliefs, current_controls, dynamics, sensor_model; is_robust=is_robust, n_players=n_players)
+        return vec(W) # Flatten for jacobian calculation
     end
+
     x = vcat(vec(beliefs), vec(control))
+    g_s = ForwardDiff.jacobian(g_grad_wrapper, x)
+    W_s_flat = ForwardDiff.jacobian(W_grad_wrapper, x)
     
-    # Check for NaNs in input before ForwardDiff
-    if any(isnan.(x))
-        @warn "NaN detected in input to ForwardDiff.jacobian"
-        @infiltrate
-    end
+    g_s_val = clip(ForwardDiff.value.(real.(g_s)), clip_norm)
     
-    g_s = ForwardDiff.jacobian(mean_grad, x)
-    W_s = ForwardDiff.jacobian(cov_grad, x)
+    # Reshape the flattened W jacobian back into its proper 3D tensor shape
+    W_shape = (total_size(beliefs), sum(dims(beliefs)))
+    W_s_val = reshape(W_s_flat, (W_shape..., length(x)))
+    W_s_val = clip(real.(W_s_val), clip_norm)
     
-    # Check for NaNs in ForwardDiff results
-    if any(isnan.(g_s))
-        @warn "NaN detected in g_s from ForwardDiff.jacobian"
-        @infiltrate
-    end
-    if any(isnan.(W_s))
-        @warn "NaN detected in W_s from ForwardDiff.jacobian"
-        @infiltrate
-    end
-    
-    g_s_val = clip(ForwardDiff.value.(real.(g_s)), clip_norm) # TODO fix real. being necessary...
-    W_s_val = clip(real.(W_s), clip_norm)
     global DEBUG = old_debug
-    return g_s_val, reshape(W_s_val,
-        (total_size(beliefs),
-        sum(dims(beliefs)),
-        total_size(beliefs)+length(control)))
+    return g_s_val, W_s_val
 end
 
 function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dynamics::Function, sensor_model::Function, observations::BlockVector)
