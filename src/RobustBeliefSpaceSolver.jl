@@ -16,6 +16,7 @@ function create_warm_start_strategy(warm_start_controls::Vector{BlockVector})
 end
 
 function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG_FILE, warm_start=nothing, save_intermediate_solutions=false)
+    global DEBUG = debug
     if DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
@@ -235,6 +236,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 println(f, "belief reg: $(regularizations.belief_reg)")
             end
         end
+        @infiltrate
         Qh_u = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
             @view Q_s[ii][Block(ii+game.dims.n^2)] # control gradient
         end
@@ -292,10 +294,6 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
 end
 
 function calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
-    Qh_uu_reg = Qh_uu + ϵ * I
-    Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
-    feed_forward = -1 * dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)
-    feed_back = -1 * dual_round.(clip(Qh_uu_inv * Qh_ub, clip_norm), digits=5)
     if DEBUG
         open(DEBUG_FILE, "a") do f
             println(f, "[calculate_feedback_terms]")
@@ -303,17 +301,21 @@ function calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
             display_matrix = IOContext(f, :limit=>false)
             show(display_matrix, "text/plain", Qh_uu)
             println(f)
-            println(f, "Qh_uu_inv:")
-            show(display_matrix, "text/plain", Qh_uu_inv)
-            println(f)
-            println(f, "feed_forward:")
-            show(display_matrix, "text/plain", feed_forward)
-            println(f)
-            println(f, "feed_back:")
-            show(display_matrix, "text/plain", feed_back)
-            println(f)
+            # println(f, "Qh_uu_inv:")
+            # show(display_matrix, "text/plain", Qh_uu_inv)
+            # println(f)
+            # println(f, "feed_forward:")
+            # show(display_matrix, "text/plain", feed_forward)
+            # println(f)
+            # println(f, "feed_back:")
+            # show(display_matrix, "text/plain", feed_back)
+            # println(f)
         end
-    end    
+    end   
+    Qh_uu_reg = Qh_uu + ϵ * I
+    Qh_uu_inv = dual_round.(clip(Qh_uu_reg \ I, clip_norm), digits=5)
+    feed_forward = -1 * dual_round.(clip(Qh_uu_inv * Qh_u, clip_norm), digits=5)
+    feed_back = -1 * dual_round.(clip(Qh_uu_inv * Qh_ub, clip_norm), digits=5) 
     return feed_forward, feed_back
 end
 

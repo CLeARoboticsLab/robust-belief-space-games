@@ -1,4 +1,4 @@
-function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
+function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false, bleh=false)
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
     stacked_controls = mortar([control.blocks[1:end - is_robust]...])
     expected_dynamics = dynamics(means(beliefs), stacked_controls, zero_noise)
@@ -74,8 +74,25 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
             is_robust=is_robust)[2]
     end
     x = vcat(vec(beliefs), vec(control))
+    
+    # Check for NaNs in input before ForwardDiff
+    if any(isnan.(x))
+        @warn "NaN detected in input to ForwardDiff.jacobian"
+        @infiltrate
+    end
+    
     g_s = ForwardDiff.jacobian(mean_grad, x)
     W_s = ForwardDiff.jacobian(cov_grad, x)
+    
+    # Check for NaNs in ForwardDiff results
+    if any(isnan.(g_s))
+        @warn "NaN detected in g_s from ForwardDiff.jacobian"
+        @infiltrate
+    end
+    if any(isnan.(W_s))
+        @warn "NaN detected in W_s from ForwardDiff.jacobian"
+        @infiltrate
+    end
     
     g_s_val = clip(ForwardDiff.value.(real.(g_s)), clip_norm) # TODO fix real. being necessary...
     W_s_val = clip(real.(W_s), clip_norm)

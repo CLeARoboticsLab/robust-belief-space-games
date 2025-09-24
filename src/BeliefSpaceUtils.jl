@@ -133,8 +133,7 @@ function rollout_strategy(game::BeliefGame, strategy::Vector)
     beliefs = Vector{Beliefs}(undef, H + 1)
     controls = Vector{BlockVector}(undef, H)
 
-    initial_beliefs_vec = [Belief(copy(b.belief_mean), copy(b.belief_covariance)) for b in game.initial_beliefs] #removed redundant .beliefs - delete comment after review
-    beliefs[1] = Beliefs(initial_beliefs_vec)
+    beliefs[1] = copy(game.initial_beliefs)
 
     for i in 1:H
         controls[i] = strategy[i](beliefs[i])

@@ -16,6 +16,7 @@ export receding_horizon_main
     non_robust_activist = 1
     robust_activist = 2
 end
+num_activists = length(instances(ActivistID))
 dims = 2 #opinion space dimensions
 
 cost_params = Dict(
@@ -34,14 +35,13 @@ ground_truth_senator_states = mortar([
         [2, -0.5],
     ])
 num_senators = length(ground_truth_senator_states.blocks)
-initial_beliefs = Beliefs([Belief(ground_truth_senator_states[Block(i)], 0.2 * Symmetric(I(dims))) for i in 1:num_senators])
+initial_beliefs = Beliefs(vcat([[Belief(ground_truth_senator_states[Block(i)], 0.2 * Symmetric(I(dims))) for i in 1:num_senators] for _ in 1:num_activists]...))
 
 
 # All changes to game parameters should flow from info above
 
 ϵ = eps()
 random_seed = 1
-num_activists = length(instances(ActivistID))
 
 function ellipsoidal_preference_generator(pos::Vector, scale::Vector; nature=false)
     function (point::Vector)
@@ -58,7 +58,7 @@ end
 
 function u_transform(u::BlockVector)
     BlockVector(mapreduce(vcat, u.blocks) do u_i
-        [u_i[1] % (2π), u_i[2]^2]
+        [u_i[1], u_i[2]^2]
     end, length.(u.blocks))
 end
 
@@ -103,12 +103,15 @@ end
 
 function f(x::BlockVector, u::BlockVector, ms::BlockVector)
     transformed_u = u_transform(u)
-    us_per_senator = [vcat([transformed_u[Block(num_activists * (i-1) + j)] for j in 1:num_activists]) for i in 1:num_senators]
-    BlockVector(mapreduce(vcat, zip(x.blocks, us_per_senator, ms.blocks)) do (x, us, m)
-        x_move = sum([cos(u[1]) * u[2] for u in us])
-        y_move = sum([sin(u[1]) * u[2] for u in us])
+    # us_per_senator = [[transformed_u[Block(num_senators * (j-1) + i)] for j in 1:num_activists] for i in 1:num_senators]
+    BlockVector(mapreduce(vcat, enumerate(zip(x.blocks, ms.blocks))) do (i, (x, m))
+        senator = 1 + (i-1) % num_senators
+        us = BlockVector(vcat([transformed_u[Block((j-1) * num_senators + senator)] for j in 1:num_activists]...), [sum(control_dim_per_senator) for _ in 1:num_activists])
+
+        x_move = sum([cos(u[1]) * u[2] for u in us.blocks])
+        y_move = sum([sin(u[1]) * u[2] for u in us.blocks])
         [1 0; 0 1] * x + [x_move; y_move] + m # Maybe some scalar for noise?
-    end, [state_dim_per_senator.mean for _ in 1:num_senators])
+    end, length.(x.blocks))
 end
 
 function h(x::BlockVector, ns::BlockVector)
@@ -156,7 +159,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
             [costs[1], costs[2]],
             initial_beliefs,
             horizon,
-            (; n=2, states=length.(ground_truth_senator_states.blocks), controls=[sum(control_dim_per_senator) for _ in 1:(num_senators*num_activists)], belief=length.(ground_truth_senator_states.blocks), sensor=[state_dim_per_senator.mean * num_senators for _ in 1:num_activists]),
+            (; n=2, states=length.(ground_truth_senator_states.blocks), controls=[sum(control_dim_per_senator) for _ in 1:(num_senators*num_activists)], belief=vcat([length.(ground_truth_senator_states.blocks) for _ in 1:num_activists]...), sensor=[state_dim_per_senator.mean * num_senators for _ in 1:num_activists]),
             ground_truth_senator_states,
             false,
         )
