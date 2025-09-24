@@ -24,6 +24,12 @@ function vec(belief::Belief)
     return [belief.belief_mean; Base.vec(belief.belief_covariance)]
 end
 
+function unvec(vec_belief::Vector, dim::Int)
+    b_mean = vec_belief[1:dim]
+    b_cov = reshape(vec_belief[dim+1:end], (dim, dim))
+    return Belief(b_mean, b_cov)
+end
+
 struct Beliefs
     beliefs::Vector{Belief}
 end
@@ -59,15 +65,24 @@ function total_size(beliefs::Beliefs)
 end
 
 function vec(beliefs::Beliefs)
-    vcat(means(beliefs), vcat([reshape(cov, (beliefs.beliefs[ii].belief_dim^2,)) for (ii, cov) in enumerate(covs(beliefs))]...))
+    vcat([vec(b) for b in beliefs.beliefs]...)
 end
 
 function unvec(vec_beliefs::Vector, dims::Vector{Int})
-    belief_means = [vec_beliefs[sum(dims[1:i-1])+1:sum(dims[1:i])] for i in eachindex(dims)]
-    belief_covs = [vec_beliefs[sum(dims) + sum(dims[1:i-1].^2)+1:sum(dims)+sum(dims[1:i].^2)] for i in eachindex(dims)]
-    return Beliefs(map(eachindex(belief_means)) do i
-        Belief(belief_means[i], reshape(belief_covs[i], (dims[i], dims[i])))
-    end)
+    beliefs = Vector{Belief}(undef, length(dims))
+    current_idx = 1
+    for i in eachindex(dims)
+        dim = dims[i]
+        belief_size = dim + dim*dim
+        
+        belief_end_idx = current_idx + belief_size - 1
+        vec_belief = vec_beliefs[current_idx:belief_end_idx]
+        
+        beliefs[i] = unvec(vec_belief, dim)
+        
+        current_idx = belief_end_idx + 1
+    end
+    return Beliefs(beliefs)
 end
 
 function Base.:-(b1::Beliefs, b2::Beliefs)

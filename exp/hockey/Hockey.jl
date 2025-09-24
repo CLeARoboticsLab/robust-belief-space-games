@@ -256,7 +256,7 @@ function h_state_based(xs::BlockVector, ns::BlockVector)
     )
 end
 
-function h_noise(xs::BlockVector, ns::BlockVector; I_mag::Int = 1) 
+function h_noise(xs::BlockVector, ns::BlockVector; I_mag::Float64 = 1.0) 
     BlockVector(
         mapreduce(vcat, zip(xs.blocks, ns.blocks)) do (xᵢ, nᵢ)
             I(state_dim) * xᵢ + I_mag * I * nᵢ

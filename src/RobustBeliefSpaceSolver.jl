@@ -101,11 +101,6 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
                 push!(cond, max_cond)
             end
 
-            if DEBUG
-                open(DEBUG_FILE, "a") do f
-                    println(f, "[solve] Iteration $iterations - Control stationarity error: $current_stationarity_error")
-                end
-            end
         else
             if regularizations.control_reg > 1000
                 break
@@ -168,8 +163,8 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     end
 
     for t in game.horizon-1:-1:1
-        g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
-        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
+        g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust, n_players = game.dims.n)
+        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust, n_players = game.dims.n)
         g_s = real.(g_s)
         W_s = real.(W_s)
         W = real.(W)
@@ -358,13 +353,6 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
         #         stat_error .- g_s_u' * lagrange_multiplier[ii]
         #     end
         # end
-
-        if DEBUG
-            open(DEBUG_FILE, "a") do f
-                println(f, "[line_search] KKT error breakdown for α=$α_scalar:")
-                println(f, "  Stationarity error (control gradients only): $∇ᵤL")
-            end
-        end
         
         # return norm(∇ᵤL)
         return mean(norm.(candidate_stationarity_errors))
