@@ -231,19 +231,20 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 println(f, "belief reg: $(regularizations.belief_reg)")
             end
         end
-        @infiltrate
         Qh_u = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_s[ii][Block(ii+game.dims.n^2)] # control gradient
+            @view Q_s[ii][Block(game.dims.num_senators*(ii-1)+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.num_senators*(ii)+game.dims.n*game.dims.num_beliefs_per_activist)] # control gradient
         end
         Qh_b = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_s[ii][Block(1):Block(game.dims.n^2)] # belief gradient
+            @view Q_s[ii][Block((ii-1)*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_beliefs_per_activist)] # belief gradient
         end
         
         Qh_uu = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_ss[ii][Block(ii+game.dims.n^2), Block(1+game.dims.n^2):Block(game.dims.n^2+game.dims.n+game.is_robust)]
+            @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist),
+                            Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist)]
         end
         Qh_ub = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_ss[ii][Block(ii+game.dims.n^2), Block(1):Block(game.dims.n^2)]
+            @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist),
+            Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
         end
 
         stationarity_error = if kkt_component === :control
@@ -253,22 +254,21 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         else
             [Qh_b; Qh_u]
         end
-
         feed_forward, feed_back = calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
         push!(joint_feedback_strategies, (;feed_forward, feed_back))
         push!(feed_forward_norms, norm(feed_forward))
         push!(stationarity_errors, stationarity_error)
         push!(Q_suite, (;Qh_uu, Qh_ub, Qh_u, Qh_b))
 
-        u_block_indices = Block(1+game.dims.n^2):Block(game.dims.n^2+game.dims.n+game.is_robust)
-        b_block_indices = Block(1):Block(game.dims.n^2)
-
         for ii in 1:(game.dims.n + game.is_robust)
-            Q_u = @view Q_s[ii][u_block_indices]
-            Q_uu = @view Q_ss[ii][u_block_indices, u_block_indices]
-            Q_b = @view Q_s[ii][b_block_indices]
-            Q_ub = @view Q_ss[ii][u_block_indices, b_block_indices]
-            Q_bb = @view Q_ss[ii][b_block_indices, b_block_indices]
+            Q_u = @view Q_s[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist)]
+            Q_uu = @view Q_ss[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist),
+                            Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist)]
+            Q_b = @view Q_s[ii][Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
+            Q_ub = @view Q_ss[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_beliefs_per_activist+game.dims.n*game.dims.num_senators),
+                            Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
+            Q_bb = @view Q_ss[ii][Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist),
+                            Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
 
             V[ii] = clip(Q[ii] + Q_u' * feed_forward +
                              0.5 * feed_forward' * Q_uu * feed_forward, clip_norm)

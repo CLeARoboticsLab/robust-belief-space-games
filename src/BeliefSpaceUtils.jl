@@ -109,7 +109,7 @@ struct BeliefGame{E, C}
     costs::C
     initial_beliefs::Beliefs
     horizon::Int
-    dims::NamedTuple{(:n, :states, :controls, :belief, :sensor)}
+    dims::NamedTuple
     gt_initial_state::BlockVector
     is_robust::Bool # Assuming player 1 is robust
 end
