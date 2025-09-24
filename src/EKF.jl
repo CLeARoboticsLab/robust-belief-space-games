@@ -6,8 +6,7 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
     for i in 1:n_players
         player_belief_indices = (i-1)*num_beliefs_per_player+1:i*num_beliefs_per_player
         player_beliefs = Beliefs(beliefs.beliefs[player_belief_indices])
-        
-        g_player_parts[i], W_player_parts[i] = ekf_update_per_player(player_beliefs, control, dynamics, sensor_model, is_robust=is_robust)
+        g_player_parts[i], W_player_parts[i] = ekf_update_per_player(player_beliefs, control, dynamics, sensor_model, is_robust=(is_robust && i == 1))
     end
     
     g = vcat(g_player_parts...)
@@ -18,12 +17,11 @@ end
 
 function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
-    stacked_controls = mortar(control.blocks[1:end-is_robust])
-    expected_dynamics = dynamics(BlockVector(means(beliefs), dims(beliefs)), stacked_controls, zero_noise)
+    expected_dynamics = dynamics(BlockVector(means(beliefs), dims(beliefs)), control, zero_noise)
 
-    A_fn(x) = Vector(dynamics(BlockVector(x, dims(beliefs)), stacked_controls, zero_noise))
-    M_fn(x) = Vector(dynamics(means(beliefs), stacked_controls, x))
-    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), stacked_controls, zero_noise), zero_noise))
+    A_fn(x) = Vector(dynamics(BlockVector(x, dims(beliefs)), control, zero_noise))
+    M_fn(x) = Vector(dynamics(means(beliefs), control, x))
+    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), control, zero_noise), zero_noise))
     N_fn(x) = Vector(sensor_model(expected_dynamics, x))
     
     A = ForwardDiff.jacobian(A_fn, means(beliefs))
@@ -48,6 +46,9 @@ function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, dynamics,
         cov_range = current_idx:(current_idx + dim_i - 1)
         
         mean_i = expected_dynamics.blocks[i]
+        if is_robust
+            mean_i += control.blocks[end][sum(dims(beliefs)[1:i-1])+1:sum(dims(beliefs)[1:i])]
+        end
         cov_i = Symmetric(updated_covs_matrix[cov_range, cov_range])
 
         new_beliefs_for_player[i] = Belief(mean_i, cov_i)
