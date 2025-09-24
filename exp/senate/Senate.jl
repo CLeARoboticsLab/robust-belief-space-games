@@ -40,6 +40,7 @@ dims = (;
     n=2,
     num_beliefs_per_activist=num_senators,
     num_senators=num_senators,
+    num_activists=num_activists,
     states=length.(ground_truth_senator_states.blocks),
     controls=[sum(control_dim_per_senator) for _ in 1:(num_senators*num_activists)],
     controls_per_activist=[sum(control_dim_per_senator)*num_senators for _ in 1:num_activists],
@@ -68,7 +69,6 @@ function ellipsoidal_preference_generator(pos::Vector, scale::Vector; nature=fal
 end
 
 function u_transform(u::BlockVector)
-    @infiltrate
     BlockVector(mapreduce(vcat, u.blocks) do u_i
         [u_i[1], log(exp(u_i[2]) + 1)]
     end, length.(u.blocks))
@@ -77,11 +77,13 @@ end
 function control_cost_generator(control_effort; nature=false)
     if nature
         function (u::BlockVector)
-            control_effort * sum([dot(u[Block(i)], u[Block(i)]) for i in 1:num_activists]...)
+            control_effort * sum([dot(u[Block(i)], u[Block(i)]) for i in 1:num_activists])
         end
     else
         function (u::BlockVector)
-            transformed_u = u_transform(u)
+            # Only use lobbyist controls, not nature's controls
+            lobbyist_u = u[Block(1):Block(num_senators*num_activists)]
+            transformed_u = u_transform(lobbyist_u)
             control_effort * sum(u[2] for u in transformed_u.blocks)
         end
     end
@@ -134,7 +136,7 @@ end
 #Assertions for global variables
 function init_checks()
     if (length(non_robust_activist.pos) != opinion_dim || length(robust_activist.pos) != opinion_dim ||
-         length(non_robust_activist.scale) != opinion_dim || length(robust_activist.scale) != opinion_dim)
+        length(non_robust_activist.scale) != opinion_dim || length(robust_activist.scale) != opinion_dim)
         throw(ErrorException("Position or scale dimension mismatch with opinion"))
     end
     if sum(non_robust_activist.scale) != 1 || sum(robust_activist.scale) != 1
@@ -185,7 +187,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
             ground_truth_senator_states,
             true,
         )
-    non_robust_sol = solve(non_robust_senate_game; debug=false)
+    # non_robust_sol = solve(non_robust_senate_game; debug=false)
     robust_sol = solve(robust_senate_game; debug=false)
     println("Saving solution to $solution_filename")
     @save solution_filename robust_sol non_robust_sol

@@ -232,19 +232,35 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             end
         end
         Qh_u = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_s[ii][Block(game.dims.num_senators*(ii-1)+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.num_senators*(ii)+game.dims.n*game.dims.num_beliefs_per_activist)] # control gradient
+            if ii <= game.dims.n  # Regular players (activists)
+                @view Q_s[ii][Block(game.dims.num_senators*(ii-1)+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.num_senators*(ii)+game.dims.n*game.dims.num_beliefs_per_activist)] # control gradient
+            else  # Nature player (single block)
+                @view Q_s[ii][Block(game.dims.num_senators*game.dims.n+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.num_senators*game.dims.n+game.dims.n*game.dims.num_beliefs_per_activist+1)] # nature control gradient
+            end
         end
-        Qh_b = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
+        Qh_b = mapreduce(vcat, 1:(game.dims.n)) do ii
             @view Q_s[ii][Block((ii-1)*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_beliefs_per_activist)] # belief gradient
         end
         
         Qh_uu = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist),
-                            Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist)]
+            if ii <= game.dims.n  # Regular players (activists)
+                @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist),
+                                Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+game.is_robust)]
+            else  # Nature player (single block)
+                nature_block_start = game.dims.num_senators*game.dims.n+game.dims.n*game.dims.num_beliefs_per_activist+1
+                @view Q_ss[ii][Block(nature_block_start):Block(nature_block_start),
+                                Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+game.is_robust)]
+            end
         end
         Qh_ub = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist),
-            Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
+            if ii <= game.dims.n  # Regular players (activists)
+                @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist),
+                Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
+            else  # Nature player (single block)
+                nature_block_start = game.dims.num_senators*game.dims.n+game.dims.n*game.dims.num_beliefs_per_activist+1
+                @view Q_ss[ii][Block(nature_block_start):Block(nature_block_start),
+                Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
+            end
         end
 
         stationarity_error = if kkt_component === :control
@@ -261,11 +277,11 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         push!(Q_suite, (;Qh_uu, Qh_ub, Qh_u, Qh_b))
 
         for ii in 1:(game.dims.n + game.is_robust)
-            Q_u = @view Q_s[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist)]
-            Q_uu = @view Q_ss[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist),
-                            Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist)]
+            Q_u = @view Q_s[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_beliefs_per_activist+game.dims.num_senators*game.dims.n+game.is_robust)]
+            Q_uu = @view Q_ss[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_beliefs_per_activist+game.dims.num_senators*game.dims.n+game.is_robust),
+                            Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_beliefs_per_activist+game.dims.num_senators*game.dims.n+game.is_robust)]
             Q_b = @view Q_s[ii][Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
-            Q_ub = @view Q_ss[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_beliefs_per_activist+game.dims.n*game.dims.num_senators),
+            Q_ub = @view Q_ss[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_beliefs_per_activist+game.dims.num_senators*game.dims.n+game.is_robust),
                             Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
             Q_bb = @view Q_ss[ii][Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist),
                             Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
