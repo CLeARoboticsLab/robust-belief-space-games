@@ -268,11 +268,12 @@ end
 h_low_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs, ns; I_mag = 0.1)
 h_mid_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs, ns; I_mag = 1.0)
 h_high_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs,ns; I_mag = 10.0)
-
+h_very_high_noise(xs::BlockVector, ns::BlockVector) = h_noise(xs,ns; I_mag = 50.0)
 h_noise_dict = Dict(
     "low" => h_low_noise,
     "medium" => h_mid_noise,
     "high" => h_high_noise,
+    "very high" => h_very_high_noise,
 )
 #endregion
 
@@ -298,9 +299,9 @@ function defender_non_terminal_cost_components(belief_over_attacker::Belief, bel
     bounds = box_bounds(belief_over_defender)
     defender_covariance = tr(belief_over_defender.belief_covariance)
     if explicit_covariance
-        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds, defender_covariance)
+        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.25 * control_effort, bounds, defender_covariance)
     else
-        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds)
+        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.25 * control_effort, bounds)
     end
 end
 
@@ -492,7 +493,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
         (bs) -> defender_terminal_cost(bs.beliefs[3], bs.beliefs[4])
     )
     nature_cost = BeliefCost(
-        (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance),
+        (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=explicit_covariance, control_effort_weight=5.0),
         (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4])
     )
     
@@ -504,7 +505,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
         solutions = Dict()
         for type in [([false,true], "robust"),([false,false], "non_robust")]
             robust, type_str = type
-            for int in ["low","medium","high"]
+            for int in ["low","medium","high", "very high"]
                 println("--- Running $(uppercasefirst(type_str)) $(uppercasefirst(int)) Noise Sensor Scenario (Trial $trial) ---")
                 Random.seed!(random_seed)
                 noise = h_noise_dict[int]
