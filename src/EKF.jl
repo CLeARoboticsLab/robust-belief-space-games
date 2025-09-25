@@ -16,12 +16,13 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
 end
 
 function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
+    non_robust_control = mortar(control.blocks[1:end-is_robust])
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
-    expected_dynamics = dynamics(BlockVector(means(beliefs), dims(beliefs)), control, zero_noise)
+    expected_dynamics = dynamics(BlockVector(means(beliefs), dims(beliefs)), non_robust_control, zero_noise)
 
-    A_fn(x) = Vector(dynamics(BlockVector(x, dims(beliefs)), control, zero_noise))
-    M_fn(x) = Vector(dynamics(means(beliefs), control, x))
-    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), control, zero_noise), zero_noise))
+    A_fn(x) = Vector(dynamics(BlockVector(x, dims(beliefs)), non_robust_control, zero_noise))
+    M_fn(x) = Vector(dynamics(means(beliefs), non_robust_control, x))
+    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), non_robust_control, zero_noise), zero_noise))
     N_fn(x) = Vector(sensor_model(expected_dynamics, x))
     
     A = ForwardDiff.jacobian(A_fn, means(beliefs))
