@@ -43,7 +43,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
     # push!(kkt_error_history, [Inf])
     kkt_error_norms = nothing
 
-    cond = Float64[]
+    # cond = Float64[]
 
     # while max(feed_forward_norms_history[end]...) > ϵ_converge
     while true
@@ -62,7 +62,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         #     end
         # end
         #endregion
-        feedback_terms, feed_forward_norms, new_kkt_error_norms = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
+        feedback_terms, feed_forward_norms, new_kkt_error_norms, Q_suite = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
         candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, new_kkt_error_norms, regularizations)
 
         if save_intermediate_solutions
@@ -94,16 +94,25 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
             # cur_ff_norm = length(feed_forward_norms_history)
             # println("\t step accepted, $improvement_iterations / $iterations")
 
-            if save_intermediate_solutions
-                # Store the maximum feed_forward norm as a condition number proxy
-                # Higher norms often indicate worse conditioning of the optimization problem
-                max_cond = isempty(feedback_terms) ? 0.0 : maximum(norm.(feedback_terms[end][1]))
-                push!(intermediate_solutions, (candidate_beliefs, candidate_controls))
-                push!(cond, max_cond)
-            end
+            # if save_intermediate_solutions
+            #     # Store the maximum feed_forward norm as a condition number proxy
+            #     # Higher norms often indicate worse conditioning of the optimization problem
+            #     max_cond = isempty(feedback_terms) ? 0.0 : maximum(norm.(feedback_terms[end][1]))
+            #     push!(intermediate_solutions, (candidate_beliefs, candidate_controls))
+            #     push!(cond, max_cond)
+            # end
 
         else
             if regularizations.control_reg > 1000
+                for t in feedback_terms
+                    println("feedback_term: ", t.feed_back)
+                    println("feed forward: ", t.feed_forward)
+                    @infiltrate
+                    println("feed back eigenv: ", eigvals(t.feed_back))
+                    println("feed forward eigenv: ", eigvals(t.feed_forward))
+                    println("feed back condition number: ", cond(t.feed_back))
+                    println("feed forward condition number: ", cond(t.feed_forward))
+                end
                 break
             end
             regularizations.control_reg *= 1.3 #TODO: Convert to global variable
@@ -131,7 +140,7 @@ end
 
 # TODO: take a gradient step on one player's control (IBR style)
 
-function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; kkt_component::Symbol = :both)
+function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; kkt_component::Symbol = :control)
     T = eltype(nominal_beliefs[1].beliefs[1].belief_mean)
     n_players = game.dims.n + game.is_robust
     belief_size = total_size(nominal_beliefs[end])
@@ -140,7 +149,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     V_b = [Vector{T}(undef, belief_size) for _ in 1:n_players+game.is_robust]
     V_bb = [Matrix{T}(undef, belief_size, belief_size) for _ in 1:n_players+game.is_robust]
 
-    lagrange_multipliers = [[Vector{T}(undef, belief_size) for _ in 1:n_players+game.is_robust] for _ in 1:game.horizon-1]
+    # lagrange_multipliers = [[Vector{T}(undef, belief_size) for _ in 1:n_players+game.is_robust] for _ in 1:game.horizon-1]
 
     cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:(game.dims.n+game.is_robust)]
 
@@ -159,7 +168,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             x_val)
         V[ii] = DiffResults.value(terminal_cost_gradient_info)
         V_b[ii] = DiffResults.gradient(terminal_cost_gradient_info)
-        lagrange_multipliers[end][ii] = DiffResults.gradient(terminal_cost_gradient_info)
+        # lagrange_multipliers[end][ii] = DiffResults.gradient(terminal_cost_gradient_info)
         V_bb[ii] = DiffResults.hessian(terminal_cost_gradient_info)
     end
 
@@ -293,7 +302,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                                 feed_back' * Q_uu * feed_forward + # Q_uu
                                 feed_back' * Q_u + # Q_u
                                 Q_ub' * feed_forward, clip_norm)# Q_ub
-            lagrange_multipliers[t][ii] = V_b[ii]
+            # lagrange_multipliers[t][ii] = V_b[ii]
 
             V_bb[ii] = clip(Q_bb + # Q_bb
                                  feed_back' * Q_uu * feed_back + # Q_uu
@@ -301,7 +310,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                                  Q_ub' * feed_back, clip_norm) # Q_ub
         end
     end
-    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms), reverse!(stationarity_errors), reverse!(lagrange_multipliers)
+    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms), reverse!(stationarity_errors), reverse!(Q_suite)
 end
 
 function calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
@@ -360,7 +369,7 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
         b, u = rollout_strategy(game, strategy)
 
         # Compute KKT error using control stationarity only
-        _, _, candidate_stationarity_errors, lagrange_multipliers = backward_pass(game, b, u, regularizations, 0; kkt_component=:control)
+        _, _, candidate_stationarity_errors, _ = backward_pass(game, b, u, regularizations, 0; kkt_component=:control)
         # ∇ᵤL = mapreduce(vcat, 1:game.horizon-1) do t
         #     stationarity_error = candidate_stationarity_errors[t]
         #     lagrange_multiplier = lagrange_multipliers[t]
