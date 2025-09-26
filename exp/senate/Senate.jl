@@ -26,9 +26,9 @@ opinion_dim=2
 end
 
 cost_params = Dict(
-    non_robust_activist => (;pos = [[1,1]], scale = [[1,2]], terminal_weight=5.0, control_weight=(;direction=1.0, control_cost=10.0)),
-    robust_activist => (;pos = [[3,0]], scale = [[2,1]], terminal_weight=10.0, control_weight=(;direction=1.0, control_cost=1.0)),
-    nature_activist => (;terminal_weight=1.0, control_weight=(;direction=1.0, control_cost=20.0)),
+    non_robust_activist => (;pos = [[1,1]], scale = [[1,2]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=3.0)),
+    robust_activist => (;pos = [[3,0]], scale = [[2,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=8.0)),
+    nature_activist => (;terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=20.0)),
 
 ) 
 # Ideally, we can "save" cost functions by storing the parameters of components used to generate the cost.

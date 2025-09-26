@@ -63,8 +63,8 @@ function visualize_receding_horizon_solution(solutions, games; dims)
         params = cost_params[activist_id]
         center = params.pos[1]
         scale = params.scale[1]
-        a = sqrt(10 * scale[1])
-        b = sqrt(10 * scale[2])
+        a = sqrt(1 / scale[1])
+        b = sqrt(1 / scale[2])
         plot_ellipse!(ax1, center, a, b, label="Activist $activist_id Pref.", color=colors[activist_id])
     end
 
@@ -134,8 +134,8 @@ function visualize_receding_horizon_solution(solutions, games; dims)
         params = cost_params[activist_id]
         center = params.pos[1]
         scale = params.scale[1]
-        a = sqrt(10 * scale[1])
-        b = sqrt(10 * scale[2])
+        a = sqrt(1 / scale[1])
+        b = sqrt(1 / scale[2])
         plot_ellipse!(ax2, center, a, b, label="Activist $activist_id Pref.", color=colors[activist_id])
     end
 
