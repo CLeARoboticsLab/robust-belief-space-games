@@ -4,8 +4,16 @@ using GLMakie
 using LinearAlgebra
 using RobustBeliefGame
 using BlockArrays
+using JLD2
+using FileIO
 
-export visualize_receding_horizon_solution
+export visualize_receding_horizon_solution, load_solution
+
+function load_solution(filename)
+    path = "exp/senate/outputs/$filename"
+    @load path solutions games
+    visualize_receding_horizon_solution(solutions, games; dims=games["non_robust"].dims)
+end
 
 function plot_ellipse!(ax, center, a, b; n=100, label="", color=:black)
     t = range(0, 2*pi, length=n)
