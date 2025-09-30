@@ -41,7 +41,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
     # cur_ff_norm = 1
     # push!(feed_forward_norms_history, [Inf])
     # push!(kkt_error_history, [Inf])
-    kkt_error_norms = nothing
+    kkt_error_norms = Inf
 
     # cond = Float64[]
 
@@ -63,7 +63,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         # end
         #endregion
         feedback_terms, feed_forward_norms, new_kkt_error_norms, Q_suite = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
-        candidate_beliefs, candidate_controls, new_cost, step_accepted = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, new_kkt_error_norms, regularizations)
+        candidate_beliefs, candidate_controls, new_cost, step_accepted, candidate_kkt_error = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, kkt_error_norms, regularizations)
 
         if save_intermediate_solutions
             push!(feed_forward_norms_history, feed_forward_norms)
@@ -78,12 +78,14 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         # println("\tImprovements: ", join([@sprintf("%.3f", imp) for imp in improvements], ", "))
         # println("\tCost decr: $cost_decreased, ff_norm decr: $feed_forward_norm_decreased")
         #endregion
+        # println("step_accepted: $step_accepted")
         if step_accepted
+            # println("new kkt error norms: ", candidate_kkt_error)
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
-            kkt_error_norms = new_kkt_error_norms
+            kkt_error_norms = candidate_kkt_error
 
             # if all(improvements .< ϵ_converge) && mean(norm.(vcat(kkt_error_norms...))) < ϵ_converge
-            if mean(norm.(kkt_error_norms)) < ϵ_converge
+            if candidate_kkt_error < ϵ_converge
                 break
             end
             old_cost = new_cost
@@ -104,15 +106,6 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
 
         else
             if regularizations.control_reg > 1000
-                for t in feedback_terms
-                    println("feedback_term: ", t.feed_back)
-                    println("feed forward: ", t.feed_forward)
-                    @infiltrate
-                    println("feed back eigenv: ", eigvals(t.feed_back))
-                    println("feed forward eigenv: ", eigvals(t.feed_forward))
-                    println("feed back condition number: ", cond(t.feed_back))
-                    println("feed forward condition number: ", cond(t.feed_forward))
-                end
                 break
             end
             regularizations.control_reg *= 1.3 #TODO: Convert to global variable
@@ -362,7 +355,7 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
     ρ = 0.9
     c = 1e-4
     
-    current_kkt_error = mean(norm.(kkt_error_norms))
+    current_kkt_error = kkt_error_norms
     
     function loss(α_scalar)
         strategy = build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α_scalar)
@@ -421,8 +414,8 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
             end
         end
     end
-
-    return candidate_beliefs, candidate_controls, new_costs, !alpha_limit_hit
+    println("alpha: $α")
+    return candidate_beliefs, candidate_controls, new_costs, !alpha_limit_hit, candidate_kkt_error
 end
 
 
