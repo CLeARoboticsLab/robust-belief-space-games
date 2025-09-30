@@ -414,7 +414,6 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
             end
         end
     end
-    println("alpha: $α")
     return candidate_beliefs, candidate_controls, new_costs, !alpha_limit_hit, candidate_kkt_error
 end
 
