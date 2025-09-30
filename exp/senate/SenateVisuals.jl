@@ -4,14 +4,13 @@ using GLMakie
 using LinearAlgebra
 using RobustBeliefGame
 using BlockArrays
-using JLD2
-using FileIO
+using Serialization
 
 export visualize_receding_horizon_solution, load_solution
 
 function load_solution(filename)
-    path = "exp/senate/outputs/$filename"
-    @load path solutions games
+    path = "exp/senate/outputs/$filename.dat"
+    solutions, games = open(deserialize, path, "r")
     visualize_receding_horizon_solution(solutions, games; dims=games["non_robust"].dims)
 end
 
