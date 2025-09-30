@@ -6,12 +6,10 @@ using BlockArrays
 using Distributions
 using Random
 using Statistics
+using Serialization
 
-using JLD2
-using FileIO
-
-include("./SenateVisuals.jl")
-using .SenateVisuals
+# include("./SenateVisuals.jl")
+# using .SenateVisuals
 
 export receding_horizon_main
 
@@ -26,9 +24,9 @@ opinion_dim=2
 end
 
 cost_params = Dict(
-    non_robust_activist => (;pos = [[1,1]], scale = [[1,2]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=3.0)),
-    robust_activist => (;pos = [[3,0]], scale = [[2,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=8.0)),
-    nature_activist => (;terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=20.0)),
+    non_robust_activist => (;pos = [[1,1]], scale = [[1,2]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
+    robust_activist => (;pos = [[3,0]], scale = [[2,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
+    nature_activist => (;terminal_weight=1.0, control_weight=(;direction=2.0, control_cost=10.0)),
 
 ) 
 # Ideally, we can "save" cost functions by storing the parameters of components used to generate the cost.
@@ -53,7 +51,7 @@ dims = (;
     controls=[sum(control_dim_per_senator) for _ in 1:(num_senators*num_activists)],
     controls_per_activist=[sum(control_dim_per_senator)*num_senators for _ in 1:num_activists],
     belief=vcat([length.(ground_truth_senator_states.blocks) for _ in 1:num_activists]...),
-    sensor=[state_dim_per_senator.mean * num_senators for _ in 1:num_activists],
+    sensor=[state_dim_per_senator.mean for _ in 1:num_activists*num_senators],
     opinion_dim=opinion_dim
 )
 
@@ -64,7 +62,7 @@ dims = (;
 random_seed = 1
 
 function ellipsoidal_preference_generator(pos::Vector, scale::Vector; nature=false)
-    function (point::Vector)
+    function preference(point::Vector)
         if length(point) != opinion_dim || length(scale[1]) != opinion_dim || length(point) != opinion_dim #Assert equal dimensions
             throw(DimensionMismatch("Opinion dimensions are not uniform, $(size(pos)), $(size(scale)), $(size(point))"))
         end
@@ -74,6 +72,7 @@ function ellipsoidal_preference_generator(pos::Vector, scale::Vector; nature=fal
             end
         end
     end
+    return preference
 end
 
 function u_transform(u::BlockVector)
@@ -84,18 +83,20 @@ end
 
 function control_cost_generator(control_effort; nature=false)
     if nature
-        function (u::BlockVector)
+        function control_cost_function_nature(u::BlockVector)
             nature_u = u.blocks[end]
             control_effort * dot(nature_u, nature_u)
         end
+        return control_cost_function_nature
     else
-        function (u::BlockVector)
+        function control_cost_function(u::BlockVector)
             # Only use lobbyist controls, not nature's controls
             lobbyist_u = u[Block(1):Block(num_senators*num_activists)]
             # transformed_u = u_transform(lobbyist_u)
             control_effort * sum(dot(u, u) for u in lobbyist_u.blocks)
             # control_effort * sum(u_i[1]^2+u_i[2]^2 for u_i in transformed_u.blocks)
         end
+        return control_cost_function
     end
 end
 
@@ -112,17 +113,19 @@ function terminal_cost_components(preference_ellipsoids::Function, senator_belie
 end
 
 function non_terminal_cost_generator(cost_params::NamedTuple, ellipsoids::Function; nature=false)
-    function (beliefs::Beliefs, u::BlockVector)
+    function non_terminal_cost_function(beliefs::Beliefs, u::BlockVector)
         sum(non_terminal_cost_components(ellipsoids,
         control_cost_generator(cost_params.control_weight.control_cost; nature=nature),
         means(beliefs), u))
     end
+    return non_terminal_cost_function
 end
 
 function terminal_cost_generator(cost_params::NamedTuple, ellipsoids::Function; nature=false)
-    function (beliefs::Beliefs)
+    function terminal_cost_function(beliefs::Beliefs)
         cost_params.terminal_weight * sum(terminal_cost_components(ellipsoids, means(beliefs)))
     end
+    return terminal_cost_function
 end
 
 function f(x::BlockVector, u::BlockVector, ms::BlockVector)
@@ -140,7 +143,7 @@ function f(x::BlockVector, u::BlockVector, ms::BlockVector)
 end
 
 function h(x::BlockVector, ns::BlockVector)
-    return x + ns
+    BlockVector(x + ns, length.(x.blocks))
 end
 
 #Assertions for global variables
@@ -161,50 +164,219 @@ function init_checks()
 end
     
 
-function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=5, override=false, random_seed=1, explicit_covariance=false, trials=10)
-    solution_filename = "exp/senate/outputs/rh_$file_id.jld2"
+function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed=1,
+    scale_scale_factors = [1.0, 1.0],
+    terminal_weight_scale_factors = [1.0, 1.0, 1.0],
+    control_cost_scale_factors = [1.0, 1.0, 1.0],
+)
+    current_cost_params = deepcopy(cost_params)
+    current_cost_params[non_robust_activist] = (;
+        pos=current_cost_params[non_robust_activist].pos,
+        scale=current_cost_params[non_robust_activist].scale .* scale_scale_factors[1],
+        terminal_weight=current_cost_params[non_robust_activist].terminal_weight * terminal_weight_scale_factors[1],
+        control_weight=(;direction=current_cost_params[non_robust_activist].control_weight.direction, control_cost=current_cost_params[non_robust_activist].control_weight.control_cost * control_cost_scale_factors[1])
+    )
+    current_cost_params[robust_activist] = (;
+        pos=current_cost_params[robust_activist].pos,
+        scale=current_cost_params[robust_activist].scale .* scale_scale_factors[2],
+        terminal_weight=current_cost_params[robust_activist].terminal_weight * terminal_weight_scale_factors[2],
+        control_weight=(;direction=current_cost_params[robust_activist].control_weight.direction, control_cost=current_cost_params[robust_activist].control_weight.control_cost * control_cost_scale_factors[2])
+    )
+    current_cost_params[nature_activist] = (;
+        terminal_weight=current_cost_params[nature_activist].terminal_weight * terminal_weight_scale_factors[3],
+        control_weight=(;direction=current_cost_params[nature_activist].control_weight.direction, control_cost=current_cost_params[nature_activist].control_weight.control_cost * control_cost_scale_factors[3])
+    )
+
+    ellipsoids = [ellipsoidal_preference_generator(current_cost_params[non_robust_activist].pos, current_cost_params[non_robust_activist].scale),
+                ellipsoidal_preference_generator(current_cost_params[robust_activist].pos, current_cost_params[robust_activist].scale),
+                ellipsoidal_preference_generator(current_cost_params[robust_activist].pos, current_cost_params[robust_activist].scale; nature=true)]
+    costs = [BeliefCost(non_terminal_cost_generator(current_cost_params[non_robust_activist], ellipsoids[1]), terminal_cost_generator(current_cost_params[non_robust_activist], ellipsoids[1])),
+            BeliefCost(non_terminal_cost_generator(current_cost_params[robust_activist], ellipsoids[2]), terminal_cost_generator(current_cost_params[robust_activist], ellipsoids[2])),
+            BeliefCost(non_terminal_cost_generator(current_cost_params[nature_activist], ellipsoids[3]; nature=true), terminal_cost_generator(current_cost_params[nature_activist], ellipsoids[3]; nature=true))]
+
+    
+    # --- Receding Horizon Loop ---
+    
+    gt_state_history = [ground_truth_senator_states]
+    observation_history = []
+    solution_history = Dict("non_robust"=>[], "robust"=>[])
+    environments::Vector{BeliefEnvironment} = [BeliefEnvironment(f, ground_truth_senator_states, h) for _ in 1:dims.num_activists]
+    
+    current_beliefs = initial_beliefs
+    current_gt_state = ground_truth_senator_states
+    
+    warm_starts = Dict{String, Any}("non_robust"=>nothing, "robust"=>nothing)
+    representative_games = Dict{String, Any}("non_robust"=>nothing, "robust"=>nothing)
+
+    Random.seed!(random_seed)
+    
+    process_noise_dist = MvNormal(zeros(sum(dims.states)), I(sum(dims.states))) 
+    sensor_noise_dist = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
+
+    for t in 1:horizon-1
+        println("Receding Horizon Step $t / $(horizon-1)")
+
+        for type in ["non_robust", "robust"]
+            is_robust = type == "robust"
+            
+            game_horizon = min(planning_horizon, horizon - t + 1)
+            
+            game = BeliefGame(
+                BeliefEnvironment(f, current_gt_state, h),
+                is_robust ? costs : costs[1:2],
+                current_beliefs,
+                game_horizon,
+                dims,
+                current_gt_state,
+                is_robust
+            )
+
+            if t == 1
+                representative_games[type] = game
+            end
+
+            nominal_beliefs, nominal_controls, _ = solve(game; debug=false, warm_start=warm_starts[type])
+
+            push!(solution_history[type], (nominal_beliefs, nominal_controls))
+            
+            if length(nominal_beliefs) > 1
+                shifted_beliefs = nominal_beliefs[2:end]
+                shifted_controls = nominal_controls[2:end]
+
+                zero_control = if is_robust
+                    control_block_sizes = vcat(dims.controls, sum(dims.states))
+                    BlockVector(zeros(sum(control_block_sizes)), control_block_sizes)
+                else
+                    BlockVector(zeros(sum(dims.controls)), dims.controls)
+                end
+                
+                last_belief = shifted_beliefs[end]
+                g, _ = ekf_update(last_belief, zero_control, game.environment.dynamics, game.environment.sensor_models; is_robust=is_robust, n_players=dims.num_activists)
+                extended_belief = unvec(g, game.dims.belief)
+
+                warm_start_beliefs = vcat(shifted_beliefs, [extended_belief])
+                warm_start_controls = vcat(shifted_controls, [zero_control])
+                warm_starts[type] = (warm_start_beliefs, warm_start_controls)
+            else
+                warm_starts[type] = (nominal_beliefs, nominal_controls)
+            end
+        end
+
+        u_non_robust = solution_history["non_robust"][end][2][1]
+        u_robust = solution_history["robust"][end][2][1]
+        
+        u1_controls = u_non_robust[Block(1):Block(dims.num_senators)]
+        u2_controls = u_robust[Block(dims.num_senators + 1):Block(dims.num_activists * dims.num_senators)]
+
+        activist_u = mortar([u1_controls.blocks..., u2_controls.blocks...])
+        
+        process_noise_vec = rand(process_noise_dist)
+        process_noise = BlockVector(process_noise_vec, dims.states)
+        current_gt_state = f(current_gt_state, activist_u, process_noise)
+        push!(gt_state_history, current_gt_state)
+
+        observations = [h(current_gt_state, BlockVector(rand(sensor_noise_dist), dims.states)) for _ in 1:dims.num_activists]
+        observations = mortar(observations)
+        push!(observation_history, observations)
+        
+        current_beliefs = ekf_update_with_observations(current_beliefs, activist_u, environments, observations)
+    end
+
+    solutions_dict = Dict(
+        "non_robust" => (
+            gt_state_history=gt_state_history,
+            observation_history=observation_history,
+            solution_history=solution_history["non_robust"]
+        ),
+        "robust" => (
+            gt_state_history=gt_state_history,
+            observation_history=observation_history,
+            solution_history=solution_history["robust"]
+        )
+    )
+    return solutions_dict, representative_games
+end
+
+
+function receding_horizon_main(file_id::String=""; horizon=10, min_planning_horizon=5, override=false, random_seed=1, trials=2)
+    solution_filename = "exp/senate/outputs/$file_id.dat"
     solutions = Dict()
     games = Dict()
 
     if isfile(solution_filename) && !override
         println("Loading solution from $solution_filename")
-        @load solution_filename solutions games
-        SenateVisuals.visualize_receding_horizon_solution(solutions, games; dims=dims)
+        open(solution_filename, "r") do f
+            solutions, games = deserialize(f)
+        end
+        # SenateVisuals.visualize_receding_horizon_solution(solutions, games; dims=dims)
         return
     end
-    # init_checks()
-    Random.seed!(random_seed)
-    ellipsoids = [ellipsoidal_preference_generator(cost_params[non_robust_activist].pos, cost_params[non_robust_activist].scale),
-                ellipsoidal_preference_generator(cost_params[robust_activist].pos, cost_params[robust_activist].scale),
-                ellipsoidal_preference_generator(cost_params[robust_activist].pos, cost_params[robust_activist].scale; nature=true)]
-    costs = [BeliefCost(non_terminal_cost_generator(cost_params[non_robust_activist], ellipsoids[1]), terminal_cost_generator(cost_params[non_robust_activist], ellipsoids[1])),
-            BeliefCost(non_terminal_cost_generator(cost_params[robust_activist], ellipsoids[2]), terminal_cost_generator(cost_params[robust_activist], ellipsoids[2])),
-            BeliefCost(non_terminal_cost_generator(cost_params[nature_activist], ellipsoids[3]; nature=true), terminal_cost_generator(cost_params[nature_activist], ellipsoids[3]; nature=true))]
 
-    environment = BeliefEnvironment(f, ground_truth_senator_states, h)
-    games["non_robust"] = BeliefGame(
-            environment,
-            [costs[1], costs[2]],
-            initial_beliefs,
-            horizon,
-            dims,
-            ground_truth_senator_states,
-            false,
-        )
-    games["robust"] = BeliefGame(
-            environment,
-            [costs[1], costs[2], costs[3]],
-            initial_beliefs,
-            horizon,
-            dims,
-            ground_truth_senator_states,
-            true,
-        )
-    solutions["non_robust"] = solve(games["non_robust"]; debug=false)
-    solutions["robust"] = solve(games["robust"]; debug=false)
+    scale_scale_factors = [1.0]
+    terminal_weight_scale_factors = [1.0]
+    control_cost_scale_factors = [1.0]
+    
+    num_non_robust_runs = length(scale_scale_factors)^2 * length(terminal_weight_scale_factors)^2 * length(control_cost_scale_factors)^2
+    num_robust_runs = num_non_robust_runs * length(terminal_weight_scale_factors) * length(control_cost_scale_factors)
+    total_runs = (num_non_robust_runs + num_robust_runs) * trials
+
+    println("This experiment will run $total_runs simulations.")
+    println("Breakdown: $(num_non_robust_runs*trials) non-robust runs and $(num_robust_runs*trials) robust runs.")
+    println("Do you want to continue? (y/n)")
+    user_input = readline()
+    if user_input != "y"
+        println("Aborting.")
+        return
+    end
+
+
+    non_robust_params = Iterators.product(
+        scale_scale_factors, # non_robust_activist scale
+        scale_scale_factors, # robust_activist scale
+        terminal_weight_scale_factors, # non_robust_activist terminal_weight
+        terminal_weight_scale_factors, # robust_activist terminal_weight
+        control_cost_scale_factors, # non_robust_activist control_cost
+        control_cost_scale_factors  # robust_activist control_cost
+    )
+
+    nature_params = Iterators.product(
+        terminal_weight_scale_factors, # nature_activist terminal_weight
+        control_cost_scale_factors  # nature_activist control_cost
+    )
+
+    for (s_nr, s_r, tw_nr, tw_r, cc_nr, cc_r) in non_robust_params
+        for (tw_n, cc_n) in nature_params
+            _random_seed = random_seed
+            for trial in 1:trials
+                println("Running trial $trial with scale_scale_factors: $s_nr, $s_r, terminal_weight_scale_factors: $tw_nr, $tw_r, $tw_n, control_cost_scale_factors: $cc_nr, $cc_r, $cc_n")
+                
+                rh_solutions, rh_games = run_receding_horizon_trial(
+                    scale_scale_factors=[s_nr, s_r],
+                    terminal_weight_scale_factors=[tw_nr, tw_r, tw_n],
+                    control_cost_scale_factors=[cc_nr, cc_r, cc_n],
+                    horizon=horizon,
+                    planning_horizon=min_planning_horizon,
+                    random_seed=_random_seed
+                )
+                
+                non_robust_key = "nr_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_cc_$(cc_nr)_$(cc_r)_$trial"
+                solutions[non_robust_key] = rh_solutions["non_robust"]
+                games[non_robust_key] = rh_games["non_robust"]
+
+                robust_key = "r_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
+                solutions[robust_key] = rh_solutions["robust"]
+                games[robust_key] = rh_games["robust"]
+
+                _random_seed += 1
+            end
+        end
+    end
+
+
     println("Saving solution to $solution_filename")
-    @save solution_filename solutions games
-
-    SenateVisuals.visualize_receding_horizon_solution(solutions, games; dims=dims)
+    open(solution_filename, "w") do f
+        serialize(f, (solutions, games))
+    end
+    # SenateVisuals.visualize_receding_horizon_solution(solutions, games; dims=dims)
 end
 end # module
