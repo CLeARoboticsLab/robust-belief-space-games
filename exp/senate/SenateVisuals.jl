@@ -195,16 +195,6 @@ function visualize_receding_horizon_solution(solutions, games; dims, non_robust_
     display(fig)
     fig
 end
-
-    # --- Live/Dynamic Visualizer: minimal, reusable, low‑bloat ---
-# Drop this whole block near the bottom of SenateVisuals.jl (inside the module).
-
-
-# If your file already imports these, keep only one copy.
-# Reuses your existing helpers: get_ellipse_points, step_geoms!, plot_ellipse!
-# Assumes `dims` is a NamedTuple with at least (:num_activists, :num_senators)
-# Assumes beliefs support `means(beliefs)` and `covs(beliefs)`.
-
 # ------------------------
 # Utility conversions
 # ------------------------
@@ -418,15 +408,3 @@ function _clear_controls!(viz::SenateViz)
     nothing
 end
 end #module
-
-# ------------------------
-# Notes
-# ------------------------
-# • Keep your existing static viewer (visualize_receding_horizon_solution) unchanged.
-# • Both static and live paths share the geometry core: get_ellipse_points, step_geoms!.
-# • Driver wiring (already present in your Senate.jl):
-#     viz, on_step = SenateVisuals.attach_to_senate_using_setup!(; dims, cost_params)
-#     SenateVisuals.mark_run!(viz, run_label)
-#     SenateVisuals.reset_viz!(viz)
-#     run_receding_horizon_trial(...; on_live_step = on_step, live_viz_every = live_viz_every)
-# • If your Makie version uses Point2f0, you can replace `_Point2` with Point2f0.
