@@ -8,8 +8,8 @@ using Random
 using Statistics
 using Serialization
 
-# include("./SenateVisuals.jl")
-# using .SenateVisuals
+include("./SenateVisuals.jl")
+using .SenateVisuals
 
 export receding_horizon_main
 
@@ -22,6 +22,8 @@ opinion_dim=2
 @enum NatureID begin
     nature_activist = 3
 end
+
+
 
 cost_params = Dict(
     non_robust_activist => (;pos = [[1,1]], scale = [[1,2]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
@@ -168,6 +170,9 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
     scale_scale_factors = [1.0, 1.0],
     terminal_weight_scale_factors = [1.0, 1.0, 1.0],
     control_cost_scale_factors = [1.0, 1.0, 1.0],
+    on_live_step::Union{Nothing,Function}=nothing,      # <- NEW
+    live_viz_every::Int=1                               # <- NEW (optional throttle)
+
 )
     current_cost_params = deepcopy(cost_params)
     current_cost_params[non_robust_activist] = (;
@@ -199,6 +204,7 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
     
     gt_state_history = [ground_truth_senator_states]
     observation_history = []
+    
     solution_history = Dict("non_robust"=>[], "robust"=>[])
     environments::Vector{BeliefEnvironment} = [BeliefEnvironment(f, ground_truth_senator_states, h) for _ in 1:dims.num_activists]
     
@@ -212,6 +218,24 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
     
     process_noise_dist = MvNormal(zeros(sum(dims.states)), I(sum(dims.states))) 
     sensor_noise_dist = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
+
+    
+    # Start consumer task (only if live)
+    viz_chan = Channel{NamedTuple}(10)
+    consumer_task = nothing
+
+    if on_live_step !== nothing
+        on_live_step(0; beliefs=current_beliefs, gt_state=current_gt_state)
+        consumer_task = @async begin
+            for msg in viz_chan
+                on_live_step(msg.step; beliefs=msg.beliefs, gt_state=msg.gt_state)
+                yield()  # let Makie/GLFW process window events
+            end
+        end
+    end
+
+    emit_every = (live_viz_every isa Integer && live_viz_every > 0) ? live_viz_every : typemax(Int)
+
 
     for t in 1:horizon-1
         println("Receding Horizon Step $t / $(horizon-1)")
@@ -280,8 +304,19 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
         push!(observation_history, observations)
         
         current_beliefs = ekf_update_with_observations(current_beliefs, activist_u, environments, observations)
-    end
 
+        if on_live_step !== nothing && (t % emit_every == 0)
+            push_latest!(; beliefs=current_beliefs, gt_state=current_gt_state)
+        end
+
+    end
+    if on_live_step !== nothing
+        on_live_step(horizon-1;
+            beliefs=current_beliefs,
+            gt_state=current_gt_state,
+            u_non_robust=u_non_robust,
+            u_robust=u_robust)
+    end
     solutions_dict = Dict(
         "non_robust" => (
             gt_state_history=gt_state_history,
@@ -294,11 +329,18 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
             solution_history=solution_history["robust"]
         )
     )
+    close(viz_chan)     # tell consumer we're done
+    wait(consumer_task) # clean shutdown
     return solutions_dict, representative_games
 end
+mutable struct _VizState
+    latest_beliefs::Any
+    latest_gt_state::Any
+    dirty::Bool
+end
 
-
-function receding_horizon_main(file_id::String=""; horizon=10, min_planning_horizon=5, override=false, random_seed=1, trials=2)
+function receding_horizon_main(file_id::String=""; horizon=10, min_planning_horizon=5, override=false, random_seed=1, trials=2,
+    live::Bool=false, live_viz_every::Int=1)
     solution_filename = "exp/senate/outputs/$file_id.dat"
     solutions = Dict()
     games = Dict()
@@ -322,12 +364,12 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
 
     println("This experiment will run $total_runs simulations.")
     println("Breakdown: $(num_non_robust_runs*trials) non-robust runs and $(num_robust_runs*trials) robust runs.")
-    println("Do you want to continue? (y/n)")
-    user_input = readline()
-    if user_input != "y"
-        println("Aborting.")
-        return
-    end
+    # println("Do you want to continue? (y/n)")
+    # user_input = readline()
+    # if user_input != "y"
+    #     println("Aborting.")
+    #     return
+    # end
 
 
     non_robust_params = Iterators.product(
@@ -344,30 +386,73 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
         control_cost_scale_factors  # nature_activist control_cost
     )
 
+    local viz = nothing
+    local on_step = nothing
+
     for (s_nr, s_r, tw_nr, tw_r, cc_nr, cc_r) in non_robust_params
         for (tw_n, cc_n) in nature_params
             _random_seed = random_seed
             for trial in 1:trials
                 println("Running trial $trial with scale_scale_factors: $s_nr, $s_r, terminal_weight_scale_factors: $tw_nr, $tw_r, $tw_n, control_cost_scale_factors: $cc_nr, $cc_r, $cc_n")
                 
+                if live
+                    label = "s=$(s_nr),$(s_r)  tw=$(tw_nr),$(tw_r),$(tw_n)  cc=$(cc_nr),$(cc_r),$(cc_n)  trial=$trial"
+                    viz, on_step = SenateVisuals.attach_to_senate_using_setup!(; dims=dims, cost_params=cost_params)
+                    
+                    SenateVisuals.mark_run!(viz, label)
+                    SenateVisuals.reset_viz!(viz)
+                    # --- start timer-driven pull visualizer ---
+                    state = _VizState(nothing, nothing, false)
+
+                    # compute loop calls this to publish the latest snapshot (non-blocking)
+                    push_latest! = function (; beliefs, gt_state)
+                        state.latest_beliefs = beliefs
+                        state.latest_gt_state = gt_state
+                        state.dirty = true
+                        nothing
+                    end
+
+                    # Timer pulls at ~30 FPS and renders only when there’s new data
+                    ui_timer = Timer(1/30; interval=1/30) do _
+                        if state.dirty
+                            on_live_step(0; beliefs=state.latest_beliefs, gt_state=state.latest_gt_state)
+                            state.dirty = false
+                            yield()  # let Makie/GLFW process window events so it stays responsive
+                        end
+                    end
+                    # --- end timer-driven pull visualizer ---
+                end
+
                 rh_solutions, rh_games = run_receding_horizon_trial(
                     scale_scale_factors=[s_nr, s_r],
                     terminal_weight_scale_factors=[tw_nr, tw_r, tw_n],
                     control_cost_scale_factors=[cc_nr, cc_r, cc_n],
                     horizon=horizon,
                     planning_horizon=min_planning_horizon,
-                    random_seed=_random_seed
+                    random_seed=_random_seed,
+                    on_live_step=on_step,                # <- streams steps to the viz
+                    live_viz_every=live_viz_every
                 )
                 
-                non_robust_key = "nr_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_cc_$(cc_nr)_$(cc_r)_$trial"
+                non_robust_key = "s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_cc_$(cc_nr)_$(cc_r)_$trial"
                 solutions[non_robust_key] = rh_solutions["non_robust"]
                 games[non_robust_key] = rh_games["non_robust"]
 
                 robust_key = "r_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
                 solutions[robust_key] = rh_solutions["robust"]
                 games[robust_key] = rh_games["robust"]
+                path_key = "s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
+
 
                 _random_seed += 1
+                save_viz_call("exp/senate/outputs/viz_call_$(path_key).bson",
+                    solutions,games;
+                    dims=dims,
+                    non_robust_key=non_robust_key,
+                    robust_key=robust_key
+                )
+                #SenateVisuals.visualize_receding_horizon_solution(solutions, games; dims=dims, non_robust_key =non_robust_key, robust_key=robust_key)
+
             end
         end
     end
@@ -377,6 +462,41 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
     open(solution_filename, "w") do f
         serialize(f, (solutions, games))
     end
-    # SenateVisuals.visualize_receding_horizon_solution(solutions, games; dims=dims)
+
 end
+
+using BSON: @save, @load
+
+"""
+    save_viz_call(path, solutions, games; dims, non_robust_key, robust_key)
+
+Serialize the exact arguments for
+`SenateVisuals.visualize_receding_horizon_solution(...)`
+to `path` (e.g. "viz_call.bson").
+"""
+function save_viz_call(path::AbstractString,
+                       solutions, games;
+                       dims,
+                       non_robust_key,
+                       robust_key)
+    @save path solutions games dims non_robust_key robust_key
+    println("Saved visualization call to $path")
+    return path
+end
+
+"""
+    replay_viz_call(path)
+
+Load arguments from `path` (created by `save_viz_call`) and invoke
+`SenateVisuals.visualize_receding_horizon_solution(...)`.
+Returns whatever the original call returns.
+"""
+function replay_viz_call(path::AbstractString)
+    @load path solutions games dims non_robust_key robust_key
+    return SenateVisuals.visualize_receding_horizon_solution(
+        solutions, games; dims=dims,
+        non_robust_key=non_robust_key, robust_key=robust_key
+    )
+end
+
 end # module

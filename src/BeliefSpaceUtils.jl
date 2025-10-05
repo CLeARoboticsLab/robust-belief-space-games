@@ -104,12 +104,12 @@ struct BeliefEnvironment{D, S}
     sensor_models::S
 end
 
-struct BeliefGame{E, C}
+struct BeliefGame{E, C, D}
     environment::E
     costs::C
     initial_beliefs::Beliefs
     horizon::Int
-    dims::NamedTuple
+    dims::D
     gt_initial_state::BlockVector
     is_robust::Bool # Assuming player 1 is robust
 end
@@ -153,7 +153,7 @@ function rollout_strategy(game::BeliefGame, strategy::Vector)
     for i in 1:H
         controls[i] = strategy[i](beliefs[i])
         if DEBUG
-            open(DEBUG_FILE, "a") do f
+                open(DEBUG_FILE, "a") do f
                 println(f, "[rollout_strategy]")
                 println(f, "beliefs[$i]:")
                 display_matrix = IOContext(f, :limit=>false)
