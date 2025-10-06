@@ -11,7 +11,7 @@ export visualize_receding_horizon_solution, load_solution
 function load_solution(filename)
     path = "exp/senate/outputs/$filename.dat"
     solutions, games = open(deserialize, path, "r")
-    visualize_receding_horizon_solution(solutions, games; dims=games["non_robust"].dims)
+    visualize_receding_horizon_solution(solutions, games; dims=first(games)[2].dims)
 end
 
 function plot_ellipse!(ax, center, a, b; n=100, label="", color=:black)
