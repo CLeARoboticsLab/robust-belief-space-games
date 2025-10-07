@@ -26,7 +26,7 @@ end
 cost_params = Dict(
     non_robust_activist => (;pos = [[1,1]], scale = [[1,2]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
     robust_activist => (;pos = [[3,0]], scale = [[2,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
-    nature_activist => (;terminal_weight=1.0, control_weight=(;direction=2.0, control_cost=10.0)),
+    nature_activist => (;terminal_weight=1.0, control_weight=(;direction=2.0, control_cost=2.0)),
 
 ) 
 # Ideally, we can "save" cost functions by storing the parameters of components used to generate the cost.
@@ -143,7 +143,7 @@ function f(x::BlockVector, u::BlockVector, ms::BlockVector)
 end
 
 function h(x::BlockVector, ns::BlockVector)
-    BlockVector(x + ns, length.(x.blocks))
+    BlockVector(x + 0.1 * ns, length.(x.blocks))
 end
 
 #Assertions for global variables
@@ -210,8 +210,8 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
 
     Random.seed!(random_seed)
     
-    process_noise_dist = MvNormal(zeros(sum(dims.states)), I(sum(dims.states))) 
-    sensor_noise_dist = MvNormal(zeros(sum(dims.states)), I(sum(dims.states)))
+    process_noise_dist = MvNormal(zeros(sum(dims.states)), 0.0 * I(sum(dims.states))) 
+    sensor_noise_dist = MvNormal(zeros(sum(dims.states)), 0.0 * I(sum(dims.states)))
 
     for t in 1:horizon-1
         println("Receding Horizon Step $t / $(horizon-1)")
@@ -298,7 +298,7 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
 end
 
 
-function receding_horizon_main(file_id::String=""; horizon=10, min_planning_horizon=5, override=false, random_seed=1, trials=2)
+function receding_horizon_main(file_id::String=""; horizon=10, min_planning_horizon=5, override=false, random_seed=1, trials=1)
     solution_filename = "exp/senate/outputs/$file_id.dat"
     solutions = Dict()
     games = Dict()
@@ -353,19 +353,19 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
                 rh_solutions, rh_games = run_receding_horizon_trial(
                     scale_scale_factors=[s_nr, s_r],
                     terminal_weight_scale_factors=[tw_nr, tw_r, tw_n],
-                    control_cost_scale_factors=[cc_nr, cc_r, cc_n],
+                    control_cost_scale_factors=[1.0, 1.0, cc_n],
                     horizon=horizon,
                     planning_horizon=min_planning_horizon,
                     random_seed=_random_seed
                 )
                 
-                non_robust_key = "nr_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_cc_$(cc_nr)_$(cc_r)_$trial"
-                solutions[non_robust_key] = rh_solutions["non_robust"]
-                games[non_robust_key] = rh_games["non_robust"]
+                # non_robust_key = "nr_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_cc_$(cc_nr)_$(cc_r)_$trial"
+                # solutions[non_robust_key] = rh_solutions["non_robust"]
+                # games[non_robust_key] = rh_games["non_robust"]
 
                 robust_key = "r_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
-                solutions[robust_key] = rh_solutions["robust"]
-                games[robust_key] = rh_games["robust"]
+                solutions[robust_key] = (;robust=rh_solutions["robust"], non_robust=rh_solutions["non_robust"])
+                games[robust_key] = (;robust=rh_games["robust"], non_robust=rh_games["non_robust"])
 
                 _random_seed += 1
             end
