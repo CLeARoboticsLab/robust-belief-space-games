@@ -79,10 +79,9 @@ function setup_solution_subplot!(ax, solution_tuple, t, colors, cost_params, dim
     belief_trajectory = solution_tuple.solution_history[1][1]  # Extract beliefs from tuple
     time_steps = length(belief_trajectory) 
     # Plot activist preferences
-    for activist_id in 1:dims.num_activists - 1 #Minus nature
+    for activist_id in 1:dims.num_activists
         key    = _activist_key(cost_params, activist_id)
         params = cost_params[key]
-        @infiltrate
         center = params.pos[1]
         scale = params.scale[1]
         a = sqrt(1 / scale[1])
@@ -134,13 +133,14 @@ function setup_solution_subplot!(ax, solution_tuple, t, colors, cost_params, dim
     end
     scatter!(ax, points, color = point_colors, markersize = 8)
 
+    @infiltrate
 
     return ellipse_observables, means_trajectory, covariances_trajectory
 end
 
-function visualize_receding_horizon_solution(solutions, games; dims, non_robust_key="non_robust", robust_key="robust")
+function visualize_receding_horizon_solution(solutions, games; dims, non_robust_key="non_robust", robust_key="robust", activist_pos = [[[1,1], [3,0]]], activist_scale = [[[1,2], [2,1]]])
     
-    cost_params = Dict(
+    cost_params = Dict( #TODO: Parse in as param
         1 => (;pos = [[1,1]], scale = [[1,2]]),
         2 => (;pos = [[3,0]], scale = [[2,1]]),
     )
@@ -195,6 +195,8 @@ function visualize_receding_horizon_solution(solutions, games; dims, non_robust_
     display(fig)
     fig
 end
+
+# ---- All functions below are for the dynamic visualizer ----
 # ------------------------
 # Utility conversions
 # ------------------------

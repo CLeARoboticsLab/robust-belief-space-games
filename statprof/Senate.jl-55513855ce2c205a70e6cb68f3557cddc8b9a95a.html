@@ -1,0 +1,5526 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv='Content-Type' content='text/html; charset=utf-8'></meta>
+    <link rel='stylesheet' type='text/css' href='statprofiler.css'></link>
+    <title>StatProfilerHTML - exp\Senate\Senate.jl</title>
+  </head>
+  <body>
+    <div class='report-header'>
+      <div class='backlink'>
+        <a href='index.html'>Report index</a>
+      </div>
+      <div class='report-title'>
+        StatProfilerHTML.jl report
+      </div>
+      <div class='generated-on'>
+        Generated on Mon, 06 Oct 2025 23:08:20
+      </div>
+    </div>
+    <table>
+      <caption>File source code</caption>
+      <thead>
+        <tr>
+          <th>Line</th>
+          <th>Exclusive</th>
+          <th>Inclusive</th>
+          <th>Code</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id='L1'>
+          <td class='lineno'>1</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>module Senate</span>
+          </td>
+        </tr>
+        <tr id='L2'>
+          <td class='lineno'>2</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>using Infiltrator</span>
+          </td>
+        </tr>
+        <tr id='L3'>
+          <td class='lineno'>3</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>using RobustBeliefGame</span>
+          </td>
+        </tr>
+        <tr id='L4'>
+          <td class='lineno'>4</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>using LinearAlgebra</span>
+          </td>
+        </tr>
+        <tr id='L5'>
+          <td class='lineno'>5</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>using BlockArrays</span>
+          </td>
+        </tr>
+        <tr id='L6'>
+          <td class='lineno'>6</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>using Distributions</span>
+          </td>
+        </tr>
+        <tr id='L7'>
+          <td class='lineno'>7</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>using Random</span>
+          </td>
+        </tr>
+        <tr id='L8'>
+          <td class='lineno'>8</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>using Statistics</span>
+          </td>
+        </tr>
+        <tr id='L9'>
+          <td class='lineno'>9</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>using Serialization</span>
+          </td>
+        </tr>
+        <tr id='L10'>
+          <td class='lineno'>10</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L11'>
+          <td class='lineno'>11</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>include&#40;&quot;./SenateVisuals.jl&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L12'>
+          <td class='lineno'>12</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>using .SenateVisuals</span>
+          </td>
+        </tr>
+        <tr id='L13'>
+          <td class='lineno'>13</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L14'>
+          <td class='lineno'>14</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>export receding_horizon_main</span>
+          </td>
+        </tr>
+        <tr id='L15'>
+          <td class='lineno'>15</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L16'>
+          <td class='lineno'>16</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>@enum ActivistID begin</span>
+          </td>
+        </tr>
+        <tr id='L17'>
+          <td class='lineno'>17</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    non_robust_activist &#61; 1</span>
+          </td>
+        </tr>
+        <tr id='L18'>
+          <td class='lineno'>18</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    robust_activist &#61; 2</span>
+          </td>
+        </tr>
+        <tr id='L19'>
+          <td class='lineno'>19</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L20'>
+          <td class='lineno'>20</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>num_activists &#61; length&#40;instances&#40;ActivistID&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L21'>
+          <td class='lineno'>21</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>opinion_dim&#61;2</span>
+          </td>
+        </tr>
+        <tr id='L22'>
+          <td class='lineno'>22</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>@enum NatureID begin</span>
+          </td>
+        </tr>
+        <tr id='L23'>
+          <td class='lineno'>23</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    nature_activist &#61; 3</span>
+          </td>
+        </tr>
+        <tr id='L24'>
+          <td class='lineno'>24</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L25'>
+          <td class='lineno'>25</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L26'>
+          <td class='lineno'>26</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L27'>
+          <td class='lineno'>27</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L28'>
+          <td class='lineno'>28</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>cost_params &#61; Dict&#40;</span>
+          </td>
+        </tr>
+        <tr id='L29'>
+          <td class='lineno'>29</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    non_robust_activist &#61;&gt; &#40;;pos &#61; &#91;&#91;1,1&#93;&#93;, scale &#61; &#91;&#91;1,2&#93;&#93;, terminal_weight&#61;2.0, control_weight&#61;&#40;;direction&#61;1.0, control_cost&#61;2.0&#41;&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L30'>
+          <td class='lineno'>30</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    robust_activist &#61;&gt; &#40;;pos &#61; &#91;&#91;3,0&#93;&#93;, scale &#61; &#91;&#91;2,1&#93;&#93;, terminal_weight&#61;2.0, control_weight&#61;&#40;;direction&#61;1.0, control_cost&#61;2.0&#41;&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L31'>
+          <td class='lineno'>31</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    nature_activist &#61;&gt; &#40;;terminal_weight&#61;1.0, control_weight&#61;&#40;;direction&#61;2.0, control_cost&#61;10.0&#41;&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L32'>
+          <td class='lineno'>32</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L33'>
+          <td class='lineno'>33</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&#41; </span>
+          </td>
+        </tr>
+        <tr id='L34'>
+          <td class='lineno'>34</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># Ideally, we can &quot;save&quot; cost functions by storing the parameters of components used to generate the cost.</span>
+          </td>
+        </tr>
+        <tr id='L35'>
+          <td class='lineno'>35</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># This can somewhat approximate multi-modal preferences by generating multiple ellipsoids.</span>
+          </td>
+        </tr>
+        <tr id='L36'>
+          <td class='lineno'>36</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>state_dim_per_senator &#61; &#40;;mean&#61;opinion_dim, covariance&#61;opinion_dim^2&#41;</span>
+          </td>
+        </tr>
+        <tr id='L37'>
+          <td class='lineno'>37</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># x &#61; &#91;x_pos, y_pos&#93; per senator;</span>
+          </td>
+        </tr>
+        <tr id='L38'>
+          <td class='lineno'>38</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>control_dim_per_senator &#61; &#40;;direction&#61;1, effort&#61;1&#41;</span>
+          </td>
+        </tr>
+        <tr id='L39'>
+          <td class='lineno'>39</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>#xmove, ymove</span>
+          </td>
+        </tr>
+        <tr id='L40'>
+          <td class='lineno'>40</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>ground_truth_senator_states &#61; mortar&#40;&#91;</span>
+          </td>
+        </tr>
+        <tr id='L41'>
+          <td class='lineno'>41</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        &#91;2, 0.5&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L42'>
+          <td class='lineno'>42</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        &#91;1.5, 0&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L43'>
+          <td class='lineno'>43</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        &#91;2, -0.5&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L44'>
+          <td class='lineno'>44</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L45'>
+          <td class='lineno'>45</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>num_senators &#61; length&#40;ground_truth_senator_states.blocks&#41;</span>
+          </td>
+        </tr>
+        <tr id='L46'>
+          <td class='lineno'>46</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>initial_beliefs &#61; Beliefs&#40;vcat&#40;&#91;&#91;Belief&#40;ground_truth_senator_states&#91;Block&#40;i&#41;&#93;, 0.2 * Symmetric&#40;I&#40;opinion_dim&#41;&#41;&#41; for i in 1:num_senators&#93; for _ in 1:num_activists&#93;...&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L47'>
+          <td class='lineno'>47</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>dims &#61; &#40;;</span>
+          </td>
+        </tr>
+        <tr id='L48'>
+          <td class='lineno'>48</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    n&#61;2,</span>
+          </td>
+        </tr>
+        <tr id='L49'>
+          <td class='lineno'>49</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    num_beliefs_per_activist&#61;num_senators,</span>
+          </td>
+        </tr>
+        <tr id='L50'>
+          <td class='lineno'>50</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    num_senators&#61;num_senators,</span>
+          </td>
+        </tr>
+        <tr id='L51'>
+          <td class='lineno'>51</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    num_activists&#61;num_activists,</span>
+          </td>
+        </tr>
+        <tr id='L52'>
+          <td class='lineno'>52</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    states&#61;length.&#40;ground_truth_senator_states.blocks&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L53'>
+          <td class='lineno'>53</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    controls&#61;&#91;sum&#40;control_dim_per_senator&#41; for _ in 1:&#40;num_senators*num_activists&#41;&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L54'>
+          <td class='lineno'>54</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    controls_per_activist&#61;&#91;sum&#40;control_dim_per_senator&#41;*num_senators for _ in 1:num_activists&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L55'>
+          <td class='lineno'>55</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    belief&#61;vcat&#40;&#91;length.&#40;ground_truth_senator_states.blocks&#41; for _ in 1:num_activists&#93;...&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L56'>
+          <td class='lineno'>56</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    sensor&#61;&#91;state_dim_per_senator.mean for _ in 1:num_activists*num_senators&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L57'>
+          <td class='lineno'>57</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    opinion_dim&#61;opinion_dim</span>
+          </td>
+        </tr>
+        <tr id='L58'>
+          <td class='lineno'>58</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&#41;</span>
+          </td>
+        </tr>
+        <tr id='L59'>
+          <td class='lineno'>59</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L60'>
+          <td class='lineno'>60</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L61'>
+          <td class='lineno'>61</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># All changes to game parameters should flow from info above</span>
+          </td>
+        </tr>
+        <tr id='L62'>
+          <td class='lineno'>62</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L63'>
+          <td class='lineno'>63</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>ϵ &#61; eps&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L64'>
+          <td class='lineno'>64</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>random_seed &#61; 1</span>
+          </td>
+        </tr>
+        <tr id='L65'>
+          <td class='lineno'>65</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L66'>
+          <td class='lineno'>66</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function ellipsoidal_preference_generator&#40;pos::Vector, scale::Vector; nature&#61;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L67'>
+          <td class='lineno'>67</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              336 &#40;1 &#37;&#41;
+              samples spent in preference
+              <br />
+              
+              185 &#40;55 &#37;&#41; &#40;incl.&#41;
+              when called from #26
+              <a href='notfound.html#L0'>line 0</a>
+              <br />
+              
+              151 &#40;45 &#37;&#41; &#40;incl.&#41;
+              when called from #28
+              <a href='notfound.html#L0'>line 0</a>
+              <br />
+            </div>
+            
+            <span class='code'>    function preference&#40;point::Vector&#41;</span>
+          </td>
+        </tr>
+        <tr id='L68'>
+          <td class='lineno'>68</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        if length&#40;point&#41; &#33;&#61; opinion_dim || length&#40;scale&#91;1&#93;&#41; &#33;&#61; opinion_dim || length&#40;point&#41; &#33;&#61; opinion_dim #Assert equal dimensions</span>
+          </td>
+        </tr>
+        <tr id='L69'>
+          <td class='lineno'>69</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            throw&#40;DimensionMismatch&#40;&quot;Opinion dimensions are not uniform, &#36;&#40;size&#40;pos&#41;&#41;, &#36;&#40;size&#40;scale&#41;&#41;, &#36;&#40;size&#40;point&#41;&#41;&quot;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L70'>
+          <td class='lineno'>70</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L71'>
+          <td class='lineno'>71</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>336 &#40;1 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              336 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L307'>mapreduce</a>
+              <br />
+            </div>
+            <span class='code'>        mapreduce&#40;&#43;, zip&#40;pos, scale&#41;&#41; do &#40;pos_mode, scale_mode&#41;</span>
+          </td>
+        </tr>
+        <tr id='L72'>
+          <td class='lineno'>72</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>331 &#40;1 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              331 &#40;1 &#37;&#41;
+              samples spent in #14
+              <br />
+              2 &#40;1 &#37;&#41; &#40;ex.&#41;,
+              331 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from MappingRF
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L100'>line 100</a>
+              <br />
+            </div>
+            <div class='callees'>
+              329 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='reducedim.jl-01977a06532ecfa708de4060219662b740836ce8.html#L329'>mapreduce</a>
+              <br />
+            </div>
+            <span class='code'>            mapreduce&#40;&#43;, 1:opinion_dim&#41; do i</span>
+          </td>
+        </tr>
+        <tr id='L73'>
+          <td class='lineno'>73</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>4 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              4 &#40;0 &#37;&#41;
+              samples spent in #15
+              <br />
+              
+              4 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from _mapreduce
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L437'>line 437</a>
+              <br />
+            </div>
+            <div class='callees'>
+              2 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='dual.jl-6c84f361afdc1ff6cf981037ecfc94d7fc994a4b.html#L566'>literal_pow</a>
+              <br />
+              1 &#40;25 &#37;&#41;
+              samples spent calling
+              <a href='dual.jl-6c84f361afdc1ff6cf981037ecfc94d7fc994a4b.html#L148'>/</a>
+              <br />
+              1 &#40;25 &#37;&#41;
+              samples spent calling
+              <a href='operators.jl-26cd382a1eb7ba3a56d9c82f8425f0d78076b2c8.html#L596'>*</a>
+              <br />
+            </div>
+            <span class='code'>                &#40;nature ? -1 : 1&#41; * 0.1 * &#40;point&#91;i&#93;-pos_mode&#91;i&#93;&#41;^2/scale_mode&#91;i&#93;</span>
+          </td>
+        </tr>
+        <tr id='L74'>
+          <td class='lineno'>74</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L75'>
+          <td class='lineno'>75</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L76'>
+          <td class='lineno'>76</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L77'>
+          <td class='lineno'>77</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return preference</span>
+          </td>
+        </tr>
+        <tr id='L78'>
+          <td class='lineno'>78</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L79'>
+          <td class='lineno'>79</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L80'>
+          <td class='lineno'>80</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function u_transform&#40;u::BlockVector&#41;</span>
+          </td>
+        </tr>
+        <tr id='L81'>
+          <td class='lineno'>81</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    BlockVector&#40;mapreduce&#40;vcat, u.blocks&#41; do u_i</span>
+          </td>
+        </tr>
+        <tr id='L82'>
+          <td class='lineno'>82</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        &#91;u_i&#91;1&#93;, log&#40;exp&#40;u_i&#91;2&#93;&#41; &#43; 1&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L83'>
+          <td class='lineno'>83</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end, length.&#40;u.blocks&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L84'>
+          <td class='lineno'>84</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L85'>
+          <td class='lineno'>85</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L86'>
+          <td class='lineno'>86</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function control_cost_generator&#40;control_effort; nature&#61;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L87'>
+          <td class='lineno'>87</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if nature</span>
+          </td>
+        </tr>
+        <tr id='L88'>
+          <td class='lineno'>88</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        function control_cost_function_nature&#40;u::BlockVector&#41;</span>
+          </td>
+        </tr>
+        <tr id='L89'>
+          <td class='lineno'>89</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            nature_u &#61; u.blocks&#91;end&#93;</span>
+          </td>
+        </tr>
+        <tr id='L90'>
+          <td class='lineno'>90</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            control_effort * dot&#40;nature_u, nature_u&#41;</span>
+          </td>
+        </tr>
+        <tr id='L91'>
+          <td class='lineno'>91</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L92'>
+          <td class='lineno'>92</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        return control_cost_function_nature</span>
+          </td>
+        </tr>
+        <tr id='L93'>
+          <td class='lineno'>93</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    else</span>
+          </td>
+        </tr>
+        <tr id='L94'>
+          <td class='lineno'>94</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              122 &#40;0 &#37;&#41;
+              samples spent in control_cost_function
+              <br />
+              90 &#40;74 &#37;&#41; &#40;ex.&#41;,
+              122 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from non_terminal_cost_components
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L108'>line 108</a>
+              <br />
+            </div>
+            
+            <span class='code'>        function control_cost_function&#40;u::BlockVector&#41;</span>
+          </td>
+        </tr>
+        <tr id='L95'>
+          <td class='lineno'>95</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # Only use lobbyist controls, not nature&#39;s controls</span>
+          </td>
+        </tr>
+        <tr id='L96'>
+          <td class='lineno'>96</td>
+          <td class='tracecount excl'>60 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>87 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              18 &#40;67 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              9 &#40;33 &#37;&#41;
+              samples spent calling
+              <a href='ArrayLayouts.jl-296b70852cf5d798687765a4bee0e2838598cd82.html#L199'>getindex</a>
+              <br />
+            </div>
+            <span class='code'>            lobbyist_u &#61; u&#91;Block&#40;1&#41;:Block&#40;num_senators*num_activists&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L97'>
+          <td class='lineno'>97</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # transformed_u &#61; u_transform&#40;lobbyist_u&#41;</span>
+          </td>
+        </tr>
+        <tr id='L98'>
+          <td class='lineno'>98</td>
+          <td class='tracecount excl'>30 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>35 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              5 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>            control_effort * sum&#40;dot&#40;u, u&#41; for u in lobbyist_u.blocks&#41;</span>
+          </td>
+        </tr>
+        <tr id='L99'>
+          <td class='lineno'>99</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # control_effort * sum&#40;u_i&#91;1&#93;^2&#43;u_i&#91;2&#93;^2 for u_i in transformed_u.blocks&#41;</span>
+          </td>
+        </tr>
+        <tr id='L100'>
+          <td class='lineno'>100</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L101'>
+          <td class='lineno'>101</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        return control_cost_function</span>
+          </td>
+        </tr>
+        <tr id='L102'>
+          <td class='lineno'>102</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L103'>
+          <td class='lineno'>103</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L104'>
+          <td class='lineno'>104</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L105'>
+          <td class='lineno'>105</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># For now, terminal should just be preference cost, nonterminal is preference cost &#43; control cost</span>
+          </td>
+        </tr>
+        <tr id='L106'>
+          <td class='lineno'>106</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              381 &#40;1 &#37;&#41;
+              samples spent in non_terminal_cost_components
+              <br />
+              
+              381 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from non_terminal_cost_function
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L119'>line 119</a>
+              <br />
+            </div>
+            
+            <span class='code'>function non_terminal_cost_components&#40;preference_ellipsoids::Function, control_function::Function, senator_beliefs::BlockVector, u::BlockVector &#41;</span>
+          </td>
+        </tr>
+        <tr id='L107'>
+          <td class='lineno'>107</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>259 &#40;1 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              259 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L561'>sum</a>
+              <br />
+            </div>
+            <span class='code'>    preference &#61; sum&#40;preference_ellipsoids&#40;pos&#41; for pos in senator_beliefs.blocks&#41;</span>
+          </td>
+        </tr>
+        <tr id='L108'>
+          <td class='lineno'>108</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>122 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              122 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L94'>control_cost_function</a>
+              <br />
+            </div>
+            <span class='code'>    control &#61; control_function&#40;u&#41;</span>
+          </td>
+        </tr>
+        <tr id='L109'>
+          <td class='lineno'>109</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return &#40;;preference, control&#41;</span>
+          </td>
+        </tr>
+        <tr id='L110'>
+          <td class='lineno'>110</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L111'>
+          <td class='lineno'>111</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L112'>
+          <td class='lineno'>112</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              181 &#40;1 &#37;&#41;
+              samples spent in terminal_cost_components
+              <br />
+              
+              181 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from terminal_cost_function
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L128'>line 128</a>
+              <br />
+            </div>
+            
+            <span class='code'>function terminal_cost_components&#40;preference_ellipsoids::Function, senator_beliefs::BlockVector&#41;</span>
+          </td>
+        </tr>
+        <tr id='L113'>
+          <td class='lineno'>113</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>181 &#40;1 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              181 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L561'>sum</a>
+              <br />
+            </div>
+            <span class='code'>    preference &#61; sum&#40;preference_ellipsoids&#40;pos&#41; for pos in senator_beliefs.blocks&#41;</span>
+          </td>
+        </tr>
+        <tr id='L114'>
+          <td class='lineno'>114</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return &#40;;preference&#41;</span>
+          </td>
+        </tr>
+        <tr id='L115'>
+          <td class='lineno'>115</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L116'>
+          <td class='lineno'>116</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L117'>
+          <td class='lineno'>117</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function non_terminal_cost_generator&#40;cost_params::NamedTuple, ellipsoids::Function; nature&#61;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L118'>
+          <td class='lineno'>118</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              433 &#40;1 &#37;&#41;
+              samples spent in non_terminal_cost_function
+              <br />
+              12 &#40;3 &#37;&#41; &#40;ex.&#41;,
+              381 &#40;88 &#37;&#41; &#40;incl.&#41;
+              when called from #160
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L178'>line 178</a>
+              <br />
+              6 &#40;1 &#37;&#41; &#40;ex.&#41;,
+              52 &#40;12 &#37;&#41; &#40;incl.&#41;
+              when called from #115
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L120'>line 120</a>
+              <br />
+            </div>
+            
+            <span class='code'>    function non_terminal_cost_function&#40;beliefs::Beliefs, u::BlockVector&#41;</span>
+          </td>
+        </tr>
+        <tr id='L119'>
+          <td class='lineno'>119</td>
+          <td class='tracecount excl'>18 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>433 &#40;1 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              381 &#40;92 &#37;&#41;
+              samples spent calling
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L106'>non_terminal_cost_components</a>
+              <br />
+              26 &#40;6 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L47'>means</a>
+              <br />
+              8 &#40;2 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        sum&#40;non_terminal_cost_components&#40;ellipsoids,</span>
+          </td>
+        </tr>
+        <tr id='L120'>
+          <td class='lineno'>120</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        control_cost_generator&#40;cost_params.control_weight.control_cost; nature&#61;nature&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L121'>
+          <td class='lineno'>121</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        means&#40;beliefs&#41;, u&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L122'>
+          <td class='lineno'>122</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L123'>
+          <td class='lineno'>123</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return non_terminal_cost_function</span>
+          </td>
+        </tr>
+        <tr id='L124'>
+          <td class='lineno'>124</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L125'>
+          <td class='lineno'>125</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L126'>
+          <td class='lineno'>126</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function terminal_cost_generator&#40;cost_params::NamedTuple, ellipsoids::Function; nature&#61;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L127'>
+          <td class='lineno'>127</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              214 &#40;1 &#37;&#41;
+              samples spent in terminal_cost_function
+              <br />
+              3 &#40;1 &#37;&#41; &#40;ex.&#41;,
+              205 &#40;96 &#37;&#41; &#40;incl.&#41;
+              when called from #159
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L160'>line 160</a>
+              <br />
+              7 &#40;3 &#37;&#41; &#40;ex.&#41;,
+              9 &#40;4 &#37;&#41; &#40;incl.&#41;
+              when called from #114
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L119'>line 119</a>
+              <br />
+            </div>
+            
+            <span class='code'>    function terminal_cost_function&#40;beliefs::Beliefs&#41;</span>
+          </td>
+        </tr>
+        <tr id='L128'>
+          <td class='lineno'>128</td>
+          <td class='tracecount excl'>10 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>214 &#40;1 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              181 &#40;89 &#37;&#41;
+              samples spent calling
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L112'>terminal_cost_components</a>
+              <br />
+              19 &#40;9 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L47'>means</a>
+              <br />
+              4 &#40;2 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        cost_params.terminal_weight * sum&#40;terminal_cost_components&#40;ellipsoids, means&#40;beliefs&#41;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L129'>
+          <td class='lineno'>129</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L130'>
+          <td class='lineno'>130</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return terminal_cost_function</span>
+          </td>
+        </tr>
+        <tr id='L131'>
+          <td class='lineno'>131</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L132'>
+          <td class='lineno'>132</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L133'>
+          <td class='lineno'>133</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              1128 &#40;4 &#37;&#41;
+              samples spent in f
+              <br />
+              
+              313 &#40;28 &#37;&#41; &#40;incl.&#41;
+              when called from #ekf_update_per_player#127
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L21'>line 21</a>
+              <br />
+              103 &#40;9 &#37;&#41; &#40;ex.&#41;,
+              266 &#40;24 &#37;&#41; &#40;incl.&#41;
+              when called from M_fn
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L24'>line 24</a>
+              <br />
+              79 &#40;7 &#37;&#41; &#40;ex.&#41;,
+              233 &#40;21 &#37;&#41; &#40;incl.&#41;
+              when called from H_fn
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L25'>line 25</a>
+              <br />
+              63 &#40;6 &#37;&#41; &#40;ex.&#41;,
+              203 &#40;18 &#37;&#41; &#40;incl.&#41;
+              when called from A_fn
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L23'>line 23</a>
+              <br />
+              15 &#40;1 &#37;&#41; &#40;ex.&#41;,
+              45 &#40;4 &#37;&#41; &#40;incl.&#41;
+              when called from A_fn
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L120'>line 120</a>
+              <br />
+              16 &#40;1 &#37;&#41; &#40;ex.&#41;,
+              44 &#40;4 &#37;&#41; &#40;incl.&#41;
+              when called from M_fn
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L121'>line 121</a>
+              <br />
+              1 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              24 &#40;2 &#37;&#41; &#40;incl.&#41;
+              when called from H_fn
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L122'>line 122</a>
+              <br />
+            </div>
+            
+            <span class='code'>function f&#40;x::BlockVector, u::BlockVector, ms::BlockVector&#41;</span>
+          </td>
+        </tr>
+        <tr id='L134'>
+          <td class='lineno'>134</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # transformed_u &#61; u_transform&#40;u&#41;</span>
+          </td>
+        </tr>
+        <tr id='L135'>
+          <td class='lineno'>135</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # us_per_senator &#61; &#91;&#91;transformed_u&#91;Block&#40;num_senators * &#40;j-1&#41; &#43; i&#41;&#93; for j in 1:num_activists&#93; for i in 1:num_senators&#93;</span>
+          </td>
+        </tr>
+        <tr id='L136'>
+          <td class='lineno'>136</td>
+          <td class='tracecount excl'>277 &#40;1 &#37;&#41;</td>
+          <td class='tracecount incl'>1128 &#40;4 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              746 &#40;88 &#37;&#41;
+              samples spent calling
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L307'>mapreduce</a>
+              <br />
+              104 &#40;12 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              1 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='blockarray.jl-ca3d8815dbff559142457f6eb371da19dc930c87.html#L272'>BlockArray</a>
+              <br />
+            </div>
+            <span class='code'>    BlockVector&#40;mapreduce&#40;vcat, enumerate&#40;zip&#40;x.blocks, ms.blocks&#41;&#41;&#41; do &#40;i, &#40;x, m&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L137'>
+          <td class='lineno'>137</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              669 &#40;2 &#37;&#41;
+              samples spent in #34
+              <br />
+              456 &#40;68 &#37;&#41; &#40;ex.&#41;,
+              669 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from MappingRF
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L100'>line 100</a>
+              <br />
+            </div>
+            
+            <span class='code'>        senator &#61; 1 &#43; &#40;i-1&#41; &#37; num_senators</span>
+          </td>
+        </tr>
+        <tr id='L138'>
+          <td class='lineno'>138</td>
+          <td class='tracecount excl'>49 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>85 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              31 &#40;86 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L784'>collect</a>
+              <br />
+              5 &#40;14 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        us &#61; BlockVector&#40;vcat&#40;&#91;u&#91;Block&#40;&#40;j-1&#41; * num_senators &#43; senator&#41;&#93; for j in 1:num_activists&#93;...&#41;, &#91;sum&#40;control_dim_per_senator&#41; for _ in 1:num_activists&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L139'>
+          <td class='lineno'>139</td>
+          <td class='tracecount excl'>43 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>49 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              6 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        transformed_us &#61; u_transform&#40;us&#41;</span>
+          </td>
+        </tr>
+        <tr id='L140'>
+          <td class='lineno'>140</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L141'>
+          <td class='lineno'>141</td>
+          <td class='tracecount excl'>48 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>57 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              9 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        x_move &#61; sum&#40;&#91;u&#91;1&#93; for u in us.blocks&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L142'>
+          <td class='lineno'>142</td>
+          <td class='tracecount excl'>19 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>24 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              5 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        y_move &#61; sum&#40;&#91;u&#91;2&#93; for u in us.blocks&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L143'>
+          <td class='lineno'>143</td>
+          <td class='tracecount excl'>297 &#40;1 &#37;&#41;</td>
+          <td class='tracecount incl'>454 &#40;1 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              156 &#40;99 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              1 &#40;1 &#37;&#41;
+              samples spent calling
+              <a href='matmul.jl-3897ffaa3361a0bdc8f53d4197aeb7fd73af1cf0.html#L60'>*</a>
+              <br />
+            </div>
+            <span class='code'>        &#91;1 0; 0 1&#93; * x &#43; &#91;x_move; y_move&#93; &#43; m # Maybe some scalar for noise?</span>
+          </td>
+        </tr>
+        <tr id='L144'>
+          <td class='lineno'>144</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end, length.&#40;x.blocks&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L145'>
+          <td class='lineno'>145</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L146'>
+          <td class='lineno'>146</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L147'>
+          <td class='lineno'>147</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              2 &#40;0 &#37;&#41;
+              samples spent in h
+              <br />
+              
+              2 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from N_fn
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L26'>line 26</a>
+              <br />
+            </div>
+            
+            <span class='code'>function h&#40;x::BlockVector, ns::BlockVector&#41;</span>
+          </td>
+        </tr>
+        <tr id='L148'>
+          <td class='lineno'>148</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='arraymath.jl-e35ad49a7081866d17ae6953c27b4c9ad5125a3a.html#L6'>&#43;</a>
+              <br />
+            </div>
+            <span class='code'>    BlockVector&#40;x &#43; ns, length.&#40;x.blocks&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L149'>
+          <td class='lineno'>149</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L150'>
+          <td class='lineno'>150</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L151'>
+          <td class='lineno'>151</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>#Assertions for global variables</span>
+          </td>
+        </tr>
+        <tr id='L152'>
+          <td class='lineno'>152</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function init_checks&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L153'>
+          <td class='lineno'>153</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if &#40;length&#40;non_robust_activist.pos&#41; &#33;&#61; opinion_dim || length&#40;robust_activist.pos&#41; &#33;&#61; opinion_dim ||</span>
+          </td>
+        </tr>
+        <tr id='L154'>
+          <td class='lineno'>154</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        length&#40;non_robust_activist.scale&#41; &#33;&#61; opinion_dim || length&#40;robust_activist.scale&#41; &#33;&#61; opinion_dim&#41;</span>
+          </td>
+        </tr>
+        <tr id='L155'>
+          <td class='lineno'>155</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        throw&#40;ErrorException&#40;&quot;Position or scale dimension mismatch with opinion&quot;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L156'>
+          <td class='lineno'>156</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L157'>
+          <td class='lineno'>157</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if sum&#40;non_robust_activist.scale&#41; &#33;&#61; 1 || sum&#40;robust_activist.scale&#41; &#33;&#61; 1</span>
+          </td>
+        </tr>
+        <tr id='L158'>
+          <td class='lineno'>158</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        throw&#40;ErrorException&#40;&quot;Scale does not add up to 1&quot;&#41;&#41; </span>
+          </td>
+        </tr>
+        <tr id='L159'>
+          <td class='lineno'>159</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #Consider helping normalize instead of throwing an exception</span>
+          </td>
+        </tr>
+        <tr id='L160'>
+          <td class='lineno'>160</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # if sum&#40;non_robust_activist.scale&#41; &#33;&#61; 1 || sum&#40;robust_activist.scale&#41; &#61;&#61; 0</span>
+          </td>
+        </tr>
+        <tr id='L161'>
+          <td class='lineno'>161</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #     throw&#40;ErrorException&#40;&quot;Scale is zero vector&quot;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L162'>
+          <td class='lineno'>162</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # end</span>
+          </td>
+        </tr>
+        <tr id='L163'>
+          <td class='lineno'>163</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # non_robust_activist.scale /&#61; norm&#40;non_robust_activist.scale&#41;</span>
+          </td>
+        </tr>
+        <tr id='L164'>
+          <td class='lineno'>164</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # robust_activist.scale /&#61; norm&#40;robust_activist.scale&#41;</span>
+          </td>
+        </tr>
+        <tr id='L165'>
+          <td class='lineno'>165</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L166'>
+          <td class='lineno'>166</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L167'>
+          <td class='lineno'>167</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L168'>
+          <td class='lineno'>168</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L169'>
+          <td class='lineno'>169</td>
+          <td class='tracecount excl'>103 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>28627 &#40;92 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              57144 &#40;183 &#37;&#41;
+              samples spent in run_receding_horizon_trial
+              <br />
+              103 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              28627 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from #receding_horizon_main#51
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L424'>line 424</a>
+              <br />
+              121 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              28517 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from run_receding_horizon_trial
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L169'>line 169</a>
+              <br />
+            </div>
+            <div class='callees'>
+              28517 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L169'>#run_receding_horizon_trial#44</a>
+              <br />
+              7 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>function run_receding_horizon_trial&#40;;horizon&#61;10, planning_horizon&#61;5, random_seed&#61;1,</span>
+          </td>
+        </tr>
+        <tr id='L170'>
+          <td class='lineno'>170</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    scale_scale_factors &#61; &#91;1.0, 1.0&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L171'>
+          <td class='lineno'>171</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    terminal_weight_scale_factors &#61; &#91;1.0, 1.0, 1.0&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L172'>
+          <td class='lineno'>172</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    control_cost_scale_factors &#61; &#91;1.0, 1.0, 1.0&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L173'>
+          <td class='lineno'>173</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    on_live_step::Union&#123;Nothing,Function&#125;&#61;nothing,      # &lt;- NEW</span>
+          </td>
+        </tr>
+        <tr id='L174'>
+          <td class='lineno'>174</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    live_viz_every::Int&#61;1                               # &lt;- NEW &#40;optional throttle&#41;</span>
+          </td>
+        </tr>
+        <tr id='L175'>
+          <td class='lineno'>175</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L176'>
+          <td class='lineno'>176</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&#41;</span>
+          </td>
+        </tr>
+        <tr id='L177'>
+          <td class='lineno'>177</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>19 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              19 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='deepcopy.jl-18508b7e3ecc5ab9e182e3e071abd906b8fc9d8a.html#L27'>deepcopy</a>
+              <br />
+            </div>
+            <span class='code'>    current_cost_params &#61; deepcopy&#40;cost_params&#41;</span>
+          </td>
+        </tr>
+        <tr id='L178'>
+          <td class='lineno'>178</td>
+          <td class='tracecount excl'>18 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>26 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              8 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    current_cost_params&#91;non_robust_activist&#93; &#61; &#40;;</span>
+          </td>
+        </tr>
+        <tr id='L179'>
+          <td class='lineno'>179</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        pos&#61;current_cost_params&#91;non_robust_activist&#93;.pos,</span>
+          </td>
+        </tr>
+        <tr id='L180'>
+          <td class='lineno'>180</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        scale&#61;current_cost_params&#91;non_robust_activist&#93;.scale .* scale_scale_factors&#91;1&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L181'>
+          <td class='lineno'>181</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        terminal_weight&#61;current_cost_params&#91;non_robust_activist&#93;.terminal_weight * terminal_weight_scale_factors&#91;1&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L182'>
+          <td class='lineno'>182</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        control_weight&#61;&#40;;direction&#61;current_cost_params&#91;non_robust_activist&#93;.control_weight.direction, control_cost&#61;current_cost_params&#91;non_robust_activist&#93;.control_weight.control_cost * control_cost_scale_factors&#91;1&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L183'>
+          <td class='lineno'>183</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &#41;</span>
+          </td>
+        </tr>
+        <tr id='L184'>
+          <td class='lineno'>184</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    current_cost_params&#91;robust_activist&#93; &#61; &#40;;</span>
+          </td>
+        </tr>
+        <tr id='L185'>
+          <td class='lineno'>185</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        pos&#61;current_cost_params&#91;robust_activist&#93;.pos,</span>
+          </td>
+        </tr>
+        <tr id='L186'>
+          <td class='lineno'>186</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        scale&#61;current_cost_params&#91;robust_activist&#93;.scale .* scale_scale_factors&#91;2&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L187'>
+          <td class='lineno'>187</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        terminal_weight&#61;current_cost_params&#91;robust_activist&#93;.terminal_weight * terminal_weight_scale_factors&#91;2&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L188'>
+          <td class='lineno'>188</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        control_weight&#61;&#40;;direction&#61;current_cost_params&#91;robust_activist&#93;.control_weight.direction, control_cost&#61;current_cost_params&#91;robust_activist&#93;.control_weight.control_cost * control_cost_scale_factors&#91;2&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L189'>
+          <td class='lineno'>189</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &#41;</span>
+          </td>
+        </tr>
+        <tr id='L190'>
+          <td class='lineno'>190</td>
+          <td class='tracecount excl'>4 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>5 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    current_cost_params&#91;nature_activist&#93; &#61; &#40;;</span>
+          </td>
+        </tr>
+        <tr id='L191'>
+          <td class='lineno'>191</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        terminal_weight&#61;current_cost_params&#91;nature_activist&#93;.terminal_weight * terminal_weight_scale_factors&#91;3&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L192'>
+          <td class='lineno'>192</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        control_weight&#61;&#40;;direction&#61;current_cost_params&#91;nature_activist&#93;.control_weight.direction, control_cost&#61;current_cost_params&#91;nature_activist&#93;.control_weight.control_cost * control_cost_scale_factors&#91;3&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L193'>
+          <td class='lineno'>193</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &#41;</span>
+          </td>
+        </tr>
+        <tr id='L194'>
+          <td class='lineno'>194</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L195'>
+          <td class='lineno'>195</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    ellipsoids &#61; &#91;ellipsoidal_preference_generator&#40;current_cost_params&#91;non_robust_activist&#93;.pos, current_cost_params&#91;non_robust_activist&#93;.scale&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L196'>
+          <td class='lineno'>196</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                ellipsoidal_preference_generator&#40;current_cost_params&#91;robust_activist&#93;.pos, current_cost_params&#91;robust_activist&#93;.scale&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L197'>
+          <td class='lineno'>197</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                ellipsoidal_preference_generator&#40;current_cost_params&#91;robust_activist&#93;.pos, current_cost_params&#91;robust_activist&#93;.scale; nature&#61;true&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L198'>
+          <td class='lineno'>198</td>
+          <td class='tracecount excl'>4 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>9 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              5 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L183'>vect</a>
+              <br />
+            </div>
+            <span class='code'>    costs &#61; &#91;BeliefCost&#40;non_terminal_cost_generator&#40;current_cost_params&#91;non_robust_activist&#93;, ellipsoids&#91;1&#93;&#41;, terminal_cost_generator&#40;current_cost_params&#91;non_robust_activist&#93;, ellipsoids&#91;1&#93;&#41;&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L199'>
+          <td class='lineno'>199</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            BeliefCost&#40;non_terminal_cost_generator&#40;current_cost_params&#91;robust_activist&#93;, ellipsoids&#91;2&#93;&#41;, terminal_cost_generator&#40;current_cost_params&#91;robust_activist&#93;, ellipsoids&#91;2&#93;&#41;&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L200'>
+          <td class='lineno'>200</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            BeliefCost&#40;non_terminal_cost_generator&#40;current_cost_params&#91;nature_activist&#93;, ellipsoids&#91;3&#93;; nature&#61;true&#41;, terminal_cost_generator&#40;current_cost_params&#91;nature_activist&#93;, ellipsoids&#91;3&#93;; nature&#61;true&#41;&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L201'>
+          <td class='lineno'>201</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L202'>
+          <td class='lineno'>202</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L203'>
+          <td class='lineno'>203</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # --- Receding Horizon Loop ---</span>
+          </td>
+        </tr>
+        <tr id='L204'>
+          <td class='lineno'>204</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L205'>
+          <td class='lineno'>205</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    gt_state_history &#61; &#91;ground_truth_senator_states&#93;</span>
+          </td>
+        </tr>
+        <tr id='L206'>
+          <td class='lineno'>206</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    observation_history &#61; &#91;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L207'>
+          <td class='lineno'>207</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L208'>
+          <td class='lineno'>208</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    solution_history &#61; Dict&#40;&quot;non_robust&quot;&#61;&gt;&#91;&#93;, &quot;robust&quot;&#61;&gt;&#91;&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L209'>
+          <td class='lineno'>209</td>
+          <td class='tracecount excl'>14 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>20 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              6 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    environments::Vector&#123;BeliefEnvironment&#125; &#61; &#91;BeliefEnvironment&#40;f, ground_truth_senator_states, h&#41; for _ in 1:dims.num_activists&#93;</span>
+          </td>
+        </tr>
+        <tr id='L210'>
+          <td class='lineno'>210</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L211'>
+          <td class='lineno'>211</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    current_beliefs &#61; initial_beliefs</span>
+          </td>
+        </tr>
+        <tr id='L212'>
+          <td class='lineno'>212</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    current_gt_state &#61; ground_truth_senator_states</span>
+          </td>
+        </tr>
+        <tr id='L213'>
+          <td class='lineno'>213</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L214'>
+          <td class='lineno'>214</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    warm_starts &#61; Dict&#123;String, Any&#125;&#40;&quot;non_robust&quot;&#61;&gt;nothing, &quot;robust&quot;&#61;&gt;nothing&#41;</span>
+          </td>
+        </tr>
+        <tr id='L215'>
+          <td class='lineno'>215</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    representative_games &#61; Dict&#123;String, Any&#125;&#40;&quot;non_robust&quot;&#61;&gt;nothing, &quot;robust&quot;&#61;&gt;nothing&#41;</span>
+          </td>
+        </tr>
+        <tr id='L216'>
+          <td class='lineno'>216</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L217'>
+          <td class='lineno'>217</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    Random.seed&#33;&#40;random_seed&#41;</span>
+          </td>
+        </tr>
+        <tr id='L218'>
+          <td class='lineno'>218</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L219'>
+          <td class='lineno'>219</td>
+          <td class='tracecount excl'>11 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>15 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              4 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    process_noise_dist &#61; MvNormal&#40;zeros&#40;sum&#40;dims.states&#41;&#41;, I&#40;sum&#40;dims.states&#41;&#41;&#41; </span>
+          </td>
+        </tr>
+        <tr id='L220'>
+          <td class='lineno'>220</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    sensor_noise_dist &#61; MvNormal&#40;zeros&#40;sum&#40;dims.states&#41;&#41;, I&#40;sum&#40;dims.states&#41;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L221'>
+          <td class='lineno'>221</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L222'>
+          <td class='lineno'>222</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L223'>
+          <td class='lineno'>223</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # Start consumer task &#40;only if live&#41;</span>
+          </td>
+        </tr>
+        <tr id='L224'>
+          <td class='lineno'>224</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    viz_chan &#61; Channel&#123;NamedTuple&#125;&#40;10&#41;</span>
+          </td>
+        </tr>
+        <tr id='L225'>
+          <td class='lineno'>225</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    consumer_task &#61; nothing</span>
+          </td>
+        </tr>
+        <tr id='L226'>
+          <td class='lineno'>226</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L227'>
+          <td class='lineno'>227</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if on_live_step &#33;&#61;&#61; nothing</span>
+          </td>
+        </tr>
+        <tr id='L228'>
+          <td class='lineno'>228</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        on_live_step&#40;0; beliefs&#61;current_beliefs, gt_state&#61;current_gt_state&#41;</span>
+          </td>
+        </tr>
+        <tr id='L229'>
+          <td class='lineno'>229</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        consumer_task &#61; @async begin</span>
+          </td>
+        </tr>
+        <tr id='L230'>
+          <td class='lineno'>230</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            for msg in viz_chan</span>
+          </td>
+        </tr>
+        <tr id='L231'>
+          <td class='lineno'>231</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                on_live_step&#40;msg.step; beliefs&#61;msg.beliefs, gt_state&#61;msg.gt_state&#41;</span>
+          </td>
+        </tr>
+        <tr id='L232'>
+          <td class='lineno'>232</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                yield&#40;&#41;  # let Makie/GLFW process window events</span>
+          </td>
+        </tr>
+        <tr id='L233'>
+          <td class='lineno'>233</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L234'>
+          <td class='lineno'>234</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L235'>
+          <td class='lineno'>235</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L236'>
+          <td class='lineno'>236</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L237'>
+          <td class='lineno'>237</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    emit_every &#61; &#40;live_viz_every isa Integer &amp;&amp; live_viz_every &gt; 0&#41; ? live_viz_every : typemax&#40;Int&#41;</span>
+          </td>
+        </tr>
+        <tr id='L238'>
+          <td class='lineno'>238</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L239'>
+          <td class='lineno'>239</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L240'>
+          <td class='lineno'>240</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    for t in 1:horizon-1</span>
+          </td>
+        </tr>
+        <tr id='L241'>
+          <td class='lineno'>241</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        println&#40;&quot;Receding Horizon Step &#36;t / &#36;&#40;horizon-1&#41;&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L242'>
+          <td class='lineno'>242</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L243'>
+          <td class='lineno'>243</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        for type in &#91;&quot;non_robust&quot;, &quot;robust&quot;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L244'>
+          <td class='lineno'>244</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            is_robust &#61; type &#61;&#61; &quot;robust&quot;</span>
+          </td>
+        </tr>
+        <tr id='L245'>
+          <td class='lineno'>245</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            </span>
+          </td>
+        </tr>
+        <tr id='L246'>
+          <td class='lineno'>246</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            game_horizon &#61; min&#40;planning_horizon, horizon - t &#43; 1&#41;</span>
+          </td>
+        </tr>
+        <tr id='L247'>
+          <td class='lineno'>247</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            </span>
+          </td>
+        </tr>
+        <tr id='L248'>
+          <td class='lineno'>248</td>
+          <td class='tracecount excl'>7 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>9 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>            game &#61; BeliefGame&#40;</span>
+          </td>
+        </tr>
+        <tr id='L249'>
+          <td class='lineno'>249</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                BeliefEnvironment&#40;f, current_gt_state, h&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L250'>
+          <td class='lineno'>250</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                is_robust ? costs : costs&#91;1:2&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L251'>
+          <td class='lineno'>251</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                current_beliefs,</span>
+          </td>
+        </tr>
+        <tr id='L252'>
+          <td class='lineno'>252</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                game_horizon,</span>
+          </td>
+        </tr>
+        <tr id='L253'>
+          <td class='lineno'>253</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                dims,</span>
+          </td>
+        </tr>
+        <tr id='L254'>
+          <td class='lineno'>254</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                current_gt_state,</span>
+          </td>
+        </tr>
+        <tr id='L255'>
+          <td class='lineno'>255</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                is_robust</span>
+          </td>
+        </tr>
+        <tr id='L256'>
+          <td class='lineno'>256</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            &#41;</span>
+          </td>
+        </tr>
+        <tr id='L257'>
+          <td class='lineno'>257</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L258'>
+          <td class='lineno'>258</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            if t &#61;&#61; 1</span>
+          </td>
+        </tr>
+        <tr id='L259'>
+          <td class='lineno'>259</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                representative_games&#91;type&#93; &#61; game</span>
+          </td>
+        </tr>
+        <tr id='L260'>
+          <td class='lineno'>260</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L261'>
+          <td class='lineno'>261</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L262'>
+          <td class='lineno'>262</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>25709 &#40;82 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              25519 &#40;99 &#37;&#41;
+              samples spent calling
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L18'>solve</a>
+              <br />
+              188 &#40;1 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>            nominal_beliefs, nominal_controls, _ &#61; solve&#40;game; debug&#61;false, warm_start&#61;warm_starts&#91;type&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L263'>
+          <td class='lineno'>263</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L264'>
+          <td class='lineno'>264</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            push&#33;&#40;solution_history&#91;type&#93;, &#40;nominal_beliefs, nominal_controls&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L265'>
+          <td class='lineno'>265</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            </span>
+          </td>
+        </tr>
+        <tr id='L266'>
+          <td class='lineno'>266</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            if length&#40;nominal_beliefs&#41; &gt; 1</span>
+          </td>
+        </tr>
+        <tr id='L267'>
+          <td class='lineno'>267</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                shifted_beliefs &#61; nominal_beliefs&#91;2:end&#93;</span>
+          </td>
+        </tr>
+        <tr id='L268'>
+          <td class='lineno'>268</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                shifted_controls &#61; nominal_controls&#91;2:end&#93;</span>
+          </td>
+        </tr>
+        <tr id='L269'>
+          <td class='lineno'>269</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L270'>
+          <td class='lineno'>270</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                zero_control &#61; if is_robust</span>
+          </td>
+        </tr>
+        <tr id='L271'>
+          <td class='lineno'>271</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>                    control_block_sizes &#61; vcat&#40;dims.controls, sum&#40;dims.states&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L272'>
+          <td class='lineno'>272</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    BlockVector&#40;zeros&#40;sum&#40;control_block_sizes&#41;&#41;, control_block_sizes&#41;</span>
+          </td>
+        </tr>
+        <tr id='L273'>
+          <td class='lineno'>273</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                else</span>
+          </td>
+        </tr>
+        <tr id='L274'>
+          <td class='lineno'>274</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    BlockVector&#40;zeros&#40;sum&#40;dims.controls&#41;&#41;, dims.controls&#41;</span>
+          </td>
+        </tr>
+        <tr id='L275'>
+          <td class='lineno'>275</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                end</span>
+          </td>
+        </tr>
+        <tr id='L276'>
+          <td class='lineno'>276</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                </span>
+          </td>
+        </tr>
+        <tr id='L277'>
+          <td class='lineno'>277</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                last_belief &#61; shifted_beliefs&#91;end&#93;</span>
+          </td>
+        </tr>
+        <tr id='L278'>
+          <td class='lineno'>278</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>149 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              149 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L1'>ekf_update</a>
+              <br />
+            </div>
+            <span class='code'>                g, _ &#61; ekf_update&#40;last_belief, zero_control, game.environment.dynamics, game.environment.sensor_models; is_robust&#61;is_robust, n_players&#61;dims.num_activists&#41;</span>
+          </td>
+        </tr>
+        <tr id='L279'>
+          <td class='lineno'>279</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                extended_belief &#61; unvec&#40;g, game.dims.belief&#41;</span>
+          </td>
+        </tr>
+        <tr id='L280'>
+          <td class='lineno'>280</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L281'>
+          <td class='lineno'>281</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                warm_start_beliefs &#61; vcat&#40;shifted_beliefs, &#91;extended_belief&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L282'>
+          <td class='lineno'>282</td>
+          <td class='tracecount excl'>7 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>15 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              8 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>                warm_start_controls &#61; vcat&#40;shifted_controls, &#91;zero_control&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L283'>
+          <td class='lineno'>283</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                warm_starts&#91;type&#93; &#61; &#40;warm_start_beliefs, warm_start_controls&#41;</span>
+          </td>
+        </tr>
+        <tr id='L284'>
+          <td class='lineno'>284</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            else</span>
+          </td>
+        </tr>
+        <tr id='L285'>
+          <td class='lineno'>285</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                warm_starts&#91;type&#93; &#61; &#40;nominal_beliefs, nominal_controls&#41;</span>
+          </td>
+        </tr>
+        <tr id='L286'>
+          <td class='lineno'>286</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L287'>
+          <td class='lineno'>287</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L288'>
+          <td class='lineno'>288</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L289'>
+          <td class='lineno'>289</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        u_non_robust &#61; solution_history&#91;&quot;non_robust&quot;&#93;&#91;end&#93;&#91;2&#93;&#91;1&#93;</span>
+          </td>
+        </tr>
+        <tr id='L290'>
+          <td class='lineno'>290</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        u_robust &#61; solution_history&#91;&quot;robust&quot;&#93;&#91;end&#93;&#91;2&#93;&#91;1&#93;</span>
+          </td>
+        </tr>
+        <tr id='L291'>
+          <td class='lineno'>291</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        </span>
+          </td>
+        </tr>
+        <tr id='L292'>
+          <td class='lineno'>292</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        u1_controls &#61; u_non_robust&#91;Block&#40;1&#41;:Block&#40;dims.num_senators&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L293'>
+          <td class='lineno'>293</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        u2_controls &#61; u_robust&#91;Block&#40;dims.num_senators &#43; 1&#41;:Block&#40;dims.num_activists * dims.num_senators&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L294'>
+          <td class='lineno'>294</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L295'>
+          <td class='lineno'>295</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        activist_u &#61; mortar&#40;&#91;u1_controls.blocks..., u2_controls.blocks...&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L296'>
+          <td class='lineno'>296</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        </span>
+          </td>
+        </tr>
+        <tr id='L297'>
+          <td class='lineno'>297</td>
+          <td class='tracecount excl'>15 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>19 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              4 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        process_noise_vec &#61; rand&#40;process_noise_dist&#41;</span>
+          </td>
+        </tr>
+        <tr id='L298'>
+          <td class='lineno'>298</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        process_noise &#61; BlockVector&#40;process_noise_vec, dims.states&#41;</span>
+          </td>
+        </tr>
+        <tr id='L299'>
+          <td class='lineno'>299</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        current_gt_state &#61; f&#40;current_gt_state, activist_u, process_noise&#41;</span>
+          </td>
+        </tr>
+        <tr id='L300'>
+          <td class='lineno'>300</td>
+          <td class='tracecount excl'>6 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>7 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        push&#33;&#40;gt_state_history, current_gt_state&#41;</span>
+          </td>
+        </tr>
+        <tr id='L301'>
+          <td class='lineno'>301</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L302'>
+          <td class='lineno'>302</td>
+          <td class='tracecount excl'>4 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>136 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              128 &#40;97 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L784'>collect</a>
+              <br />
+              4 &#40;3 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        observations &#61; &#91;h&#40;current_gt_state, BlockVector&#40;rand&#40;sensor_noise_dist&#41;, dims.states&#41;&#41; for _ in 1:dims.num_activists&#93;</span>
+          </td>
+        </tr>
+        <tr id='L303'>
+          <td class='lineno'>303</td>
+          <td class='tracecount excl'>5 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>7 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        observations &#61; mortar&#40;observations&#41;</span>
+          </td>
+        </tr>
+        <tr id='L304'>
+          <td class='lineno'>304</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        push&#33;&#40;observation_history, observations&#41;</span>
+          </td>
+        </tr>
+        <tr id='L305'>
+          <td class='lineno'>305</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        </span>
+          </td>
+        </tr>
+        <tr id='L306'>
+          <td class='lineno'>306</td>
+          <td class='tracecount excl'>16 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2346 &#40;7 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2295 &#40;98 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L143'>ekf_update_with_observations</a>
+              <br />
+              35 &#40;2 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        current_beliefs &#61; ekf_update_with_observations&#40;current_beliefs, activist_u, environments, observations&#41;</span>
+          </td>
+        </tr>
+        <tr id='L307'>
+          <td class='lineno'>307</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L308'>
+          <td class='lineno'>308</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        if on_live_step &#33;&#61;&#61; nothing &amp;&amp; &#40;t &#37; emit_every &#61;&#61; 0&#41;</span>
+          </td>
+        </tr>
+        <tr id='L309'>
+          <td class='lineno'>309</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            push_latest&#33;&#40;; beliefs&#61;current_beliefs, gt_state&#61;current_gt_state&#41;</span>
+          </td>
+        </tr>
+        <tr id='L310'>
+          <td class='lineno'>310</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L311'>
+          <td class='lineno'>311</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L312'>
+          <td class='lineno'>312</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L313'>
+          <td class='lineno'>313</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if on_live_step &#33;&#61;&#61; nothing</span>
+          </td>
+        </tr>
+        <tr id='L314'>
+          <td class='lineno'>314</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        on_live_step&#40;horizon-1;</span>
+          </td>
+        </tr>
+        <tr id='L315'>
+          <td class='lineno'>315</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            beliefs&#61;current_beliefs,</span>
+          </td>
+        </tr>
+        <tr id='L316'>
+          <td class='lineno'>316</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            gt_state&#61;current_gt_state,</span>
+          </td>
+        </tr>
+        <tr id='L317'>
+          <td class='lineno'>317</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            u_non_robust&#61;u_non_robust,</span>
+          </td>
+        </tr>
+        <tr id='L318'>
+          <td class='lineno'>318</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            u_robust&#61;u_robust&#41;</span>
+          </td>
+        </tr>
+        <tr id='L319'>
+          <td class='lineno'>319</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L320'>
+          <td class='lineno'>320</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>20 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              15 &#40;83 &#37;&#41;
+              samples spent calling
+              <a href='dict.jl-16dfe6614d6451fe49acf06cf9dad03894b79d41.html#L114'>Dict</a>
+              <br />
+              3 &#40;17 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    solutions_dict &#61; Dict&#40;</span>
+          </td>
+        </tr>
+        <tr id='L321'>
+          <td class='lineno'>321</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        &quot;non_robust&quot; &#61;&gt; &#40;</span>
+          </td>
+        </tr>
+        <tr id='L322'>
+          <td class='lineno'>322</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            gt_state_history&#61;gt_state_history,</span>
+          </td>
+        </tr>
+        <tr id='L323'>
+          <td class='lineno'>323</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            observation_history&#61;observation_history,</span>
+          </td>
+        </tr>
+        <tr id='L324'>
+          <td class='lineno'>324</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            solution_history&#61;solution_history&#91;&quot;non_robust&quot;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L325'>
+          <td class='lineno'>325</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        &#41;,</span>
+          </td>
+        </tr>
+        <tr id='L326'>
+          <td class='lineno'>326</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        &quot;robust&quot; &#61;&gt; &#40;</span>
+          </td>
+        </tr>
+        <tr id='L327'>
+          <td class='lineno'>327</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            gt_state_history&#61;gt_state_history,</span>
+          </td>
+        </tr>
+        <tr id='L328'>
+          <td class='lineno'>328</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            observation_history&#61;observation_history,</span>
+          </td>
+        </tr>
+        <tr id='L329'>
+          <td class='lineno'>329</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            solution_history&#61;solution_history&#91;&quot;robust&quot;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L330'>
+          <td class='lineno'>330</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        &#41;</span>
+          </td>
+        </tr>
+        <tr id='L331'>
+          <td class='lineno'>331</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &#41;</span>
+          </td>
+        </tr>
+        <tr id='L332'>
+          <td class='lineno'>332</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return solutions_dict, representative_games</span>
+          </td>
+        </tr>
+        <tr id='L333'>
+          <td class='lineno'>333</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L334'>
+          <td class='lineno'>334</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>mutable struct _VizState</span>
+          </td>
+        </tr>
+        <tr id='L335'>
+          <td class='lineno'>335</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    latest_beliefs::Any</span>
+          </td>
+        </tr>
+        <tr id='L336'>
+          <td class='lineno'>336</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    latest_gt_state::Any</span>
+          </td>
+        </tr>
+        <tr id='L337'>
+          <td class='lineno'>337</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    dirty::Bool</span>
+          </td>
+        </tr>
+        <tr id='L338'>
+          <td class='lineno'>338</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L339'>
+          <td class='lineno'>339</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L340'>
+          <td class='lineno'>340</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>30316 &#40;97 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              60632 &#40;194 &#37;&#41;
+              samples spent in receding_horizon_main
+              <br />
+              34 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              30316 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from receding_horizon_main
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L340'>line 340</a>
+              <br />
+              
+              30316 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from eval
+              <a href='boot.jl-25c142be91bf72cb307ce7ae65f0b9f594e1af7e.html#L430'>line 430</a>
+              <br />
+            </div>
+            <div class='callees'>
+              30316 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L340'>#receding_horizon_main#51</a>
+              <br />
+            </div>
+            <span class='code'>function receding_horizon_main&#40;file_id::String&#61;&quot;&quot;; horizon&#61;10, min_planning_horizon&#61;5, override&#61;false, random_seed&#61;1, trials&#61;2,</span>
+          </td>
+        </tr>
+        <tr id='L341'>
+          <td class='lineno'>341</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    live::Bool&#61;false, live_viz_every::Int&#61;1&#41;</span>
+          </td>
+        </tr>
+        <tr id='L342'>
+          <td class='lineno'>342</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    solution_filename &#61; &quot;exp/senate/outputs/&#36;file_id.dat&quot;</span>
+          </td>
+        </tr>
+        <tr id='L343'>
+          <td class='lineno'>343</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    solutions &#61; Dict&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L344'>
+          <td class='lineno'>344</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    games &#61; Dict&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L345'>
+          <td class='lineno'>345</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L346'>
+          <td class='lineno'>346</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if isfile&#40;solution_filename&#41; &amp;&amp; &#33;override</span>
+          </td>
+        </tr>
+        <tr id='L347'>
+          <td class='lineno'>347</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        println&#40;&quot;Loading solution from &#36;solution_filename&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L348'>
+          <td class='lineno'>348</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        open&#40;solution_filename, &quot;r&quot;&#41; do f</span>
+          </td>
+        </tr>
+        <tr id='L349'>
+          <td class='lineno'>349</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            solutions, games &#61; deserialize&#40;f&#41;</span>
+          </td>
+        </tr>
+        <tr id='L350'>
+          <td class='lineno'>350</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L351'>
+          <td class='lineno'>351</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # SenateVisuals.visualize_receding_horizon_solution&#40;solutions, games; dims&#61;dims&#41;</span>
+          </td>
+        </tr>
+        <tr id='L352'>
+          <td class='lineno'>352</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        return</span>
+          </td>
+        </tr>
+        <tr id='L353'>
+          <td class='lineno'>353</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L354'>
+          <td class='lineno'>354</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L355'>
+          <td class='lineno'>355</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    scale_scale_factors &#61; &#91;1.0&#93;</span>
+          </td>
+        </tr>
+        <tr id='L356'>
+          <td class='lineno'>356</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    terminal_weight_scale_factors &#61; &#91;1.0&#93;</span>
+          </td>
+        </tr>
+        <tr id='L357'>
+          <td class='lineno'>357</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    control_cost_scale_factors &#61; &#91;1.0&#93;</span>
+          </td>
+        </tr>
+        <tr id='L358'>
+          <td class='lineno'>358</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L359'>
+          <td class='lineno'>359</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    num_non_robust_runs &#61; length&#40;scale_scale_factors&#41;^2 * length&#40;terminal_weight_scale_factors&#41;^2 * length&#40;control_cost_scale_factors&#41;^2</span>
+          </td>
+        </tr>
+        <tr id='L360'>
+          <td class='lineno'>360</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    num_robust_runs &#61; num_non_robust_runs * length&#40;terminal_weight_scale_factors&#41; * length&#40;control_cost_scale_factors&#41;</span>
+          </td>
+        </tr>
+        <tr id='L361'>
+          <td class='lineno'>361</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    total_runs &#61; &#40;num_non_robust_runs &#43; num_robust_runs&#41; * trials</span>
+          </td>
+        </tr>
+        <tr id='L362'>
+          <td class='lineno'>362</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L363'>
+          <td class='lineno'>363</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='coreio.jl-39b00ebbcd79791e6d7c27f986694dd9518949a0.html#L4'>println</a>
+              <br />
+            </div>
+            <span class='code'>    println&#40;&quot;This experiment will run &#36;total_runs simulations.&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L364'>
+          <td class='lineno'>364</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    println&#40;&quot;Breakdown: &#36;&#40;num_non_robust_runs*trials&#41; non-robust runs and &#36;&#40;num_robust_runs*trials&#41; robust runs.&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L365'>
+          <td class='lineno'>365</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # println&#40;&quot;Do you want to continue? &#40;y/n&#41;&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L366'>
+          <td class='lineno'>366</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # user_input &#61; readline&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L367'>
+          <td class='lineno'>367</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # if user_input &#33;&#61; &quot;y&quot;</span>
+          </td>
+        </tr>
+        <tr id='L368'>
+          <td class='lineno'>368</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    #     println&#40;&quot;Aborting.&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L369'>
+          <td class='lineno'>369</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    #     return</span>
+          </td>
+        </tr>
+        <tr id='L370'>
+          <td class='lineno'>370</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # end</span>
+          </td>
+        </tr>
+        <tr id='L371'>
+          <td class='lineno'>371</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L372'>
+          <td class='lineno'>372</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L373'>
+          <td class='lineno'>373</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    non_robust_params &#61; Iterators.product&#40;</span>
+          </td>
+        </tr>
+        <tr id='L374'>
+          <td class='lineno'>374</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        scale_scale_factors, # non_robust_activist scale</span>
+          </td>
+        </tr>
+        <tr id='L375'>
+          <td class='lineno'>375</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        scale_scale_factors, # robust_activist scale</span>
+          </td>
+        </tr>
+        <tr id='L376'>
+          <td class='lineno'>376</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        terminal_weight_scale_factors, # non_robust_activist terminal_weight</span>
+          </td>
+        </tr>
+        <tr id='L377'>
+          <td class='lineno'>377</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        terminal_weight_scale_factors, # robust_activist terminal_weight</span>
+          </td>
+        </tr>
+        <tr id='L378'>
+          <td class='lineno'>378</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        control_cost_scale_factors, # non_robust_activist control_cost</span>
+          </td>
+        </tr>
+        <tr id='L379'>
+          <td class='lineno'>379</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        control_cost_scale_factors  # robust_activist control_cost</span>
+          </td>
+        </tr>
+        <tr id='L380'>
+          <td class='lineno'>380</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &#41;</span>
+          </td>
+        </tr>
+        <tr id='L381'>
+          <td class='lineno'>381</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L382'>
+          <td class='lineno'>382</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    nature_params &#61; Iterators.product&#40;</span>
+          </td>
+        </tr>
+        <tr id='L383'>
+          <td class='lineno'>383</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        terminal_weight_scale_factors, # nature_activist terminal_weight</span>
+          </td>
+        </tr>
+        <tr id='L384'>
+          <td class='lineno'>384</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        control_cost_scale_factors  # nature_activist control_cost</span>
+          </td>
+        </tr>
+        <tr id='L385'>
+          <td class='lineno'>385</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &#41;</span>
+          </td>
+        </tr>
+        <tr id='L386'>
+          <td class='lineno'>386</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L387'>
+          <td class='lineno'>387</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    local viz &#61; nothing</span>
+          </td>
+        </tr>
+        <tr id='L388'>
+          <td class='lineno'>388</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    local on_step &#61; nothing</span>
+          </td>
+        </tr>
+        <tr id='L389'>
+          <td class='lineno'>389</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L390'>
+          <td class='lineno'>390</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    for &#40;s_nr, s_r, tw_nr, tw_r, cc_nr, cc_r&#41; in non_robust_params</span>
+          </td>
+        </tr>
+        <tr id='L391'>
+          <td class='lineno'>391</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        for &#40;tw_n, cc_n&#41; in nature_params</span>
+          </td>
+        </tr>
+        <tr id='L392'>
+          <td class='lineno'>392</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            _random_seed &#61; random_seed</span>
+          </td>
+        </tr>
+        <tr id='L393'>
+          <td class='lineno'>393</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            for trial in 1:trials</span>
+          </td>
+        </tr>
+        <tr id='L394'>
+          <td class='lineno'>394</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                println&#40;&quot;Running trial &#36;trial with scale_scale_factors: &#36;s_nr, &#36;s_r, terminal_weight_scale_factors: &#36;tw_nr, &#36;tw_r, &#36;tw_n, control_cost_scale_factors: &#36;cc_nr, &#36;cc_r, &#36;cc_n&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L395'>
+          <td class='lineno'>395</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                </span>
+          </td>
+        </tr>
+        <tr id='L396'>
+          <td class='lineno'>396</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                if live</span>
+          </td>
+        </tr>
+        <tr id='L397'>
+          <td class='lineno'>397</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    label &#61; &quot;s&#61;&#36;&#40;s_nr&#41;,&#36;&#40;s_r&#41;  tw&#61;&#36;&#40;tw_nr&#41;,&#36;&#40;tw_r&#41;,&#36;&#40;tw_n&#41;  cc&#61;&#36;&#40;cc_nr&#41;,&#36;&#40;cc_r&#41;,&#36;&#40;cc_n&#41;  trial&#61;&#36;trial&quot;</span>
+          </td>
+        </tr>
+        <tr id='L398'>
+          <td class='lineno'>398</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    viz, on_step &#61; SenateVisuals.attach_to_senate_using_setup&#33;&#40;; dims&#61;dims, cost_params&#61;cost_params&#41;</span>
+          </td>
+        </tr>
+        <tr id='L399'>
+          <td class='lineno'>399</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    </span>
+          </td>
+        </tr>
+        <tr id='L400'>
+          <td class='lineno'>400</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    SenateVisuals.mark_run&#33;&#40;viz, label&#41;</span>
+          </td>
+        </tr>
+        <tr id='L401'>
+          <td class='lineno'>401</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    SenateVisuals.reset_viz&#33;&#40;viz&#41;</span>
+          </td>
+        </tr>
+        <tr id='L402'>
+          <td class='lineno'>402</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    # --- start timer-driven pull visualizer ---</span>
+          </td>
+        </tr>
+        <tr id='L403'>
+          <td class='lineno'>403</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    state &#61; _VizState&#40;nothing, nothing, false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L404'>
+          <td class='lineno'>404</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L405'>
+          <td class='lineno'>405</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    # compute loop calls this to publish the latest snapshot &#40;non-blocking&#41;</span>
+          </td>
+        </tr>
+        <tr id='L406'>
+          <td class='lineno'>406</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    push_latest&#33; &#61; function &#40;; beliefs, gt_state&#41;</span>
+          </td>
+        </tr>
+        <tr id='L407'>
+          <td class='lineno'>407</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                        state.latest_beliefs &#61; beliefs</span>
+          </td>
+        </tr>
+        <tr id='L408'>
+          <td class='lineno'>408</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                        state.latest_gt_state &#61; gt_state</span>
+          </td>
+        </tr>
+        <tr id='L409'>
+          <td class='lineno'>409</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                        state.dirty &#61; true</span>
+          </td>
+        </tr>
+        <tr id='L410'>
+          <td class='lineno'>410</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                        nothing</span>
+          </td>
+        </tr>
+        <tr id='L411'>
+          <td class='lineno'>411</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    end</span>
+          </td>
+        </tr>
+        <tr id='L412'>
+          <td class='lineno'>412</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L413'>
+          <td class='lineno'>413</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    # Timer pulls at ~30 FPS and renders only when there’s new data</span>
+          </td>
+        </tr>
+        <tr id='L414'>
+          <td class='lineno'>414</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    ui_timer &#61; Timer&#40;1/30; interval&#61;1/30&#41; do _</span>
+          </td>
+        </tr>
+        <tr id='L415'>
+          <td class='lineno'>415</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                        if state.dirty</span>
+          </td>
+        </tr>
+        <tr id='L416'>
+          <td class='lineno'>416</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                            on_live_step&#40;0; beliefs&#61;state.latest_beliefs, gt_state&#61;state.latest_gt_state&#41;</span>
+          </td>
+        </tr>
+        <tr id='L417'>
+          <td class='lineno'>417</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                            state.dirty &#61; false</span>
+          </td>
+        </tr>
+        <tr id='L418'>
+          <td class='lineno'>418</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                            yield&#40;&#41;  # let Makie/GLFW process window events so it stays responsive</span>
+          </td>
+        </tr>
+        <tr id='L419'>
+          <td class='lineno'>419</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                        end</span>
+          </td>
+        </tr>
+        <tr id='L420'>
+          <td class='lineno'>420</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    end</span>
+          </td>
+        </tr>
+        <tr id='L421'>
+          <td class='lineno'>421</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    # --- end timer-driven pull visualizer ---</span>
+          </td>
+        </tr>
+        <tr id='L422'>
+          <td class='lineno'>422</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                end</span>
+          </td>
+        </tr>
+        <tr id='L423'>
+          <td class='lineno'>423</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L424'>
+          <td class='lineno'>424</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>28627 &#40;92 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              28627 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L169'>run_receding_horizon_trial</a>
+              <br />
+            </div>
+            <span class='code'>                rh_solutions, rh_games &#61; run_receding_horizon_trial&#40;</span>
+          </td>
+        </tr>
+        <tr id='L425'>
+          <td class='lineno'>425</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    scale_scale_factors&#61;&#91;s_nr, s_r&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L426'>
+          <td class='lineno'>426</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    terminal_weight_scale_factors&#61;&#91;tw_nr, tw_r, tw_n&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L427'>
+          <td class='lineno'>427</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    control_cost_scale_factors&#61;&#91;cc_nr, cc_r, cc_n&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L428'>
+          <td class='lineno'>428</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    horizon&#61;horizon,</span>
+          </td>
+        </tr>
+        <tr id='L429'>
+          <td class='lineno'>429</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    planning_horizon&#61;min_planning_horizon,</span>
+          </td>
+        </tr>
+        <tr id='L430'>
+          <td class='lineno'>430</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    random_seed&#61;_random_seed,</span>
+          </td>
+        </tr>
+        <tr id='L431'>
+          <td class='lineno'>431</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    on_live_step&#61;on_step,                # &lt;- streams steps to the viz</span>
+          </td>
+        </tr>
+        <tr id='L432'>
+          <td class='lineno'>432</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    live_viz_every&#61;live_viz_every</span>
+          </td>
+        </tr>
+        <tr id='L433'>
+          <td class='lineno'>433</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                &#41;</span>
+          </td>
+        </tr>
+        <tr id='L434'>
+          <td class='lineno'>434</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                </span>
+          </td>
+        </tr>
+        <tr id='L435'>
+          <td class='lineno'>435</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                non_robust_key &#61; &quot;s_&#36;&#40;s_nr&#41;_&#36;&#40;s_r&#41;_tw_&#36;&#40;tw_nr&#41;_&#36;&#40;tw_r&#41;_cc_&#36;&#40;cc_nr&#41;_&#36;&#40;cc_r&#41;_&#36;trial&quot;</span>
+          </td>
+        </tr>
+        <tr id='L436'>
+          <td class='lineno'>436</td>
+          <td class='tracecount excl'>7 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>9 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>                solutions&#91;non_robust_key&#93; &#61; rh_solutions&#91;&quot;non_robust&quot;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L437'>
+          <td class='lineno'>437</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                games&#91;non_robust_key&#93; &#61; rh_games&#91;&quot;non_robust&quot;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L438'>
+          <td class='lineno'>438</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L439'>
+          <td class='lineno'>439</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                robust_key &#61; &quot;r_s_&#36;&#40;s_nr&#41;_&#36;&#40;s_r&#41;_tw_&#36;&#40;tw_nr&#41;_&#36;&#40;tw_r&#41;_&#36;&#40;tw_n&#41;_cc_&#36;&#40;cc_nr&#41;_&#36;&#40;cc_r&#41;_&#36;&#40;cc_n&#41;_&#36;trial&quot;</span>
+          </td>
+        </tr>
+        <tr id='L440'>
+          <td class='lineno'>440</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                solutions&#91;robust_key&#93; &#61; rh_solutions&#91;&quot;robust&quot;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L441'>
+          <td class='lineno'>441</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                games&#91;robust_key&#93; &#61; rh_games&#91;&quot;robust&quot;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L442'>
+          <td class='lineno'>442</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                path_key &#61; &quot;s_&#36;&#40;s_nr&#41;_&#36;&#40;s_r&#41;_tw_&#36;&#40;tw_nr&#41;_&#36;&#40;tw_r&#41;_&#36;&#40;tw_n&#41;_cc_&#36;&#40;cc_nr&#41;_&#36;&#40;cc_r&#41;_&#36;&#40;cc_n&#41;_&#36;trial&quot;</span>
+          </td>
+        </tr>
+        <tr id='L443'>
+          <td class='lineno'>443</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L444'>
+          <td class='lineno'>444</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L445'>
+          <td class='lineno'>445</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                _random_seed &#43;&#61; 1</span>
+          </td>
+        </tr>
+        <tr id='L446'>
+          <td class='lineno'>446</td>
+          <td class='tracecount excl'>27 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1488 &#40;5 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1455 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L475'>save_viz_call</a>
+              <br />
+              6 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>                save_viz_call&#40;&quot;exp/senate/outputs/viz_call_&#36;&#40;path_key&#41;.bson&quot;,</span>
+          </td>
+        </tr>
+        <tr id='L447'>
+          <td class='lineno'>447</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    solutions,games;</span>
+          </td>
+        </tr>
+        <tr id='L448'>
+          <td class='lineno'>448</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    dims&#61;dims,</span>
+          </td>
+        </tr>
+        <tr id='L449'>
+          <td class='lineno'>449</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    non_robust_key&#61;non_robust_key,</span>
+          </td>
+        </tr>
+        <tr id='L450'>
+          <td class='lineno'>450</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    robust_key&#61;robust_key</span>
+          </td>
+        </tr>
+        <tr id='L451'>
+          <td class='lineno'>451</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                &#41;</span>
+          </td>
+        </tr>
+        <tr id='L452'>
+          <td class='lineno'>452</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                #SenateVisuals.visualize_receding_horizon_solution&#40;solutions, games; dims&#61;dims, non_robust_key &#61;non_robust_key, robust_key&#61;robust_key&#41;</span>
+          </td>
+        </tr>
+        <tr id='L453'>
+          <td class='lineno'>453</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L454'>
+          <td class='lineno'>454</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L455'>
+          <td class='lineno'>455</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L456'>
+          <td class='lineno'>456</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L457'>
+          <td class='lineno'>457</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L458'>
+          <td class='lineno'>458</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L459'>
+          <td class='lineno'>459</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    println&#40;&quot;Saving solution to &#36;solution_filename&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L460'>
+          <td class='lineno'>460</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>190 &#40;1 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              190 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='io.jl-9494c6bd1fa8688e63cb1e887913b2319b63cf3e.html#L407'>open</a>
+              <br />
+            </div>
+            <span class='code'>    open&#40;solution_filename, &quot;w&quot;&#41; do f</span>
+          </td>
+        </tr>
+        <tr id='L461'>
+          <td class='lineno'>461</td>
+          <td class='tracecount excl'>94 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>190 &#40;1 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              190 &#40;1 &#37;&#41;
+              samples spent in #56
+              <br />
+              94 &#40;49 &#37;&#41; &#40;ex.&#41;,
+              190 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from #open#465
+              <a href='io.jl-9494c6bd1fa8688e63cb1e887913b2319b63cf3e.html#L410'>line 410</a>
+              <br />
+            </div>
+            <div class='callees'>
+              74 &#40;77 &#37;&#41;
+              samples spent calling
+              <a href='Serialization.jl-f9a55840d87770202e92a128a9c65c559d748eff.html#L804'>serialize</a>
+              <br />
+              22 &#40;23 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        serialize&#40;f, &#40;solutions, games&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L462'>
+          <td class='lineno'>462</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L463'>
+          <td class='lineno'>463</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L464'>
+          <td class='lineno'>464</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L465'>
+          <td class='lineno'>465</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L466'>
+          <td class='lineno'>466</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>using BSON: @save, @load</span>
+          </td>
+        </tr>
+        <tr id='L467'>
+          <td class='lineno'>467</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L468'>
+          <td class='lineno'>468</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L469'>
+          <td class='lineno'>469</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    save_viz_call&#40;path, solutions, games; dims, non_robust_key, robust_key&#41;</span>
+          </td>
+        </tr>
+        <tr id='L470'>
+          <td class='lineno'>470</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L471'>
+          <td class='lineno'>471</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Serialize the exact arguments for</span>
+          </td>
+        </tr>
+        <tr id='L472'>
+          <td class='lineno'>472</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&#96;SenateVisuals.visualize_receding_horizon_solution&#40;...&#41;&#96;</span>
+          </td>
+        </tr>
+        <tr id='L473'>
+          <td class='lineno'>473</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>to &#96;path&#96; &#40;e.g. &quot;viz_call.bson&quot;&#41;.</span>
+          </td>
+        </tr>
+        <tr id='L474'>
+          <td class='lineno'>474</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L475'>
+          <td class='lineno'>475</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1455 &#40;5 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              2910 &#40;9 &#37;&#41;
+              samples spent in save_viz_call
+              <br />
+              1 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              1455 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from save_viz_call
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L475'>line 475</a>
+              <br />
+              
+              1455 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from #receding_horizon_main#51
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L446'>line 446</a>
+              <br />
+            </div>
+            <div class='callees'>
+              1455 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L475'>#save_viz_call#62</a>
+              <br />
+            </div>
+            <span class='code'>function save_viz_call&#40;path::AbstractString,</span>
+          </td>
+        </tr>
+        <tr id='L476'>
+          <td class='lineno'>476</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                       solutions, games;</span>
+          </td>
+        </tr>
+        <tr id='L477'>
+          <td class='lineno'>477</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                       dims,</span>
+          </td>
+        </tr>
+        <tr id='L478'>
+          <td class='lineno'>478</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                       non_robust_key,</span>
+          </td>
+        </tr>
+        <tr id='L479'>
+          <td class='lineno'>479</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                       robust_key&#41;</span>
+          </td>
+        </tr>
+        <tr id='L480'>
+          <td class='lineno'>480</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1454 &#40;5 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1452 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L87'>bson</a>
+              <br />
+              1 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    @save path solutions games dims non_robust_key robust_key</span>
+          </td>
+        </tr>
+        <tr id='L481'>
+          <td class='lineno'>481</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='coreio.jl-39b00ebbcd79791e6d7c27f986694dd9518949a0.html#L4'>println</a>
+              <br />
+            </div>
+            <span class='code'>    println&#40;&quot;Saved visualization call to &#36;path&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L482'>
+          <td class='lineno'>482</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return path</span>
+          </td>
+        </tr>
+        <tr id='L483'>
+          <td class='lineno'>483</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L484'>
+          <td class='lineno'>484</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L485'>
+          <td class='lineno'>485</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L486'>
+          <td class='lineno'>486</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    replay_viz_call&#40;path&#41;</span>
+          </td>
+        </tr>
+        <tr id='L487'>
+          <td class='lineno'>487</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L488'>
+          <td class='lineno'>488</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Load arguments from &#96;path&#96; &#40;created by &#96;save_viz_call&#96;&#41; and invoke</span>
+          </td>
+        </tr>
+        <tr id='L489'>
+          <td class='lineno'>489</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&#96;SenateVisuals.visualize_receding_horizon_solution&#40;...&#41;&#96;.</span>
+          </td>
+        </tr>
+        <tr id='L490'>
+          <td class='lineno'>490</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Returns whatever the original call returns.</span>
+          </td>
+        </tr>
+        <tr id='L491'>
+          <td class='lineno'>491</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L492'>
+          <td class='lineno'>492</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function replay_viz_call&#40;path::AbstractString&#41;</span>
+          </td>
+        </tr>
+        <tr id='L493'>
+          <td class='lineno'>493</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    @load path solutions games dims non_robust_key robust_key</span>
+          </td>
+        </tr>
+        <tr id='L494'>
+          <td class='lineno'>494</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return SenateVisuals.visualize_receding_horizon_solution&#40;</span>
+          </td>
+        </tr>
+        <tr id='L495'>
+          <td class='lineno'>495</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        solutions, games; dims&#61;dims,</span>
+          </td>
+        </tr>
+        <tr id='L496'>
+          <td class='lineno'>496</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        non_robust_key&#61;non_robust_key, robust_key&#61;robust_key</span>
+          </td>
+        </tr>
+        <tr id='L497'>
+          <td class='lineno'>497</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &#41;</span>
+          </td>
+        </tr>
+        <tr id='L498'>
+          <td class='lineno'>498</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L499'>
+          <td class='lineno'>499</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L500'>
+          <td class='lineno'>500</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end # module</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>
+

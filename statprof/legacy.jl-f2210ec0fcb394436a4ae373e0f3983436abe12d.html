@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv='Content-Type' content='text/html; charset=utf-8'></meta>
+    <link rel='stylesheet' type='text/css' href='statprofiler.css'></link>
+    <title>StatProfilerHTML - Users\Henry\AppData\Local\Programs\Julia-1.11.6\share\julia\base\compiler\ssair\legacy.jl</title>
+  </head>
+  <body>
+    <div class='report-header'>
+      <div class='backlink'>
+        <a href='index.html'>Report index</a>
+      </div>
+      <div class='report-title'>
+        StatProfilerHTML.jl report
+      </div>
+      <div class='generated-on'>
+        Generated on Mon, 06 Oct 2025 23:08:20
+      </div>
+    </div>
+    <table>
+      <caption>File source code</caption>
+      <thead>
+        <tr>
+          <th>Line</th>
+          <th>Exclusive</th>
+          <th>Inclusive</th>
+          <th>Code</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id='L1'>
+          <td class='lineno'>1</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># This file is a part of Julia. License is MIT: https://julialang.org/license</span>
+          </td>
+        </tr>
+        <tr id='L2'>
+          <td class='lineno'>2</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L3'>
+          <td class='lineno'>3</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L4'>
+          <td class='lineno'>4</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    inflate_ir&#33;&#40;ci::CodeInfo, linfo::MethodInstance&#41; -&gt; ir::IRCode</span>
+          </td>
+        </tr>
+        <tr id='L5'>
+          <td class='lineno'>5</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    inflate_ir&#33;&#40;ci::CodeInfo, sptypes::Vector&#123;VarState&#125;, argtypes::Vector&#123;Any&#125;&#41; -&gt; ir::IRCode</span>
+          </td>
+        </tr>
+        <tr id='L6'>
+          <td class='lineno'>6</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L7'>
+          <td class='lineno'>7</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Inflates &#96;ci::CodeInfo&#96;-IR to &#96;ir::IRCode&#96;-format.</span>
+          </td>
+        </tr>
+        <tr id='L8'>
+          <td class='lineno'>8</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>This should be used with caution as it is a in-place transformation where the fields of</span>
+          </td>
+        </tr>
+        <tr id='L9'>
+          <td class='lineno'>9</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>the original &#96;ci::CodeInfo&#96; are modified.</span>
+          </td>
+        </tr>
+        <tr id='L10'>
+          <td class='lineno'>10</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L11'>
+          <td class='lineno'>11</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function inflate_ir&#33;&#40;ci::CodeInfo, linfo::MethodInstance&#41;</span>
+          </td>
+        </tr>
+        <tr id='L12'>
+          <td class='lineno'>12</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>10 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              10 &#40;0 &#37;&#41;
+              samples spent in inflate_ir&#33;
+              <br />
+              
+              4 &#40;40 &#37;&#41; &#40;incl.&#41;
+              when called from inflate_ir
+              <a href='legacy.jl-f2210ec0fcb394436a4ae373e0f3983436abe12d.html#L55'>line 55</a>
+              <br />
+              
+              4 &#40;40 &#37;&#41; &#40;incl.&#41;
+              when called from retrieve_ir_for_inlining
+              <a href='inlining.jl-f644cf0ddd4335cef886a5369d204c4ba64ac9f0.html#L988'>line 988</a>
+              <br />
+              
+              2 &#40;20 &#37;&#41; &#40;incl.&#41;
+              when called from retrieve_ir_for_inlining
+              <a href='inlining.jl-f644cf0ddd4335cef886a5369d204c4ba64ac9f0.html#L994'>line 994</a>
+              <br />
+            </div>
+            <div class='callees'>
+              10 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='inferencestate.jl-333c5efa0494effdb5ec5b396806d3a2a7337965.html#L584'>sptypes_from_meth_instance</a>
+              <br />
+            </div>
+            <span class='code'>    sptypes &#61; sptypes_from_meth_instance&#40;linfo&#41;</span>
+          </td>
+        </tr>
+        <tr id='L13'>
+          <td class='lineno'>13</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>181 &#40;1 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              181 &#40;1 &#37;&#41;
+              samples spent in inflate_ir&#33;
+              <br />
+              
+              116 &#40;64 &#37;&#41; &#40;incl.&#41;
+              when called from retrieve_ir_for_inlining
+              <a href='inlining.jl-f644cf0ddd4335cef886a5369d204c4ba64ac9f0.html#L988'>line 988</a>
+              <br />
+              
+              36 &#40;20 &#37;&#41; &#40;incl.&#41;
+              when called from retrieve_ir_for_inlining
+              <a href='inlining.jl-f644cf0ddd4335cef886a5369d204c4ba64ac9f0.html#L994'>line 994</a>
+              <br />
+              
+              29 &#40;16 &#37;&#41; &#40;incl.&#41;
+              when called from inflate_ir
+              <a href='legacy.jl-f2210ec0fcb394436a4ae373e0f3983436abe12d.html#L55'>line 55</a>
+              <br />
+            </div>
+            <div class='callees'>
+              180 &#40;99 &#37;&#41;
+              samples spent calling
+              <a href='inferenceresult.jl-6b6913d86549bf1210230fc47d4bad73680007b4.html#L25'>matching_cache_argtypes</a>
+              <br />
+              1 &#40;1 &#37;&#41;
+              samples spent calling
+              <a href='tuple.jl-f25813a40f024bc9f6a6fb4a7fa3c15446b9cd87.html#L159'>indexed_iterate</a>
+              <br />
+            </div>
+            <span class='code'>    argtypes, _ &#61; matching_cache_argtypes&#40;fallback_lattice, linfo&#41;</span>
+          </td>
+        </tr>
+        <tr id='L14'>
+          <td class='lineno'>14</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>266 &#40;1 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              266 &#40;1 &#37;&#41;
+              samples spent in inflate_ir&#33;
+              <br />
+              
+              183 &#40;69 &#37;&#41; &#40;incl.&#41;
+              when called from retrieve_ir_for_inlining
+              <a href='inlining.jl-f644cf0ddd4335cef886a5369d204c4ba64ac9f0.html#L994'>line 994</a>
+              <br />
+              
+              64 &#40;24 &#37;&#41; &#40;incl.&#41;
+              when called from retrieve_ir_for_inlining
+              <a href='inlining.jl-f644cf0ddd4335cef886a5369d204c4ba64ac9f0.html#L988'>line 988</a>
+              <br />
+              
+              19 &#40;7 &#37;&#41; &#40;incl.&#41;
+              when called from inflate_ir
+              <a href='legacy.jl-f2210ec0fcb394436a4ae373e0f3983436abe12d.html#L55'>line 55</a>
+              <br />
+            </div>
+            <div class='callees'>
+              261 &#40;98 &#37;&#41;
+              samples spent calling
+              <a href='legacy.jl-f2210ec0fcb394436a4ae373e0f3983436abe12d.html#L16'>inflate_ir&#33;</a>
+              <br />
+              5 &#40;2 &#37;&#41;
+              samples spent calling
+              <a href='sort.jl-c7465a9ea751bdd8f4daec47f56096667ddb7399.html#L16'>inflate_ir&#33;</a>
+              <br />
+            </div>
+            <span class='code'>    return inflate_ir&#33;&#40;ci, sptypes, argtypes&#41;</span>
+          </td>
+        </tr>
+        <tr id='L15'>
+          <td class='lineno'>15</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L16'>
+          <td class='lineno'>16</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              261 &#40;1 &#37;&#41;
+              samples spent in inflate_ir&#33;
+              <br />
+              6 &#40;2 &#37;&#41; &#40;ex.&#41;,
+              261 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from inflate_ir&#33;
+              <a href='legacy.jl-f2210ec0fcb394436a4ae373e0f3983436abe12d.html#L14'>line 14</a>
+              <br />
+            </div>
+            
+            <span class='code'>function inflate_ir&#33;&#40;ci::CodeInfo, sptypes::Vector&#123;VarState&#125;, argtypes::Vector&#123;Any&#125;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L17'>
+          <td class='lineno'>17</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    code &#61; ci.code</span>
+          </td>
+        </tr>
+        <tr id='L18'>
+          <td class='lineno'>18</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>205 &#40;1 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              198 &#40;97 &#37;&#41;
+              samples spent calling
+              <a href='ir.jl-12205aafc3ad5d1dac06bc8febda183c6c1d01eb.html#L95'>compute_basic_blocks</a>
+              <br />
+              7 &#40;3 &#37;&#41;
+              samples spent calling
+              <a href='sort.jl-c7465a9ea751bdd8f4daec47f56096667ddb7399.html#L95'>compute_basic_blocks</a>
+              <br />
+            </div>
+            <span class='code'>    cfg &#61; compute_basic_blocks&#40;code&#41;</span>
+          </td>
+        </tr>
+        <tr id='L19'>
+          <td class='lineno'>19</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    for i &#61; 1:length&#40;code&#41;</span>
+          </td>
+        </tr>
+        <tr id='L20'>
+          <td class='lineno'>20</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        stmt &#61; code&#91;i&#93;</span>
+          </td>
+        </tr>
+        <tr id='L21'>
+          <td class='lineno'>21</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # Translate statement edges to bb_edges</span>
+          </td>
+        </tr>
+        <tr id='L22'>
+          <td class='lineno'>22</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        if isa&#40;stmt, GotoNode&#41;</span>
+          </td>
+        </tr>
+        <tr id='L23'>
+          <td class='lineno'>23</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>10 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              6 &#40;60 &#37;&#41;
+              samples spent calling
+              <a href='ir.jl-12205aafc3ad5d1dac06bc8febda183c6c1d01eb.html#L45'>block_for_inst</a>
+              <br />
+              4 &#40;40 &#37;&#41;
+              samples spent calling
+              <a href='essentials.jl-33341edaa849b42c762a0af42a3070a861b657d6.html#L923'>setindex&#33;</a>
+              <br />
+            </div>
+            <span class='code'>            code&#91;i&#93; &#61; GotoNode&#40;block_for_inst&#40;cfg, stmt.label&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L24'>
+          <td class='lineno'>24</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        elseif isa&#40;stmt, GotoIfNot&#41;</span>
+          </td>
+        </tr>
+        <tr id='L25'>
+          <td class='lineno'>25</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>3 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;67 &#37;&#41;
+              samples spent calling
+              <a href='ir.jl-12205aafc3ad5d1dac06bc8febda183c6c1d01eb.html#L45'>block_for_inst</a>
+              <br />
+              1 &#40;33 &#37;&#41;
+              samples spent calling
+              <a href='essentials.jl-33341edaa849b42c762a0af42a3070a861b657d6.html#L923'>setindex&#33;</a>
+              <br />
+            </div>
+            <span class='code'>            code&#91;i&#93; &#61; GotoIfNot&#40;stmt.cond, block_for_inst&#40;cfg, stmt.dest&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L26'>
+          <td class='lineno'>26</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        elseif isa&#40;stmt, PhiNode&#41;</span>
+          </td>
+        </tr>
+        <tr id='L27'>
+          <td class='lineno'>27</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>6 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              3 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='ir.jl-12205aafc3ad5d1dac06bc8febda183c6c1d01eb.html#L45'>block_for_inst</a>
+              <br />
+              2 &#40;33 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L679'>_array_for</a>
+              <br />
+              1 &#40;17 &#37;&#41;
+              samples spent calling
+              <a href='essentials.jl-33341edaa849b42c762a0af42a3070a861b657d6.html#L923'>setindex&#33;</a>
+              <br />
+            </div>
+            <span class='code'>            code&#91;i&#93; &#61; PhiNode&#40;Int32&#91;block_for_inst&#40;cfg, Int&#40;edge&#41;&#41; for edge in stmt.edges&#93;, stmt.values&#41;</span>
+          </td>
+        </tr>
+        <tr id='L28'>
+          <td class='lineno'>28</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        elseif isa&#40;stmt, EnterNode&#41;</span>
+          </td>
+        </tr>
+        <tr id='L29'>
+          <td class='lineno'>29</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            code&#91;i&#93; &#61; EnterNode&#40;stmt, stmt.catch_dest &#61;&#61; 0 ? 0 : block_for_inst&#40;cfg, stmt.catch_dest&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L30'>
+          <td class='lineno'>30</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L31'>
+          <td class='lineno'>31</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L32'>
+          <td class='lineno'>32</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    nstmts &#61; length&#40;code&#41;</span>
+          </td>
+        </tr>
+        <tr id='L33'>
+          <td class='lineno'>33</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ssavaluetypes &#61; ci.ssavaluetypes</span>
+          </td>
+        </tr>
+        <tr id='L34'>
+          <td class='lineno'>34</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    if &#33;isa&#40;ssavaluetypes, Vector&#123;Any&#125;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L35'>
+          <td class='lineno'>35</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        ssavaluetypes &#61; Any&#91; Any for i &#61; 1:ssavaluetypes::Int &#93;</span>
+          </td>
+        </tr>
+        <tr id='L36'>
+          <td class='lineno'>36</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L37'>
+          <td class='lineno'>37</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>22 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              20 &#40;91 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L679'>_array_for</a>
+              <br />
+              1 &#40;5 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L987'>setindex&#33;</a>
+              <br />
+              1 &#40;5 &#37;&#41;
+              samples spent calling
+              <a href='range.jl-2dc14be9d2d6ef1644e2ad28d82f43eb675d26ab.html#L908'>iterate</a>
+              <br />
+            </div>
+            <span class='code'>    info &#61; CallInfo&#91;NoCallInfo&#40;&#41; for i &#61; 1:nstmts&#93;</span>
+          </td>
+        </tr>
+        <tr id='L38'>
+          <td class='lineno'>38</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    stmts &#61; InstructionStream&#40;code, ssavaluetypes, info, ci.codelocs, ci.ssaflags&#41;</span>
+          </td>
+        </tr>
+        <tr id='L39'>
+          <td class='lineno'>39</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    linetable &#61; ci.linetable</span>
+          </td>
+        </tr>
+        <tr id='L40'>
+          <td class='lineno'>40</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    if &#33;isa&#40;linetable, Vector&#123;LineInfoNode&#125;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L41'>
+          <td class='lineno'>41</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        linetable &#61; collect&#40;LineInfoNode, linetable::Vector&#123;Any&#125;&#41;::Vector&#123;LineInfoNode&#125;</span>
+          </td>
+        </tr>
+        <tr id='L42'>
+          <td class='lineno'>42</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L43'>
+          <td class='lineno'>43</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L400'>getindex</a>
+              <br />
+            </div>
+            <span class='code'>    meta &#61; Expr&#91;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L44'>
+          <td class='lineno'>44</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>8 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              8 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='ir.jl-12205aafc3ad5d1dac06bc8febda183c6c1d01eb.html#L378'>IRCode</a>
+              <br />
+            </div>
+            <span class='code'>    return IRCode&#40;stmts, cfg, linetable, argtypes, meta, sptypes&#41;</span>
+          </td>
+        </tr>
+        <tr id='L45'>
+          <td class='lineno'>45</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L46'>
+          <td class='lineno'>46</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L47'>
+          <td class='lineno'>47</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L48'>
+          <td class='lineno'>48</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    inflate_ir&#40;ci::CodeInfo, linfo::MethodInstance&#41; -&gt; ir::IRCode</span>
+          </td>
+        </tr>
+        <tr id='L49'>
+          <td class='lineno'>49</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    inflate_ir&#40;ci::CodeInfo, sptypes::Vector&#123;VarState&#125;, argtypes::Vector&#123;Any&#125;&#41; -&gt; ir::IRCode</span>
+          </td>
+        </tr>
+        <tr id='L50'>
+          <td class='lineno'>50</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    inflate_ir&#40;ci::CodeInfo&#41; -&gt; ir::IRCode</span>
+          </td>
+        </tr>
+        <tr id='L51'>
+          <td class='lineno'>51</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L52'>
+          <td class='lineno'>52</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Non-destructive version of &#96;inflate_ir&#33;&#96;.</span>
+          </td>
+        </tr>
+        <tr id='L53'>
+          <td class='lineno'>53</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Mainly used for testing or interactive use.</span>
+          </td>
+        </tr>
+        <tr id='L54'>
+          <td class='lineno'>54</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L55'>
+          <td class='lineno'>55</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>139 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              139 &#40;0 &#37;&#41;
+              samples spent in inflate_ir
+              <br />
+              
+              139 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from IRInterpretationState
+              <a href='inferencestate.jl-333c5efa0494effdb5ec5b396806d3a2a7337965.html#L803'>line 803</a>
+              <br />
+            </div>
+            <div class='callees'>
+              87 &#40;63 &#37;&#41;
+              samples spent calling
+              <a href='expr.jl-53c554792f58414383177ad15420f2da876d8fea.html#L76'>copy</a>
+              <br />
+              29 &#40;21 &#37;&#41;
+              samples spent calling
+              <a href='legacy.jl-f2210ec0fcb394436a4ae373e0f3983436abe12d.html#L13'>inflate_ir&#33;</a>
+              <br />
+              19 &#40;14 &#37;&#41;
+              samples spent calling
+              <a href='legacy.jl-f2210ec0fcb394436a4ae373e0f3983436abe12d.html#L14'>inflate_ir&#33;</a>
+              <br />
+              4 &#40;3 &#37;&#41;
+              samples spent calling
+              <a href='legacy.jl-f2210ec0fcb394436a4ae373e0f3983436abe12d.html#L12'>inflate_ir&#33;</a>
+              <br />
+            </div>
+            <span class='code'>inflate_ir&#40;ci::CodeInfo, linfo::MethodInstance&#41; &#61; inflate_ir&#33;&#40;copy&#40;ci&#41;, linfo&#41;</span>
+          </td>
+        </tr>
+        <tr id='L56'>
+          <td class='lineno'>56</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>inflate_ir&#40;ci::CodeInfo, sptypes::Vector&#123;VarState&#125;, argtypes::Vector&#123;Any&#125;&#41; &#61; inflate_ir&#33;&#40;copy&#40;ci&#41;, sptypes, argtypes&#41;</span>
+          </td>
+        </tr>
+        <tr id='L57'>
+          <td class='lineno'>57</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function inflate_ir&#40;ci::CodeInfo&#41;</span>
+          </td>
+        </tr>
+        <tr id='L58'>
+          <td class='lineno'>58</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    parent &#61; ci.parent</span>
+          </td>
+        </tr>
+        <tr id='L59'>
+          <td class='lineno'>59</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    isa&#40;parent, MethodInstance&#41; &amp;&amp; return inflate_ir&#40;ci, parent&#41;</span>
+          </td>
+        </tr>
+        <tr id='L60'>
+          <td class='lineno'>60</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # XXX the length of &#96;ci.slotflags&#96; may be different from the actual number of call</span>
+          </td>
+        </tr>
+        <tr id='L61'>
+          <td class='lineno'>61</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # arguments, but we really don&#39;t know that information in this case</span>
+          </td>
+        </tr>
+        <tr id='L62'>
+          <td class='lineno'>62</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    argtypes &#61; Any&#91; Any for i &#61; 1:length&#40;ci.slotflags&#41; &#93;</span>
+          </td>
+        </tr>
+        <tr id='L63'>
+          <td class='lineno'>63</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return inflate_ir&#40;ci, VarState&#91;&#93;, argtypes&#41;</span>
+          </td>
+        </tr>
+        <tr id='L64'>
+          <td class='lineno'>64</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L65'>
+          <td class='lineno'>65</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L66'>
+          <td class='lineno'>66</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              27 &#40;0 &#37;&#41;
+              samples spent in replace_code_newstyle&#33;
+              <br />
+              15 &#40;56 &#37;&#41; &#40;ex.&#41;,
+              27 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from ir_to_codeinf&#33;
+              <a href='optimize.jl-025a74d9de9523b47a748af68e6a0165dd8de826.html#L231'>line 231</a>
+              <br />
+            </div>
+            
+            <span class='code'>function replace_code_newstyle&#33;&#40;ci::CodeInfo, ir::IRCode&#41;</span>
+          </td>
+        </tr>
+        <tr id='L67'>
+          <td class='lineno'>67</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    @assert isempty&#40;ir.new_nodes&#41;</span>
+          </td>
+        </tr>
+        <tr id='L68'>
+          <td class='lineno'>68</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # All but the first &#96;nargs&#96; slots will now be unused</span>
+          </td>
+        </tr>
+        <tr id='L69'>
+          <td class='lineno'>69</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    nargs &#61; length&#40;ir.argtypes&#41;</span>
+          </td>
+        </tr>
+        <tr id='L70'>
+          <td class='lineno'>70</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L1447'>resize&#33;</a>
+              <br />
+            </div>
+            <span class='code'>    resize&#33;&#40;ci.slotnames, nargs&#41;</span>
+          </td>
+        </tr>
+        <tr id='L71'>
+          <td class='lineno'>71</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L1447'>resize&#33;</a>
+              <br />
+            </div>
+            <span class='code'>    resize&#33;&#40;ci.slotflags, nargs&#41;</span>
+          </td>
+        </tr>
+        <tr id='L72'>
+          <td class='lineno'>72</td>
+          <td class='tracecount excl'>7 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>7 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    resize&#33;&#40;ci.slottypes, nargs&#41;</span>
+          </td>
+        </tr>
+        <tr id='L73'>
+          <td class='lineno'>73</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    stmts &#61; ir.stmts</span>
+          </td>
+        </tr>
+        <tr id='L74'>
+          <td class='lineno'>74</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    code &#61; ci.code &#61; stmts.stmt</span>
+          </td>
+        </tr>
+        <tr id='L75'>
+          <td class='lineno'>75</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ssavaluetypes &#61; ci.ssavaluetypes &#61; stmts.type</span>
+          </td>
+        </tr>
+        <tr id='L76'>
+          <td class='lineno'>76</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    codelocs &#61; ci.codelocs &#61; stmts.line</span>
+          </td>
+        </tr>
+        <tr id='L77'>
+          <td class='lineno'>77</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ssaflags &#61; ci.ssaflags &#61; stmts.flag</span>
+          </td>
+        </tr>
+        <tr id='L78'>
+          <td class='lineno'>78</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    linetable &#61; ci.linetable &#61; ir.linetable</span>
+          </td>
+        </tr>
+        <tr id='L79'>
+          <td class='lineno'>79</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L902'>iterate</a>
+              <br />
+            </div>
+            <span class='code'>    for metanode in ir.meta</span>
+          </td>
+        </tr>
+        <tr id='L80'>
+          <td class='lineno'>80</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        push&#33;&#40;code, metanode&#41;</span>
+          </td>
+        </tr>
+        <tr id='L81'>
+          <td class='lineno'>81</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        push&#33;&#40;codelocs, 1&#41;</span>
+          </td>
+        </tr>
+        <tr id='L82'>
+          <td class='lineno'>82</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        push&#33;&#40;ssavaluetypes, Any&#41;</span>
+          </td>
+        </tr>
+        <tr id='L83'>
+          <td class='lineno'>83</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        push&#33;&#40;ssaflags, IR_FLAG_NULL&#41;</span>
+          </td>
+        </tr>
+        <tr id='L84'>
+          <td class='lineno'>84</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L85'>
+          <td class='lineno'>85</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # Translate BB Edges to statement edges</span>
+          </td>
+        </tr>
+        <tr id='L86'>
+          <td class='lineno'>86</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # &#40;and undo normalization for now&#41;</span>
+          </td>
+        </tr>
+        <tr id='L87'>
+          <td class='lineno'>87</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    for i &#61; 1:length&#40;code&#41;</span>
+          </td>
+        </tr>
+        <tr id='L88'>
+          <td class='lineno'>88</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='essentials.jl-33341edaa849b42c762a0af42a3070a861b657d6.html#L917'>getindex</a>
+              <br />
+              1 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='essentials.jl-33341edaa849b42c762a0af42a3070a861b657d6.html#L916'>getindex</a>
+              <br />
+            </div>
+            <span class='code'>        stmt &#61; code&#91;i&#93;</span>
+          </td>
+        </tr>
+        <tr id='L89'>
+          <td class='lineno'>89</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        if isa&#40;stmt, GotoNode&#41;</span>
+          </td>
+        </tr>
+        <tr id='L90'>
+          <td class='lineno'>90</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='essentials.jl-33341edaa849b42c762a0af42a3070a861b657d6.html#L923'>setindex&#33;</a>
+              <br />
+              1 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='essentials.jl-33341edaa849b42c762a0af42a3070a861b657d6.html#L917'>getindex</a>
+              <br />
+            </div>
+            <span class='code'>            code&#91;i&#93; &#61; GotoNode&#40;first&#40;ir.cfg.blocks&#91;stmt.label&#93;.stmts&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L91'>
+          <td class='lineno'>91</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        elseif isa&#40;stmt, GotoIfNot&#41;</span>
+          </td>
+        </tr>
+        <tr id='L92'>
+          <td class='lineno'>92</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='essentials.jl-33341edaa849b42c762a0af42a3070a861b657d6.html#L916'>getindex</a>
+              <br />
+            </div>
+            <span class='code'>            code&#91;i&#93; &#61; GotoIfNot&#40;stmt.cond, first&#40;ir.cfg.blocks&#91;stmt.dest&#93;.stmts&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L93'>
+          <td class='lineno'>93</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        elseif isa&#40;stmt, PhiNode&#41;</span>
+          </td>
+        </tr>
+        <tr id='L94'>
+          <td class='lineno'>94</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>3 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L679'>_array_for</a>
+              <br />
+            </div>
+            <span class='code'>            code&#91;i&#93; &#61; PhiNode&#40;Int32&#91;edge &#61;&#61; 0 ? 0 : last&#40;ir.cfg.blocks&#91;edge&#93;.stmts&#41; for edge in stmt.edges&#93;, stmt.values&#41;</span>
+          </td>
+        </tr>
+        <tr id='L95'>
+          <td class='lineno'>95</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        elseif isa&#40;stmt, EnterNode&#41;</span>
+          </td>
+        </tr>
+        <tr id='L96'>
+          <td class='lineno'>96</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            code&#91;i&#93; &#61; EnterNode&#40;stmt, stmt.catch_dest &#61;&#61; 0 ? 0 : first&#40;ir.cfg.blocks&#91;stmt.catch_dest&#93;.stmts&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L97'>
+          <td class='lineno'>97</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L98'>
+          <td class='lineno'>98</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='range.jl-2dc14be9d2d6ef1644e2ad28d82f43eb675d26ab.html#L908'>iterate</a>
+              <br />
+            </div>
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L99'>
+          <td class='lineno'>99</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>
+

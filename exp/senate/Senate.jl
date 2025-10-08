@@ -170,8 +170,8 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
     scale_scale_factors = [1.0, 1.0],
     terminal_weight_scale_factors = [1.0, 1.0, 1.0],
     control_cost_scale_factors = [1.0, 1.0, 1.0],
-    on_live_step::Union{Nothing,Function}=nothing,      # <- NEW
-    live_viz_every::Int=1                               # <- NEW (optional throttle)
+    on_live_step::Union{Nothing,Function}=nothing,      
+    live_viz_every::Int=1                              
 
 )
     current_cost_params = deepcopy(cost_params)
@@ -329,8 +329,6 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
             solution_history=solution_history["robust"]
         )
     )
-    close(viz_chan)     # tell consumer we're done
-    wait(consumer_task) # clean shutdown
     return solutions_dict, representative_games
 end
 mutable struct _VizState
@@ -354,9 +352,9 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
         return
     end
 
-    scale_scale_factors = [1.0]
-    terminal_weight_scale_factors = [1.0]
-    control_cost_scale_factors = [1.0]
+    scale_scale_factors = [1.0, 4.0, 16.0]
+    terminal_weight_scale_factors = [ 1.0, 4.0, 16.0]
+    control_cost_scale_factors = [4.0, 16.0]
     
     num_non_robust_runs = length(scale_scale_factors)^2 * length(terminal_weight_scale_factors)^2 * length(control_cost_scale_factors)^2
     num_robust_runs = num_non_robust_runs * length(terminal_weight_scale_factors) * length(control_cost_scale_factors)
@@ -434,14 +432,14 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
                     live_viz_every=live_viz_every
                 )
                 
-                non_robust_key = "s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_cc_$(cc_nr)_$(cc_r)_$trial"
+                non_robust_key = "$(file_id)_s_h_$(horizon)_ph_$(min_planning_horizon)_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_cc_$(cc_nr)_$(cc_r)_$trial"
                 solutions[non_robust_key] = rh_solutions["non_robust"]
                 games[non_robust_key] = rh_games["non_robust"]
 
-                robust_key = "r_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
+                robust_key = "$(file_id)_r_s_h_$(horizon)_ph_$(min_planning_horizon)_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
                 solutions[robust_key] = rh_solutions["robust"]
                 games[robust_key] = rh_games["robust"]
-                path_key = "s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
+                path_key = "$(file_id)_s_h_$(horizon)_ph_$(min_planning_horizon)$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
 
 
                 _random_seed += 1
@@ -492,11 +490,29 @@ Load arguments from `path` (created by `save_viz_call`) and invoke
 Returns whatever the original call returns.
 """
 function replay_viz_call(path::AbstractString)
+    s_nr, s_r = 1,1#scales_from_path(path)
+
+    # build activist_scale: [[[non_robust], [robust]]]
+    # default was [[[1,2], [2,1]]]; scale agent-wise:
+    activist_scale = [[ [1.0, 2.0] .* s_nr,
+                        [2.0, 1.0] .* s_r ]]
     @load path solutions games dims non_robust_key robust_key
     return SenateVisuals.visualize_receding_horizon_solution(
         solutions, games; dims=dims,
         non_robust_key=non_robust_key, robust_key=robust_key
     )
+end
+
+function scales_from_path(path::AbstractString)
+    fname = split(basename(path), '.')[1]              # strip extension(s)
+    toks  = split(fname, '_')                          # tokenise by '_'
+    i = findfirst(==("ph"), toks)
+    i === nothing && error("Couldn't find `_ph_` token in: $fname")
+
+    # Layout: ..., "ph", "<min_planning_horizon>", "<s_nr>", "<s_r>", "tw", ...
+    length(toks) >= i+3 || error("Filename too short after `ph`: $fname")
+
+    parse(Float64, toks[i+2]), parse(Float64, toks[i+3])  # (s_nr, s_r)
 end
 
 end # module

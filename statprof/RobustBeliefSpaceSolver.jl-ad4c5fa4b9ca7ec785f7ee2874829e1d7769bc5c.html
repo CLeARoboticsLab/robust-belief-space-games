@@ -1,0 +1,4882 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv='Content-Type' content='text/html; charset=utf-8'></meta>
+    <link rel='stylesheet' type='text/css' href='statprofiler.css'></link>
+    <title>StatProfilerHTML - src\RobustBeliefSpaceSolver.jl</title>
+  </head>
+  <body>
+    <div class='report-header'>
+      <div class='backlink'>
+        <a href='index.html'>Report index</a>
+      </div>
+      <div class='report-title'>
+        StatProfilerHTML.jl report
+      </div>
+      <div class='generated-on'>
+        Generated on Mon, 06 Oct 2025 23:08:20
+      </div>
+    </div>
+    <table>
+      <caption>File source code</caption>
+      <thead>
+        <tr>
+          <th>Line</th>
+          <th>Exclusive</th>
+          <th>Inclusive</th>
+          <th>Code</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id='L1'>
+          <td class='lineno'>1</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>mutable struct Regularizations</span>
+          </td>
+        </tr>
+        <tr id='L2'>
+          <td class='lineno'>2</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    control_reg::Float64</span>
+          </td>
+        </tr>
+        <tr id='L3'>
+          <td class='lineno'>3</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    belief_reg::Float64</span>
+          </td>
+        </tr>
+        <tr id='L4'>
+          <td class='lineno'>4</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L5'>
+          <td class='lineno'>5</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L6'>
+          <td class='lineno'>6</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function create_warm_start_strategy&#40;warm_start_controls::Vector&#123;BlockVector&#125;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L7'>
+          <td class='lineno'>7</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L8'>
+          <td class='lineno'>8</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    Creates a strategy that returns the warm start controls at each time step.</span>
+          </td>
+        </tr>
+        <tr id='L9'>
+          <td class='lineno'>9</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    This allows us to use the current beliefs as the starting point while </span>
+          </td>
+        </tr>
+        <tr id='L10'>
+          <td class='lineno'>10</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    applying the warm start controls to generate the initial trajectory.</span>
+          </td>
+        </tr>
+        <tr id='L11'>
+          <td class='lineno'>11</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L12'>
+          <td class='lineno'>12</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return &#91;</span>
+          </td>
+        </tr>
+        <tr id='L13'>
+          <td class='lineno'>13</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        &#40;belief::Beliefs&#41; -&gt; warm_start_controls&#91;t&#93; </span>
+          </td>
+        </tr>
+        <tr id='L14'>
+          <td class='lineno'>14</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        for t in 1:length&#40;warm_start_controls&#41;</span>
+          </td>
+        </tr>
+        <tr id='L15'>
+          <td class='lineno'>15</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    &#93;</span>
+          </td>
+        </tr>
+        <tr id='L16'>
+          <td class='lineno'>16</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L17'>
+          <td class='lineno'>17</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L18'>
+          <td class='lineno'>18</td>
+          <td class='tracecount excl'>110 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>25519 &#40;82 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              50927 &#40;163 &#37;&#41;
+              samples spent in solve
+              <br />
+              110 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              25519 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from #run_receding_horizon_trial#44
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L262'>line 262</a>
+              <br />
+              26 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              25408 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from solve
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L18'>line 18</a>
+              <br />
+            </div>
+            <div class='callees'>
+              25408 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L18'>#solve#152</a>
+              <br />
+              1 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>function solve&#40;game::BeliefGame; debug&#61;false, ϵ_converge&#61;1e-2, debug_file&#61;DEBUG_FILE, warm_start&#61;nothing, save_intermediate_solutions&#61;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L19'>
+          <td class='lineno'>19</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    global DEBUG &#61; debug</span>
+          </td>
+        </tr>
+        <tr id='L20'>
+          <td class='lineno'>20</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if DEBUG</span>
+          </td>
+        </tr>
+        <tr id='L21'>
+          <td class='lineno'>21</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        global DEBUG_FILE &#61; debug_file</span>
+          </td>
+        </tr>
+        <tr id='L22'>
+          <td class='lineno'>22</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        open&#40;DEBUG_FILE, &quot;w&quot;&#41; do f end</span>
+          </td>
+        </tr>
+        <tr id='L23'>
+          <td class='lineno'>23</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L24'>
+          <td class='lineno'>24</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if isnothing&#40;warm_start&#41;</span>
+          </td>
+        </tr>
+        <tr id='L25'>
+          <td class='lineno'>25</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        dummy_strategy &#61; get_dummy_strategy&#40;game&#41;</span>
+          </td>
+        </tr>
+        <tr id='L26'>
+          <td class='lineno'>26</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>3276 &#40;10 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              3276 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L146'>rollout_strategy</a>
+              <br />
+            </div>
+            <span class='code'>        nominal_beliefs, nominal_controls &#61; rollout_strategy&#40;game, dummy_strategy&#41;</span>
+          </td>
+        </tr>
+        <tr id='L27'>
+          <td class='lineno'>27</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    else</span>
+          </td>
+        </tr>
+        <tr id='L28'>
+          <td class='lineno'>28</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # Use current beliefs as starting point and warm start controls to generate trajectory</span>
+          </td>
+        </tr>
+        <tr id='L29'>
+          <td class='lineno'>29</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        warm_start_beliefs, warm_start_controls &#61; warm_start</span>
+          </td>
+        </tr>
+        <tr id='L30'>
+          <td class='lineno'>30</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        warm_start_strategy &#61; create_warm_start_strategy&#40;warm_start_controls&#41;</span>
+          </td>
+        </tr>
+        <tr id='L31'>
+          <td class='lineno'>31</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        nominal_beliefs, nominal_controls &#61; rollout_strategy&#40;game, warm_start_strategy&#41;</span>
+          </td>
+        </tr>
+        <tr id='L32'>
+          <td class='lineno'>32</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L33'>
+          <td class='lineno'>33</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>143 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              143 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L118'>calculate_costs</a>
+              <br />
+            </div>
+            <span class='code'>    new_cost &#61; calculate_costs&#40;game, nominal_beliefs, nominal_controls&#41;    </span>
+          </td>
+        </tr>
+        <tr id='L34'>
+          <td class='lineno'>34</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    old_cost &#61; 1/ϵ_converge^2 * new_cost</span>
+          </td>
+        </tr>
+        <tr id='L35'>
+          <td class='lineno'>35</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    regularizations &#61; Regularizations&#40;100.0, 1.0&#41;</span>
+          </td>
+        </tr>
+        <tr id='L36'>
+          <td class='lineno'>36</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    iterations &#61; 0    </span>
+          </td>
+        </tr>
+        <tr id='L37'>
+          <td class='lineno'>37</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    improvement_iterations &#61; 0</span>
+          </td>
+        </tr>
+        <tr id='L38'>
+          <td class='lineno'>38</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    intermediate_solutions &#61; &#91;&#40;nominal_beliefs, nominal_controls&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L39'>
+          <td class='lineno'>39</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    feed_forward_norms_history &#61; Vector&#123;Vector&#123;Float64&#125;&#125;&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L40'>
+          <td class='lineno'>40</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    kkt_error_history &#61; Vector&#123;Vector&#123;Float64&#125;&#125;&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L41'>
+          <td class='lineno'>41</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # cur_ff_norm &#61; 1</span>
+          </td>
+        </tr>
+        <tr id='L42'>
+          <td class='lineno'>42</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # push&#33;&#40;feed_forward_norms_history, &#91;Inf&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L43'>
+          <td class='lineno'>43</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # push&#33;&#40;kkt_error_history, &#91;Inf&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L44'>
+          <td class='lineno'>44</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    kkt_error_norms &#61; Inf</span>
+          </td>
+        </tr>
+        <tr id='L45'>
+          <td class='lineno'>45</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L46'>
+          <td class='lineno'>46</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # cond &#61; Float64&#91;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L47'>
+          <td class='lineno'>47</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L48'>
+          <td class='lineno'>48</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # while max&#40;feed_forward_norms_history&#91;end&#93;...&#41; &gt; ϵ_converge</span>
+          </td>
+        </tr>
+        <tr id='L49'>
+          <td class='lineno'>49</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    while true</span>
+          </td>
+        </tr>
+        <tr id='L50'>
+          <td class='lineno'>50</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #region - Debug Statements &#40;commented&#41;</span>
+          </td>
+        </tr>
+        <tr id='L51'>
+          <td class='lineno'>51</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # if DEBUG</span>
+          </td>
+        </tr>
+        <tr id='L52'>
+          <td class='lineno'>52</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #     open&#40;DEBUG_FILE, &quot;a&quot;&#41; do f</span>
+          </td>
+        </tr>
+        <tr id='L53'>
+          <td class='lineno'>53</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         println&#40;f, &quot;&#91;solve&#93; beliefs and controls&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L54'>
+          <td class='lineno'>54</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         println&#40;f, &quot;Initial nominal beliefs:&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L55'>
+          <td class='lineno'>55</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         display_matrix &#61; IOContext&#40;f, :limit&#61;&gt;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L56'>
+          <td class='lineno'>56</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         show&#40;display_matrix, &quot;text/plain&quot;, nominal_beliefs&#41;</span>
+          </td>
+        </tr>
+        <tr id='L57'>
+          <td class='lineno'>57</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         println&#40;f&#41;</span>
+          </td>
+        </tr>
+        <tr id='L58'>
+          <td class='lineno'>58</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         println&#40;f, &quot;Initial nominal controls:&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L59'>
+          <td class='lineno'>59</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         display_matrix &#61; IOContext&#40;f, :limit&#61;&gt;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L60'>
+          <td class='lineno'>60</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         show&#40;display_matrix, &quot;text/plain&quot;, nominal_controls&#41;</span>
+          </td>
+        </tr>
+        <tr id='L61'>
+          <td class='lineno'>61</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         println&#40;f&#41;</span>
+          </td>
+        </tr>
+        <tr id='L62'>
+          <td class='lineno'>62</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #     end</span>
+          </td>
+        </tr>
+        <tr id='L63'>
+          <td class='lineno'>63</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # end</span>
+          </td>
+        </tr>
+        <tr id='L64'>
+          <td class='lineno'>64</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #endregion</span>
+          </td>
+        </tr>
+        <tr id='L65'>
+          <td class='lineno'>65</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>21737 &#40;69 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              21737 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L136'>backward_pass</a>
+              <br />
+            </div>
+            <span class='code'>        feedback_terms, feed_forward_norms, new_kkt_error_norms, Q_suite &#61; backward_pass&#40;game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component&#61;:control&#41;</span>
+          </td>
+        </tr>
+        <tr id='L66'>
+          <td class='lineno'>66</td>
+          <td class='tracecount excl'>21 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>237 &#40;1 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              216 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L353'>line_search</a>
+              <br />
+            </div>
+            <span class='code'>        candidate_beliefs, candidate_controls, new_cost, step_accepted, candidate_kkt_error &#61; line_search&#40;game, nominal_beliefs, nominal_controls, feedback_terms, kkt_error_norms, regularizations&#41;</span>
+          </td>
+        </tr>
+        <tr id='L67'>
+          <td class='lineno'>67</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L68'>
+          <td class='lineno'>68</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        if save_intermediate_solutions</span>
+          </td>
+        </tr>
+        <tr id='L69'>
+          <td class='lineno'>69</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            push&#33;&#40;feed_forward_norms_history, feed_forward_norms&#41;</span>
+          </td>
+        </tr>
+        <tr id='L70'>
+          <td class='lineno'>70</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            push&#33;&#40;kkt_error_history, norm.&#40;new_kkt_error_norms&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L71'>
+          <td class='lineno'>71</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L72'>
+          <td class='lineno'>72</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #region - Print Statements &#40;commented&#41;</span>
+          </td>
+        </tr>
+        <tr id='L73'>
+          <td class='lineno'>73</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # println&#40;&quot;iter: &#36;iterations, error: &quot;, candidate_kkt_error&#41;</span>
+          </td>
+        </tr>
+        <tr id='L74'>
+          <td class='lineno'>74</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L75'>
+          <td class='lineno'>75</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # @printf&#40;&quot;&#91;s &#37;3d / &#37;3d&#93;ff: cur&#61;&#37;10.4f new&#61;&#37;10.4f, reg&#61;&#37;10.4f, α&#61;&#37;10.3f\n&quot;, iterations, improvement_iterations, mean&#40;feed_forward_norms_history&#91;cur_ff_norm&#93;&#41;, mean&#40;feed_forward_norms&#41;, regularizations.control_reg, α&#41;</span>
+          </td>
+        </tr>
+        <tr id='L76'>
+          <td class='lineno'>76</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # println&#40;&quot;\tOld costs: &quot;, join&#40;&#91;@sprintf&#40;&quot;&#37;.3f&quot;, c&#41; for c in old_cost&#93;, &quot;, &quot;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L77'>
+          <td class='lineno'>77</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # println&#40;&quot;\tNew costs: &quot;, join&#40;&#91;@sprintf&#40;&quot;&#37;.3f&quot;, c&#41; for c in new_cost&#93;, &quot;, &quot;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L78'>
+          <td class='lineno'>78</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # println&#40;&quot;\tImprovements: &quot;, join&#40;&#91;@sprintf&#40;&quot;&#37;.3f&quot;, imp&#41; for imp in improvements&#93;, &quot;, &quot;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L79'>
+          <td class='lineno'>79</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # println&#40;&quot;\tCost decr: &#36;cost_decreased, ff_norm decr: &#36;feed_forward_norm_decreased&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L80'>
+          <td class='lineno'>80</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #endregion</span>
+          </td>
+        </tr>
+        <tr id='L81'>
+          <td class='lineno'>81</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # println&#40;&quot;step_accepted: &#36;step_accepted&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L82'>
+          <td class='lineno'>82</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        if step_accepted</span>
+          </td>
+        </tr>
+        <tr id='L83'>
+          <td class='lineno'>83</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # println&#40;&quot;new kkt error norms: &quot;, candidate_kkt_error&#41;</span>
+          </td>
+        </tr>
+        <tr id='L84'>
+          <td class='lineno'>84</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            nominal_beliefs, nominal_controls &#61; candidate_beliefs, candidate_controls</span>
+          </td>
+        </tr>
+        <tr id='L85'>
+          <td class='lineno'>85</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            kkt_error_norms &#61; candidate_kkt_error</span>
+          </td>
+        </tr>
+        <tr id='L86'>
+          <td class='lineno'>86</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L87'>
+          <td class='lineno'>87</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # if all&#40;improvements .&lt; ϵ_converge&#41; &amp;&amp; mean&#40;norm.&#40;vcat&#40;kkt_error_norms...&#41;&#41;&#41; &lt; ϵ_converge</span>
+          </td>
+        </tr>
+        <tr id='L88'>
+          <td class='lineno'>88</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            if candidate_kkt_error &lt; ϵ_converge</span>
+          </td>
+        </tr>
+        <tr id='L89'>
+          <td class='lineno'>89</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                break</span>
+          </td>
+        </tr>
+        <tr id='L90'>
+          <td class='lineno'>90</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L91'>
+          <td class='lineno'>91</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            old_cost &#61; new_cost</span>
+          </td>
+        </tr>
+        <tr id='L92'>
+          <td class='lineno'>92</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            regularizations.control_reg *&#61; 0.98 #TODO: Convert to global variable</span>
+          </td>
+        </tr>
+        <tr id='L93'>
+          <td class='lineno'>93</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            regularizations.belief_reg *&#61; 0.98</span>
+          </td>
+        </tr>
+        <tr id='L94'>
+          <td class='lineno'>94</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            improvement_iterations &#43;&#61; 1</span>
+          </td>
+        </tr>
+        <tr id='L95'>
+          <td class='lineno'>95</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L96'>
+          <td class='lineno'>96</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # cur_ff_norm &#61; length&#40;feed_forward_norms_history&#41;</span>
+          </td>
+        </tr>
+        <tr id='L97'>
+          <td class='lineno'>97</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # println&#40;&quot;\t step accepted, &#36;improvement_iterations / &#36;iterations&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L98'>
+          <td class='lineno'>98</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L99'>
+          <td class='lineno'>99</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # if save_intermediate_solutions</span>
+          </td>
+        </tr>
+        <tr id='L100'>
+          <td class='lineno'>100</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            #     # Store the maximum feed_forward norm as a condition number proxy</span>
+          </td>
+        </tr>
+        <tr id='L101'>
+          <td class='lineno'>101</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            #     # Higher norms often indicate worse conditioning of the optimization problem</span>
+          </td>
+        </tr>
+        <tr id='L102'>
+          <td class='lineno'>102</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            #     max_cond &#61; isempty&#40;feedback_terms&#41; ? 0.0 : maximum&#40;norm.&#40;feedback_terms&#91;end&#93;&#91;1&#93;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L103'>
+          <td class='lineno'>103</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            #     push&#33;&#40;intermediate_solutions, &#40;candidate_beliefs, candidate_controls&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L104'>
+          <td class='lineno'>104</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            #     push&#33;&#40;cond, max_cond&#41;</span>
+          </td>
+        </tr>
+        <tr id='L105'>
+          <td class='lineno'>105</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # end</span>
+          </td>
+        </tr>
+        <tr id='L106'>
+          <td class='lineno'>106</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L107'>
+          <td class='lineno'>107</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        else</span>
+          </td>
+        </tr>
+        <tr id='L108'>
+          <td class='lineno'>108</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            if regularizations.control_reg &gt; 1000</span>
+          </td>
+        </tr>
+        <tr id='L109'>
+          <td class='lineno'>109</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                break</span>
+          </td>
+        </tr>
+        <tr id='L110'>
+          <td class='lineno'>110</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L111'>
+          <td class='lineno'>111</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            regularizations.control_reg *&#61; 1.3 #TODO: Convert to global variable</span>
+          </td>
+        </tr>
+        <tr id='L112'>
+          <td class='lineno'>112</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            regularizations.belief_reg *&#61; 1.3</span>
+          </td>
+        </tr>
+        <tr id='L113'>
+          <td class='lineno'>113</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L114'>
+          <td class='lineno'>114</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        iterations &#43;&#61; 1</span>
+          </td>
+        </tr>
+        <tr id='L115'>
+          <td class='lineno'>115</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L116'>
+          <td class='lineno'>116</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L117'>
+          <td class='lineno'>117</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='coreio.jl-39b00ebbcd79791e6d7c27f986694dd9518949a0.html#L4'>println</a>
+              <br />
+            </div>
+            <span class='code'>    println&#40;&quot;Converged in &#36;improvement_iterations / &#36;iterations iterations&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L118'>
+          <td class='lineno'>118</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L119'>
+          <td class='lineno'>119</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # Compute final control stationarity error</span>
+          </td>
+        </tr>
+        <tr id='L120'>
+          <td class='lineno'>120</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # _, _, final_kkt_error_norms &#61; backward_pass&#40;game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component&#61;:control&#41;</span>
+          </td>
+        </tr>
+        <tr id='L121'>
+          <td class='lineno'>121</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # println&#40;&quot;Final control stationarity error: &quot;, round&#40;mean&#40;norm.&#40;final_kkt_error_norms&#41;&#41;, digits&#61;6&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L122'>
+          <td class='lineno'>122</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # println&#40;&quot;error stats: \n\tmax: &quot;, round&#40;max&#40;kkt_error_norms...&#41;, digits&#61;3&#41;, &quot; min: &quot;, round&#40;min&#40;kkt_error_norms...&#41;, digits&#61;3&#41;, &quot; mean: &quot;, round&#40;mean&#40;kkt_error_norms&#41;, digits&#61;3&#41;, &quot; std: &quot;, round&#40;std&#40;kkt_error_norms&#41;, digits&#61;3&#41;, &quot; median: &quot;, round&#40;median&#40;kkt_error_norms&#41;, digits&#61;3&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L123'>
+          <td class='lineno'>123</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if &#33;isnothing&#40;kkt_error_norms&#41;</span>
+          </td>
+        </tr>
+        <tr id='L124'>
+          <td class='lineno'>124</td>
+          <td class='tracecount excl'>5 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>14 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              8 &#40;89 &#37;&#41;
+              samples spent calling
+              <a href='coreio.jl-39b00ebbcd79791e6d7c27f986694dd9518949a0.html#L4'>println</a>
+              <br />
+              1 &#40;11 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        println&#40;&quot;error mean: &quot;, round&#40;mean&#40;norm.&#40;kkt_error_norms&#41;&#41;, digits&#61;7&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L125'>
+          <td class='lineno'>125</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L126'>
+          <td class='lineno'>126</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L127'>
+          <td class='lineno'>127</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if save_intermediate_solutions</span>
+          </td>
+        </tr>
+        <tr id='L128'>
+          <td class='lineno'>128</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history&#91;2:end&#93;, kkt_error_history&#91;2:end&#93;, cond</span>
+          </td>
+        </tr>
+        <tr id='L129'>
+          <td class='lineno'>129</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L130'>
+          <td class='lineno'>130</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L131'>
+          <td class='lineno'>131</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return nominal_beliefs, nominal_controls, kkt_error_norms</span>
+          </td>
+        </tr>
+        <tr id='L132'>
+          <td class='lineno'>132</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L133'>
+          <td class='lineno'>133</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L134'>
+          <td class='lineno'>134</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># TODO: take a gradient step on one player&#39;s control &#40;IBR style&#41;</span>
+          </td>
+        </tr>
+        <tr id='L135'>
+          <td class='lineno'>135</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L136'>
+          <td class='lineno'>136</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>21922 &#40;70 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              43844 &#40;140 &#37;&#41;
+              samples spent in backward_pass
+              <br />
+              650 &#40;1 &#37;&#41; &#40;ex.&#41;,
+              21922 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from backward_pass
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L136'>line 136</a>
+              <br />
+              
+              21737 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from #solve#152
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L65'>line 65</a>
+              <br />
+              
+              185 &#40;0 &#37;&#41; &#40;incl.&#41;
+              when called from loss
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L365'>line 365</a>
+              <br />
+            </div>
+            <div class='callees'>
+              21922 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L136'>#backward_pass#155</a>
+              <br />
+            </div>
+            <span class='code'>function backward_pass&#40;game::BeliefGame, nominal_beliefs::Vector&#123;Beliefs&#125;, nominal_controls::Vector&#123;BlockVector&#125;, regularizations::Regularizations, iteration::Int; kkt_component::Symbol &#61; :control&#41;</span>
+          </td>
+        </tr>
+        <tr id='L137'>
+          <td class='lineno'>137</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    T &#61; eltype&#40;nominal_beliefs&#91;1&#93;.beliefs&#91;1&#93;.belief_mean&#41;</span>
+          </td>
+        </tr>
+        <tr id='L138'>
+          <td class='lineno'>138</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    n_players &#61; game.dims.n &#43; game.is_robust</span>
+          </td>
+        </tr>
+        <tr id='L139'>
+          <td class='lineno'>139</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    belief_size &#61; total_size&#40;nominal_beliefs&#91;end&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L140'>
+          <td class='lineno'>140</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L141'>
+          <td class='lineno'>141</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    V &#61; Vector&#123;T&#125;&#40;undef, n_players&#43;game.is_robust&#41;</span>
+          </td>
+        </tr>
+        <tr id='L142'>
+          <td class='lineno'>142</td>
+          <td class='tracecount excl'>4 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>7 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;67 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L784'>collect</a>
+              <br />
+              1 &#40;33 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    V_b &#61; &#91;Vector&#123;T&#125;&#40;undef, belief_size&#41; for _ in 1:n_players&#43;game.is_robust&#93;</span>
+          </td>
+        </tr>
+        <tr id='L143'>
+          <td class='lineno'>143</td>
+          <td class='tracecount excl'>6 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>13 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              6 &#40;86 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L784'>collect</a>
+              <br />
+              1 &#40;14 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    V_bb &#61; &#91;Matrix&#123;T&#125;&#40;undef, belief_size, belief_size&#41; for _ in 1:n_players&#43;game.is_robust&#93;</span>
+          </td>
+        </tr>
+        <tr id='L144'>
+          <td class='lineno'>144</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L145'>
+          <td class='lineno'>145</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # lagrange_multipliers &#61; &#91;&#91;Vector&#123;T&#125;&#40;undef, belief_size&#41; for _ in 1:n_players&#43;game.is_robust&#93; for _ in 1:game.horizon-1&#93;</span>
+          </td>
+        </tr>
+        <tr id='L146'>
+          <td class='lineno'>146</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L147'>
+          <td class='lineno'>147</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>33 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              33 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L784'>collect</a>
+              <br />
+            </div>
+            <span class='code'>    cost_gradient_info &#61; &#91;DiffResults.HessianResult&#40;vcat&#40;vec&#40;nominal_beliefs&#91;end&#93;&#41;, vec&#40;nominal_controls&#91;end&#93;&#41;&#41;&#41; for _ in 1:&#40;game.dims.n&#43;game.is_robust&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L148'>
+          <td class='lineno'>148</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L149'>
+          <td class='lineno'>149</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    joint_feedback_strategies &#61; Vector&#123;Any&#125;&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L150'>
+          <td class='lineno'>150</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    feed_forward_norms &#61; Vector&#123;Float64&#125;&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L151'>
+          <td class='lineno'>151</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    stationarity_errors &#61; Vector&#123;Vector&#123;T&#125;&#125;&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L152'>
+          <td class='lineno'>152</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    Q_suite &#61; Vector&#123;Any&#125;&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L153'>
+          <td class='lineno'>153</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L154'>
+          <td class='lineno'>154</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # Initialize gradient helpers</span>
+          </td>
+        </tr>
+        <tr id='L155'>
+          <td class='lineno'>155</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    x_val &#61; vec&#40;nominal_beliefs&#91;end&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L156'>
+          <td class='lineno'>156</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    terminal_cost_gradient_info &#61; DiffResults.HessianResult&#40;x_val&#41;</span>
+          </td>
+        </tr>
+        <tr id='L157'>
+          <td class='lineno'>157</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    for ii in 1:&#40;game.dims.n&#43;game.is_robust&#41;</span>
+          </td>
+        </tr>
+        <tr id='L158'>
+          <td class='lineno'>158</td>
+          <td class='tracecount excl'>4 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1520 &#40;5 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1427 &#40;94 &#37;&#41;
+              samples spent calling
+              <a href='hessian.jl-5fccbe099107cfda973d7802d1c83198aa8c1dcc.html#L66'>hessian&#33;</a>
+              <br />
+              89 &#40;6 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        ForwardDiff.hessian&#33;&#40;</span>
+          </td>
+        </tr>
+        <tr id='L159'>
+          <td class='lineno'>159</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            terminal_cost_gradient_info,</span>
+          </td>
+        </tr>
+        <tr id='L160'>
+          <td class='lineno'>160</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>212 &#40;1 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              212 &#40;1 &#37;&#41;
+              samples spent in #159
+              <br />
+              
+              205 &#40;97 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_gradient&#33;
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L125'>line 125</a>
+              <br />
+              
+              6 &#40;3 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_gradient&#33;
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L134'>line 134</a>
+              <br />
+              
+              1 &#40;0 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_gradient&#33;
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L141'>line 141</a>
+              <br />
+            </div>
+            <div class='callees'>
+              205 &#40;97 &#37;&#41;
+              samples spent calling
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L127'>terminal_cost_function</a>
+              <br />
+              7 &#40;3 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L71'>unvec</a>
+              <br />
+            </div>
+            <span class='code'>            &#40;x&#41; -&gt; game.costs&#91;ii&#93;.terminal_cost&#40;unvec&#40;x, game.dims.belief&#41;&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L161'>
+          <td class='lineno'>161</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            x_val&#41;</span>
+          </td>
+        </tr>
+        <tr id='L162'>
+          <td class='lineno'>162</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        V&#91;ii&#93; &#61; DiffResults.value&#40;terminal_cost_gradient_info&#41;</span>
+          </td>
+        </tr>
+        <tr id='L163'>
+          <td class='lineno'>163</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        V_b&#91;ii&#93; &#61; DiffResults.gradient&#40;terminal_cost_gradient_info&#41;</span>
+          </td>
+        </tr>
+        <tr id='L164'>
+          <td class='lineno'>164</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # lagrange_multipliers&#91;end&#93;&#91;ii&#93; &#61; DiffResults.gradient&#40;terminal_cost_gradient_info&#41;</span>
+          </td>
+        </tr>
+        <tr id='L165'>
+          <td class='lineno'>165</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        V_bb&#91;ii&#93; &#61; DiffResults.hessian&#40;terminal_cost_gradient_info&#41;</span>
+          </td>
+        </tr>
+        <tr id='L166'>
+          <td class='lineno'>166</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L167'>
+          <td class='lineno'>167</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L168'>
+          <td class='lineno'>168</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    for t in game.horizon-1:-1:1</span>
+          </td>
+        </tr>
+        <tr id='L169'>
+          <td class='lineno'>169</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>4 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              3 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L1'>ekf_update</a>
+              <br />
+            </div>
+            <span class='code'>        g, W &#61; ekf_update&#40;nominal_beliefs&#91;t&#93;, nominal_controls&#91;t&#93;, game.environment.dynamics, game.environment.sensor_models; is_robust&#61;game.is_robust, n_players &#61; game.dims.n&#41;</span>
+          </td>
+        </tr>
+        <tr id='L170'>
+          <td class='lineno'>170</td>
+          <td class='tracecount excl'>5 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>14583 &#40;47 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              14549 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L83'>ekf_update_gradient</a>
+              <br />
+              29 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        g_s, W_s &#61; ekf_update_gradient&#40;nominal_beliefs&#91;t&#93;, nominal_controls&#91;t&#93;, game.environment.dynamics, game.environment.sensor_models; is_robust&#61;game.is_robust, n_players &#61; game.dims.n&#41;</span>
+          </td>
+        </tr>
+        <tr id='L171'>
+          <td class='lineno'>171</td>
+          <td class='tracecount excl'>8 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>9 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        g_s &#61; real.&#40;g_s&#41;</span>
+          </td>
+        </tr>
+        <tr id='L172'>
+          <td class='lineno'>172</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='broadcast.jl-27c473cc851d44cf9c852f0e0e61c63b9c3240a8.html#L872'>materialize</a>
+              <br />
+            </div>
+            <span class='code'>        W_s &#61; real.&#40;W_s&#41;</span>
+          </td>
+        </tr>
+        <tr id='L173'>
+          <td class='lineno'>173</td>
+          <td class='tracecount excl'>29 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>62 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              19 &#40;58 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              14 &#40;42 &#37;&#41;
+              samples spent calling
+              <a href='broadcast.jl-27c473cc851d44cf9c852f0e0e61c63b9c3240a8.html#L872'>materialize</a>
+              <br />
+            </div>
+            <span class='code'>        W &#61; real.&#40;W&#41;</span>
+          </td>
+        </tr>
+        <tr id='L174'>
+          <td class='lineno'>174</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        </span>
+          </td>
+        </tr>
+        <tr id='L175'>
+          <td class='lineno'>175</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        for ii in 1:&#40;game.dims.n&#43;game.is_robust&#41;</span>
+          </td>
+        </tr>
+        <tr id='L176'>
+          <td class='lineno'>176</td>
+          <td class='tracecount excl'>4 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2582 &#40;8 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2488 &#40;97 &#37;&#41;
+              samples spent calling
+              <a href='hessian.jl-5fccbe099107cfda973d7802d1c83198aa8c1dcc.html#L66'>hessian&#33;</a>
+              <br />
+              88 &#40;3 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              2 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L68'>vec</a>
+              <br />
+            </div>
+            <span class='code'>        ForwardDiff.hessian&#33;&#40;</span>
+          </td>
+        </tr>
+        <tr id='L177'>
+          <td class='lineno'>177</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            cost_gradient_info&#91;ii&#93;,</span>
+          </td>
+        </tr>
+        <tr id='L178'>
+          <td class='lineno'>178</td>
+          <td class='tracecount excl'>6 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>581 &#40;2 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              581 &#40;2 &#37;&#41;
+              samples spent in #160
+              <br />
+              6 &#40;1 &#37;&#41; &#40;ex.&#41;,
+              546 &#40;94 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_gradient&#33;
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L125'>line 125</a>
+              <br />
+              
+              23 &#40;4 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_gradient&#33;
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L134'>line 134</a>
+              <br />
+              
+              12 &#40;2 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_gradient&#33;
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L141'>line 141</a>
+              <br />
+            </div>
+            <div class='callees'>
+              381 &#40;66 &#37;&#41;
+              samples spent calling
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L118'>non_terminal_cost_function</a>
+              <br />
+              153 &#40;27 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              26 &#40;5 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L71'>unvec</a>
+              <br />
+              7 &#40;1 &#37;&#41;
+              samples spent calling
+              <a href='blockarray.jl-ca3d8815dbff559142457f6eb371da19dc930c87.html#L272'>BlockArray</a>
+              <br />
+              6 &#40;1 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L940'>getindex</a>
+              <br />
+              2 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L938'>getindex</a>
+              <br />
+            </div>
+            <span class='code'>            x -&gt; game.costs&#91;ii&#93;.non_terminal_cost&#40;</span>
+          </td>
+        </tr>
+        <tr id='L179'>
+          <td class='lineno'>179</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                unvec&#40;x&#91;1:total_size&#40;nominal_beliefs&#91;t&#93;&#41;&#93;, game.dims.belief&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L180'>
+          <td class='lineno'>180</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                BlockVector&#40;x&#91;total_size&#40;nominal_beliefs&#91;t&#93;&#41;&#43;1:end&#93;, game.is_robust ? vcat&#40;game.dims.controls, sum&#40;game.dims.states&#41;&#41; : game.dims.controls&#41;</span>
+          </td>
+        </tr>
+        <tr id='L181'>
+          <td class='lineno'>181</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                    &#41;,</span>
+          </td>
+        </tr>
+        <tr id='L182'>
+          <td class='lineno'>182</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                vcat&#40;vec&#40;nominal_beliefs&#91;t&#93;&#41;, vec&#40;nominal_controls&#91;t&#93;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L183'>
+          <td class='lineno'>183</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                &#41;</span>
+          </td>
+        </tr>
+        <tr id='L184'>
+          <td class='lineno'>184</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L185'>
+          <td class='lineno'>185</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        if DEBUG</span>
+          </td>
+        </tr>
+        <tr id='L186'>
+          <td class='lineno'>186</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            open&#40;DEBUG_FILE, &quot;a&quot;&#41; do f</span>
+          </td>
+        </tr>
+        <tr id='L187'>
+          <td class='lineno'>187</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                println&#40;f, &quot;&#91;backward_pass&#93; time: &#36;t&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L188'>
+          <td class='lineno'>188</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                println&#40;f, &quot;cost_gradient_info:&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L189'>
+          <td class='lineno'>189</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                display_matrix &#61; IOContext&#40;f, :limit&#61;&gt;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L190'>
+          <td class='lineno'>190</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                show&#40;display_matrix, &quot;text/plain&quot;, cost_gradient_info&#41;</span>
+          </td>
+        </tr>
+        <tr id='L191'>
+          <td class='lineno'>191</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                println&#40;f&#41;</span>
+          </td>
+        </tr>
+        <tr id='L192'>
+          <td class='lineno'>192</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                println&#40;f, &quot;V:&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L193'>
+          <td class='lineno'>193</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                display_matrix &#61; IOContext&#40;f, :limit&#61;&gt;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L194'>
+          <td class='lineno'>194</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                show&#40;display_matrix, &quot;text/plain&quot;, V&#41;</span>
+          </td>
+        </tr>
+        <tr id='L195'>
+          <td class='lineno'>195</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                println&#40;f&#41;</span>
+          </td>
+        </tr>
+        <tr id='L196'>
+          <td class='lineno'>196</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L197'>
+          <td class='lineno'>197</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L198'>
+          <td class='lineno'>198</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>56 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              56 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='abstractarray.jl-d615cb4f2872db4801d2111e745b5337dc9c0e81.html#L3371'>map</a>
+              <br />
+            </div>
+            <span class='code'>        Q &#61; map&#40;1:&#40;game.dims.n&#43;game.is_robust&#41;&#41; do ii</span>
+          </td>
+        </tr>
+        <tr id='L199'>
+          <td class='lineno'>199</td>
+          <td class='tracecount excl'>3 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>34 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              34 &#40;0 &#37;&#41;
+              samples spent in #162
+              <br />
+              3 &#40;9 &#37;&#41; &#40;ex.&#41;,
+              34 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from iterate
+              <a href='generator.jl-e965c7382e8ef9a8ed31f468aebdd927d27a0443.html#L48'>line 48</a>
+              <br />
+            </div>
+            <div class='callees'>
+              31 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='reducedim.jl-01977a06532ecfa708de4060219662b740836ce8.html#L329'>mapreduce</a>
+              <br />
+            </div>
+            <span class='code'>            clip&#40;DiffResults.value&#40;cost_gradient_info&#91;ii&#93;&#41; &#43;</span>
+          </td>
+        </tr>
+        <tr id='L200'>
+          <td class='lineno'>200</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            V&#91;ii&#93; &#43; </span>
+          </td>
+        </tr>
+        <tr id='L201'>
+          <td class='lineno'>201</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            only&#40;0.5 * mapreduce&#40;&#43;, 1:sum&#40;game.dims.states&#41;&#41; do jj</span>
+          </td>
+        </tr>
+        <tr id='L202'>
+          <td class='lineno'>202</td>
+          <td class='tracecount excl'>21 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>31 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              31 &#40;0 &#37;&#41;
+              samples spent in #163
+              <br />
+              21 &#40;68 &#37;&#41; &#40;ex.&#41;,
+              31 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from _mapreduce
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L437'>line 437</a>
+              <br />
+            </div>
+            <div class='callees'>
+              10 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>                W&#91;:, jj, :&#93;&#39; *V_bb&#91;ii&#93; * W&#91;:, jj&#93;</span>
+          </td>
+        </tr>
+        <tr id='L203'>
+          <td class='lineno'>203</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end&#41;, clip_norm&#41;</span>
+          </td>
+        </tr>
+        <tr id='L204'>
+          <td class='lineno'>204</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L205'>
+          <td class='lineno'>205</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        belief_size &#61; game.is_robust ? &#91;&#91;total_size&#40;b&#41; for b in nominal_beliefs&#91;t&#93;.beliefs&#93;..., game.dims.controls..., sum&#40;game.dims.states&#41;&#93; : &#91;&#91;total_size&#40;b&#41; for b in nominal_beliefs&#91;t&#93;.beliefs&#93;..., game.dims.controls...&#93;</span>
+          </td>
+        </tr>
+        <tr id='L206'>
+          <td class='lineno'>206</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>40 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              40 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='abstractarray.jl-d615cb4f2872db4801d2111e745b5337dc9c0e81.html#L3371'>map</a>
+              <br />
+            </div>
+            <span class='code'>        Q_s &#61; map&#40;1:&#40;game.dims.n&#43;game.is_robust&#41;&#41; do ii</span>
+          </td>
+        </tr>
+        <tr id='L207'>
+          <td class='lineno'>207</td>
+          <td class='tracecount excl'>5 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>15 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              15 &#40;0 &#37;&#41;
+              samples spent in #166
+              <br />
+              5 &#40;33 &#37;&#41; &#40;ex.&#41;,
+              15 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from iterate
+              <a href='generator.jl-e965c7382e8ef9a8ed31f468aebdd927d27a0443.html#L48'>line 48</a>
+              <br />
+            </div>
+            <div class='callees'>
+              8 &#40;80 &#37;&#41;
+              samples spent calling
+              <a href='reducedim.jl-01977a06532ecfa708de4060219662b740836ce8.html#L329'>mapreduce</a>
+              <br />
+              2 &#40;20 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>            BlockVector&#40;</span>
+          </td>
+        </tr>
+        <tr id='L208'>
+          <td class='lineno'>208</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                clip&#40;DiffResults.gradient&#40;cost_gradient_info&#91;ii&#93;&#41; &#43;</span>
+          </td>
+        </tr>
+        <tr id='L209'>
+          <td class='lineno'>209</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                g_s&#39; * V_b&#91;ii&#93; &#43; </span>
+          </td>
+        </tr>
+        <tr id='L210'>
+          <td class='lineno'>210</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                0.5 * mapreduce&#40;&#43;, 1:sum&#40;game.dims.states&#41;&#41; do jj</span>
+          </td>
+        </tr>
+        <tr id='L211'>
+          <td class='lineno'>211</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>8 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              8 &#40;0 &#37;&#41;
+              samples spent in #167
+              <br />
+              1 &#40;12 &#37;&#41; &#40;ex.&#41;,
+              8 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from _mapreduce
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L437'>line 437</a>
+              <br />
+            </div>
+            <div class='callees'>
+              6 &#40;86 &#37;&#41;
+              samples spent calling
+              <a href='abstractarray.jl-d615cb4f2872db4801d2111e745b5337dc9c0e81.html#L1309'>getindex</a>
+              <br />
+              1 &#40;14 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>                    W_s&#91;:,jj,:&#93;&#39; *V_bb&#91;ii&#93; * W&#91;:,jj&#93;</span>
+          </td>
+        </tr>
+        <tr id='L212'>
+          <td class='lineno'>212</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                end, clip_norm&#41;, </span>
+          </td>
+        </tr>
+        <tr id='L213'>
+          <td class='lineno'>213</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                belief_size</span>
+          </td>
+        </tr>
+        <tr id='L214'>
+          <td class='lineno'>214</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            &#41;</span>
+          </td>
+        </tr>
+        <tr id='L215'>
+          <td class='lineno'>215</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L216'>
+          <td class='lineno'>216</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>962 &#40;3 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              962 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='abstractarray.jl-d615cb4f2872db4801d2111e745b5337dc9c0e81.html#L3371'>map</a>
+              <br />
+            </div>
+            <span class='code'>        Q_ss &#61; map&#40;1:&#40;game.dims.n&#43;game.is_robust&#41;&#41; do ii</span>
+          </td>
+        </tr>
+        <tr id='L217'>
+          <td class='lineno'>217</td>
+          <td class='tracecount excl'>88 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>335 &#40;1 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              931 &#40;3 &#37;&#41;
+              samples spent in #168
+              <br />
+              526 &#40;56 &#37;&#41; &#40;ex.&#41;,
+              931 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from iterate
+              <a href='generator.jl-e965c7382e8ef9a8ed31f468aebdd927d27a0443.html#L48'>line 48</a>
+              <br />
+            </div>
+            <div class='callees'>
+              230 &#40;93 &#37;&#41;
+              samples spent calling
+              <a href='reducedim.jl-01977a06532ecfa708de4060219662b740836ce8.html#L329'>mapreduce</a>
+              <br />
+              16 &#40;6 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              1 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='arraymath.jl-e35ad49a7081866d17ae6953c27b4c9ad5125a3a.html#L21'>*</a>
+              <br />
+            </div>
+            <span class='code'>            temp &#61; BlockArray&#40;</span>
+          </td>
+        </tr>
+        <tr id='L218'>
+          <td class='lineno'>218</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                clip&#40;DiffResults.hessian&#40;cost_gradient_info&#91;ii&#93;&#41; &#43;</span>
+          </td>
+        </tr>
+        <tr id='L219'>
+          <td class='lineno'>219</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                g_s&#39; * &#40;V_bb&#91;ii&#93;&#43;regularizations.belief_reg * I&#41; * g_s &#43;</span>
+          </td>
+        </tr>
+        <tr id='L220'>
+          <td class='lineno'>220</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                0.5 * mapreduce&#40;&#43;, 1:sum&#40;game.dims.states&#41;&#41; do jj</span>
+          </td>
+        </tr>
+        <tr id='L221'>
+          <td class='lineno'>221</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>230 &#40;1 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              230 &#40;1 &#37;&#41;
+              samples spent in #169
+              <br />
+              
+              229 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from _mapreduce
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L440'>line 440</a>
+              <br />
+              
+              1 &#40;0 &#37;&#41; &#40;incl.&#41;
+              when called from _mapreduce
+              <a href='reduce.jl-67802fe0d334190c6f595a63108df79614bc302d.html#L437'>line 437</a>
+              <br />
+            </div>
+            <div class='callees'>
+              229 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='uniformscaling.jl-5cf841f6719d22b74a6045ee599be01ae5d7914b.html#L214'>&#43;</a>
+              <br />
+              1 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='abstractarray.jl-d615cb4f2872db4801d2111e745b5337dc9c0e81.html#L1309'>getindex</a>
+              <br />
+            </div>
+            <span class='code'>                    W_s&#91;:,jj,:&#93;&#39; * &#40;V_bb&#91;ii&#93;&#43;regularizations.belief_reg * I&#41; * W_s&#91;:,jj,:&#93;</span>
+          </td>
+        </tr>
+        <tr id='L222'>
+          <td class='lineno'>222</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                end, clip_norm&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L223'>
+          <td class='lineno'>223</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                belief_size,</span>
+          </td>
+        </tr>
+        <tr id='L224'>
+          <td class='lineno'>224</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                belief_size</span>
+          </td>
+        </tr>
+        <tr id='L225'>
+          <td class='lineno'>225</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            &#41;</span>
+          </td>
+        </tr>
+        <tr id='L226'>
+          <td class='lineno'>226</td>
+          <td class='tracecount excl'>438 &#40;1 &#37;&#41;</td>
+          <td class='tracecount incl'>596 &#40;2 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              157 &#40;99 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              1 &#40;1 &#37;&#41;
+              samples spent calling
+              <a href='abstractblockarray.jl-07390593f53f279116a4c6cfd08572365b0b1554.html#L230'>getindex</a>
+              <br />
+            </div>
+            <span class='code'>            temp&#91;Block&#40;game.dims.n&#43;1&#41;:Block&#40;2*game.dims.n&#41;, Block&#40;game.dims.n&#43;1&#41;:Block&#40;2*game.dims.n&#41;&#93; &#43;&#61; regularizations.control_reg * I</span>
+          </td>
+        </tr>
+        <tr id='L227'>
+          <td class='lineno'>227</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            temp</span>
+          </td>
+        </tr>
+        <tr id='L228'>
+          <td class='lineno'>228</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L229'>
+          <td class='lineno'>229</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        if DEBUG</span>
+          </td>
+        </tr>
+        <tr id='L230'>
+          <td class='lineno'>230</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            open&#40;DEBUG_FILE, &quot;a&quot;&#41; do f</span>
+          </td>
+        </tr>
+        <tr id='L231'>
+          <td class='lineno'>231</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                println&#40;f, &quot;&#91;backward_pass&#93;&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L232'>
+          <td class='lineno'>232</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                println&#40;f, &quot;control reg: &#36;&#40;regularizations.control_reg&#41;&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L233'>
+          <td class='lineno'>233</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                println&#40;f, &quot;belief reg: &#36;&#40;regularizations.belief_reg&#41;&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L234'>
+          <td class='lineno'>234</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L235'>
+          <td class='lineno'>235</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L236'>
+          <td class='lineno'>236</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>60 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              60 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='reducedim.jl-01977a06532ecfa708de4060219662b740836ce8.html#L329'>mapreduce</a>
+              <br />
+            </div>
+            <span class='code'>        Qh_u &#61; mapreduce&#40;vcat, 1:&#40;game.dims.n&#43;game.is_robust&#41;&#41; do ii</span>
+          </td>
+        </tr>
+        <tr id='L237'>
+          <td class='lineno'>237</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            if ii &lt;&#61; game.dims.n  # Regular players &#40;activists&#41;</span>
+          </td>
+        </tr>
+        <tr id='L238'>
+          <td class='lineno'>238</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                @view Q_s&#91;ii&#93;&#91;Block&#40;game.dims.num_senators*&#40;ii-1&#41;&#43;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;game.dims.num_senators*&#40;ii&#41;&#43;game.dims.n*game.dims.num_beliefs_per_activist&#41;&#93; # control gradient</span>
+          </td>
+        </tr>
+        <tr id='L239'>
+          <td class='lineno'>239</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            else  # Nature player &#40;single block&#41;</span>
+          </td>
+        </tr>
+        <tr id='L240'>
+          <td class='lineno'>240</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                @view Q_s&#91;ii&#93;&#91;Block&#40;game.dims.num_senators*game.dims.n&#43;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;game.dims.num_senators*game.dims.n&#43;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;&#93; # nature control gradient</span>
+          </td>
+        </tr>
+        <tr id='L241'>
+          <td class='lineno'>241</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L242'>
+          <td class='lineno'>242</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L243'>
+          <td class='lineno'>243</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>24 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              24 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='reducedim.jl-01977a06532ecfa708de4060219662b740836ce8.html#L329'>mapreduce</a>
+              <br />
+            </div>
+            <span class='code'>        Qh_b &#61; mapreduce&#40;vcat, 1:&#40;game.dims.n&#41;&#41; do ii</span>
+          </td>
+        </tr>
+        <tr id='L244'>
+          <td class='lineno'>244</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            @view Q_s&#91;ii&#93;&#91;Block&#40;&#40;ii-1&#41;*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;ii*game.dims.num_beliefs_per_activist&#41;&#93; # belief gradient</span>
+          </td>
+        </tr>
+        <tr id='L245'>
+          <td class='lineno'>245</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L246'>
+          <td class='lineno'>246</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        </span>
+          </td>
+        </tr>
+        <tr id='L247'>
+          <td class='lineno'>247</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>84 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              84 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='reducedim.jl-01977a06532ecfa708de4060219662b740836ce8.html#L329'>mapreduce</a>
+              <br />
+            </div>
+            <span class='code'>        Qh_uu &#61; mapreduce&#40;vcat, 1:&#40;game.dims.n&#43;game.is_robust&#41;&#41; do ii</span>
+          </td>
+        </tr>
+        <tr id='L248'>
+          <td class='lineno'>248</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            if ii &lt;&#61; game.dims.n  # Regular players &#40;activists&#41;</span>
+          </td>
+        </tr>
+        <tr id='L249'>
+          <td class='lineno'>249</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                @view Q_ss&#91;ii&#93;&#91;Block&#40;&#40;ii-1&#41;*game.dims.num_senators&#43;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;ii*game.dims.num_senators&#43;game.dims.n*game.dims.num_beliefs_per_activist&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L250'>
+          <td class='lineno'>250</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                                Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;game.dims.n*game.dims.num_senators&#43;game.dims.n*game.dims.num_beliefs_per_activist&#43;game.is_robust&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L251'>
+          <td class='lineno'>251</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            else  # Nature player &#40;single block&#41;</span>
+          </td>
+        </tr>
+        <tr id='L252'>
+          <td class='lineno'>252</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                nature_block_start &#61; game.dims.num_senators*game.dims.n&#43;game.dims.n*game.dims.num_beliefs_per_activist&#43;1</span>
+          </td>
+        </tr>
+        <tr id='L253'>
+          <td class='lineno'>253</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                @view Q_ss&#91;ii&#93;&#91;Block&#40;nature_block_start&#41;:Block&#40;nature_block_start&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L254'>
+          <td class='lineno'>254</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                                Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;game.dims.n*game.dims.num_senators&#43;game.dims.n*game.dims.num_beliefs_per_activist&#43;game.is_robust&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L255'>
+          <td class='lineno'>255</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L256'>
+          <td class='lineno'>256</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L257'>
+          <td class='lineno'>257</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>13 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              13 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='reducedim.jl-01977a06532ecfa708de4060219662b740836ce8.html#L329'>mapreduce</a>
+              <br />
+            </div>
+            <span class='code'>        Qh_ub &#61; mapreduce&#40;vcat, 1:&#40;game.dims.n&#43;game.is_robust&#41;&#41; do ii</span>
+          </td>
+        </tr>
+        <tr id='L258'>
+          <td class='lineno'>258</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            if ii &lt;&#61; game.dims.n  # Regular players &#40;activists&#41;</span>
+          </td>
+        </tr>
+        <tr id='L259'>
+          <td class='lineno'>259</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                @view Q_ss&#91;ii&#93;&#91;Block&#40;&#40;ii-1&#41;*game.dims.num_senators&#43;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;ii*game.dims.num_senators&#43;game.dims.n*game.dims.num_beliefs_per_activist&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L260'>
+          <td class='lineno'>260</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                Block&#40;1&#41;:Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L261'>
+          <td class='lineno'>261</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            else  # Nature player &#40;single block&#41;</span>
+          </td>
+        </tr>
+        <tr id='L262'>
+          <td class='lineno'>262</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                nature_block_start &#61; game.dims.num_senators*game.dims.n&#43;game.dims.n*game.dims.num_beliefs_per_activist&#43;1</span>
+          </td>
+        </tr>
+        <tr id='L263'>
+          <td class='lineno'>263</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                @view Q_ss&#91;ii&#93;&#91;Block&#40;nature_block_start&#41;:Block&#40;nature_block_start&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L264'>
+          <td class='lineno'>264</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                Block&#40;1&#41;:Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L265'>
+          <td class='lineno'>265</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L266'>
+          <td class='lineno'>266</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L267'>
+          <td class='lineno'>267</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L268'>
+          <td class='lineno'>268</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        stationarity_error &#61; if kkt_component &#61;&#61;&#61; :control</span>
+          </td>
+        </tr>
+        <tr id='L269'>
+          <td class='lineno'>269</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            Qh_u</span>
+          </td>
+        </tr>
+        <tr id='L270'>
+          <td class='lineno'>270</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        elseif kkt_component &#61;&#61;&#61; :belief</span>
+          </td>
+        </tr>
+        <tr id='L271'>
+          <td class='lineno'>271</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            Qh_b</span>
+          </td>
+        </tr>
+        <tr id='L272'>
+          <td class='lineno'>272</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        else</span>
+          </td>
+        </tr>
+        <tr id='L273'>
+          <td class='lineno'>273</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            &#91;Qh_b; Qh_u&#93;</span>
+          </td>
+        </tr>
+        <tr id='L274'>
+          <td class='lineno'>274</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L275'>
+          <td class='lineno'>275</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>116 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              113 &#40;99 &#37;&#41;
+              samples spent calling
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L309'>calculate_feedback_terms</a>
+              <br />
+              1 &#40;1 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>        feed_forward, feed_back &#61; calculate_feedback_terms&#40;Qh_uu, Qh_ub, Qh_u&#41;</span>
+          </td>
+        </tr>
+        <tr id='L276'>
+          <td class='lineno'>276</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        push&#33;&#40;joint_feedback_strategies, &#40;;feed_forward, feed_back&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L277'>
+          <td class='lineno'>277</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        push&#33;&#40;feed_forward_norms, norm&#40;feed_forward&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L278'>
+          <td class='lineno'>278</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>        push&#33;&#40;stationarity_errors, stationarity_error&#41;</span>
+          </td>
+        </tr>
+        <tr id='L279'>
+          <td class='lineno'>279</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        push&#33;&#40;Q_suite, &#40;;Qh_uu, Qh_ub, Qh_u, Qh_b&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L280'>
+          <td class='lineno'>280</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L281'>
+          <td class='lineno'>281</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        for ii in 1:&#40;game.dims.n &#43; game.is_robust&#41;</span>
+          </td>
+        </tr>
+        <tr id='L282'>
+          <td class='lineno'>282</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>            Q_u &#61; @view Q_s&#91;ii&#93;&#91;Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#43;game.dims.num_senators*game.dims.n&#43;game.is_robust&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L283'>
+          <td class='lineno'>283</td>
+          <td class='tracecount excl'>3 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>3 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>            Q_uu &#61; @view Q_ss&#91;ii&#93;&#91;Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#43;game.dims.num_senators*game.dims.n&#43;game.is_robust&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L284'>
+          <td class='lineno'>284</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                            Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#43;game.dims.num_senators*game.dims.n&#43;game.is_robust&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L285'>
+          <td class='lineno'>285</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            Q_b &#61; @view Q_s&#91;ii&#93;&#91;Block&#40;1&#41;:Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L286'>
+          <td class='lineno'>286</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            Q_ub &#61; @view Q_ss&#91;ii&#93;&#91;Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#43;1&#41;:Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#43;game.dims.num_senators*game.dims.n&#43;game.is_robust&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L287'>
+          <td class='lineno'>287</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                            Block&#40;1&#41;:Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L288'>
+          <td class='lineno'>288</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            Q_bb &#61; @view Q_ss&#91;ii&#93;&#91;Block&#40;1&#41;:Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#41;,</span>
+          </td>
+        </tr>
+        <tr id='L289'>
+          <td class='lineno'>289</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                            Block&#40;1&#41;:Block&#40;game.dims.n*game.dims.num_beliefs_per_activist&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L290'>
+          <td class='lineno'>290</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L291'>
+          <td class='lineno'>291</td>
+          <td class='tracecount excl'>59 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>81 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              21 &#40;95 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              1 &#40;5 &#37;&#41;
+              samples spent calling
+              <a href='adjtrans.jl-53375b9091fd9f9ca3138519876fd4954d565dbc.html#L478'>*</a>
+              <br />
+            </div>
+            <span class='code'>            V&#91;ii&#93; &#61; clip&#40;Q&#91;ii&#93; &#43; Q_u&#39; * feed_forward &#43;</span>
+          </td>
+        </tr>
+        <tr id='L292'>
+          <td class='lineno'>292</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                             0.5 * feed_forward&#39; * Q_uu * feed_forward, clip_norm&#41;</span>
+          </td>
+        </tr>
+        <tr id='L293'>
+          <td class='lineno'>293</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            </span>
+          </td>
+        </tr>
+        <tr id='L294'>
+          <td class='lineno'>294</td>
+          <td class='tracecount excl'>164 &#40;1 &#37;&#41;</td>
+          <td class='tracecount incl'>654 &#40;2 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              344 &#40;70 &#37;&#41;
+              samples spent calling
+              <a href='operators.jl-26cd382a1eb7ba3a56d9c82f8425f0d78076b2c8.html#L596'>&#43;</a>
+              <br />
+              146 &#40;30 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>            V_b&#91;ii&#93; &#61; clip&#40;Q_b &#43; # Q_b</span>
+          </td>
+        </tr>
+        <tr id='L295'>
+          <td class='lineno'>295</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                                feed_back&#39; * Q_uu * feed_forward &#43; # Q_uu</span>
+          </td>
+        </tr>
+        <tr id='L296'>
+          <td class='lineno'>296</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                                feed_back&#39; * Q_u &#43; # Q_u</span>
+          </td>
+        </tr>
+        <tr id='L297'>
+          <td class='lineno'>297</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                                Q_ub&#39; * feed_forward, clip_norm&#41;# Q_ub</span>
+          </td>
+        </tr>
+        <tr id='L298'>
+          <td class='lineno'>298</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # lagrange_multipliers&#91;t&#93;&#91;ii&#93; &#61; V_b&#91;ii&#93;</span>
+          </td>
+        </tr>
+        <tr id='L299'>
+          <td class='lineno'>299</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L300'>
+          <td class='lineno'>300</td>
+          <td class='tracecount excl'>347 &#40;1 &#37;&#41;</td>
+          <td class='tracecount incl'>1000 &#40;3 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              329 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              226 &#40;35 &#37;&#41;
+              samples spent calling
+              <a href='operators.jl-26cd382a1eb7ba3a56d9c82f8425f0d78076b2c8.html#L596'>&#43;</a>
+              <br />
+              90 &#40;14 &#37;&#41;
+              samples spent calling
+              <a href='matmul.jl-3897ffaa3361a0bdc8f53d4197aeb7fd73af1cf0.html#L112'>*</a>
+              <br />
+              7 &#40;1 &#37;&#41;
+              samples spent calling
+              <a href='matmul.jl-3897ffaa3361a0bdc8f53d4197aeb7fd73af1cf0.html#L1132'>*</a>
+              <br />
+              1 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L126'>clip</a>
+              <br />
+            </div>
+            <span class='code'>            V_bb&#91;ii&#93; &#61; clip&#40;Q_bb &#43; # Q_bb</span>
+          </td>
+        </tr>
+        <tr id='L301'>
+          <td class='lineno'>301</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                                 feed_back&#39; * Q_uu * feed_back &#43; # Q_uu</span>
+          </td>
+        </tr>
+        <tr id='L302'>
+          <td class='lineno'>302</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                                 feed_back&#39; * Q_ub &#43; # Q_ub</span>
+          </td>
+        </tr>
+        <tr id='L303'>
+          <td class='lineno'>303</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                                 Q_ub&#39; * feed_back, clip_norm&#41; # Q_ub</span>
+          </td>
+        </tr>
+        <tr id='L304'>
+          <td class='lineno'>304</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L305'>
+          <td class='lineno'>305</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L306'>
+          <td class='lineno'>306</td>
+          <td class='tracecount excl'>3 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>3 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    return reverse&#33;&#40;joint_feedback_strategies&#41;, reverse&#33;&#40;feed_forward_norms&#41;, reverse&#33;&#40;stationarity_errors&#41;, reverse&#33;&#40;Q_suite&#41;</span>
+          </td>
+        </tr>
+        <tr id='L307'>
+          <td class='lineno'>307</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L308'>
+          <td class='lineno'>308</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L309'>
+          <td class='lineno'>309</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              113 &#40;0 &#37;&#41;
+              samples spent in calculate_feedback_terms
+              <br />
+              92 &#40;81 &#37;&#41; &#40;ex.&#41;,
+              113 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from #backward_pass#155
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L275'>line 275</a>
+              <br />
+            </div>
+            
+            <span class='code'>function calculate_feedback_terms&#40;Qh_uu, Qh_ub, Qh_u&#41;</span>
+          </td>
+        </tr>
+        <tr id='L310'>
+          <td class='lineno'>310</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if DEBUG</span>
+          </td>
+        </tr>
+        <tr id='L311'>
+          <td class='lineno'>311</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        open&#40;DEBUG_FILE, &quot;a&quot;&#41; do f</span>
+          </td>
+        </tr>
+        <tr id='L312'>
+          <td class='lineno'>312</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            println&#40;f, &quot;&#91;calculate_feedback_terms&#93;&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L313'>
+          <td class='lineno'>313</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            println&#40;f, &quot;Qh_uu:&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L314'>
+          <td class='lineno'>314</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            display_matrix &#61; IOContext&#40;f, :limit&#61;&gt;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L315'>
+          <td class='lineno'>315</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            show&#40;display_matrix, &quot;text/plain&quot;, Qh_uu&#41;</span>
+          </td>
+        </tr>
+        <tr id='L316'>
+          <td class='lineno'>316</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            println&#40;f&#41;</span>
+          </td>
+        </tr>
+        <tr id='L317'>
+          <td class='lineno'>317</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # println&#40;f, &quot;Qh_uu_inv:&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L318'>
+          <td class='lineno'>318</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # show&#40;display_matrix, &quot;text/plain&quot;, Qh_uu_inv&#41;</span>
+          </td>
+        </tr>
+        <tr id='L319'>
+          <td class='lineno'>319</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # println&#40;f&#41;</span>
+          </td>
+        </tr>
+        <tr id='L320'>
+          <td class='lineno'>320</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # println&#40;f, &quot;feed_forward:&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L321'>
+          <td class='lineno'>321</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # show&#40;display_matrix, &quot;text/plain&quot;, feed_forward&#41;</span>
+          </td>
+        </tr>
+        <tr id='L322'>
+          <td class='lineno'>322</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # println&#40;f&#41;</span>
+          </td>
+        </tr>
+        <tr id='L323'>
+          <td class='lineno'>323</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # println&#40;f, &quot;feed_back:&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L324'>
+          <td class='lineno'>324</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # show&#40;display_matrix, &quot;text/plain&quot;, feed_back&#41;</span>
+          </td>
+        </tr>
+        <tr id='L325'>
+          <td class='lineno'>325</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            # println&#40;f&#41;</span>
+          </td>
+        </tr>
+        <tr id='L326'>
+          <td class='lineno'>326</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L327'>
+          <td class='lineno'>327</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end   </span>
+          </td>
+        </tr>
+        <tr id='L328'>
+          <td class='lineno'>328</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    Qh_uu_reg &#61; Qh_uu &#43; ϵ * I</span>
+          </td>
+        </tr>
+        <tr id='L329'>
+          <td class='lineno'>329</td>
+          <td class='tracecount excl'>74 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>85 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              10 &#40;91 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              1 &#40;9 &#37;&#41;
+              samples spent calling
+              <a href='uniformscaling.jl-5cf841f6719d22b74a6045ee599be01ae5d7914b.html#L277'>\</a>
+              <br />
+            </div>
+            <span class='code'>    Qh_uu_inv &#61; dual_round.&#40;clip&#40;Qh_uu_reg \ I, clip_norm&#41;, digits&#61;5&#41;</span>
+          </td>
+        </tr>
+        <tr id='L330'>
+          <td class='lineno'>330</td>
+          <td class='tracecount excl'>7 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>13 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              4 &#40;67 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              1 &#40;17 &#37;&#41;
+              samples spent calling
+              <a href='broadcast.jl-27c473cc851d44cf9c852f0e0e61c63b9c3240a8.html#L1307'>broadcasted_kwsyntax</a>
+              <br />
+              1 &#40;17 &#37;&#41;
+              samples spent calling
+              <a href='arraymath.jl-e35ad49a7081866d17ae6953c27b4c9ad5125a3a.html#L21'>*</a>
+              <br />
+            </div>
+            <span class='code'>    feed_forward &#61; -1 * dual_round.&#40;clip&#40;Qh_uu_inv * Qh_u, clip_norm&#41;, digits&#61;5&#41;</span>
+          </td>
+        </tr>
+        <tr id='L331'>
+          <td class='lineno'>331</td>
+          <td class='tracecount excl'>11 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>15 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              4 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    feed_back &#61; -1 * dual_round.&#40;clip&#40;Qh_uu_inv * Qh_ub, clip_norm&#41;, digits&#61;5&#41; </span>
+          </td>
+        </tr>
+        <tr id='L332'>
+          <td class='lineno'>332</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return feed_forward, feed_back</span>
+          </td>
+        </tr>
+        <tr id='L333'>
+          <td class='lineno'>333</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L334'>
+          <td class='lineno'>334</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L335'>
+          <td class='lineno'>335</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L336'>
+          <td class='lineno'>336</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function joint_feedback_strategy&#40;Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_belief, dims; α &#61; 0.01, is_robust&#61;false&#41;</span>
+          </td>
+        </tr>
+        <tr id='L337'>
+          <td class='lineno'>337</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    feed_forward, feed_back &#61; calculate_feedback_terms&#40;Qh_uu, Qh_ub, Qh_u&#41;</span>
+          </td>
+        </tr>
+        <tr id='L338'>
+          <td class='lineno'>338</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    function &#40;belief::Beliefs&#41;</span>
+          </td>
+        </tr>
+        <tr id='L339'>
+          <td class='lineno'>339</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        block_sizes &#61; is_robust ? vcat&#40;dims.controls, sum&#40;dims.states&#41;&#41; : dims.controls</span>
+          </td>
+        </tr>
+        <tr id='L340'>
+          <td class='lineno'>340</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        return BlockVector&#40;nominal_control &#43; α * feed_forward &#43; feed_back * &#40;belief - nominal_belief&#41;, block_sizes&#41;</span>
+          </td>
+        </tr>
+        <tr id='L341'>
+          <td class='lineno'>341</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L342'>
+          <td class='lineno'>342</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L343'>
+          <td class='lineno'>343</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L344'>
+          <td class='lineno'>344</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function build_strategy&#40;game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, α&#41;</span>
+          </td>
+        </tr>
+        <tr id='L345'>
+          <td class='lineno'>345</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>6 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              6 &#40;0 &#37;&#41;
+              samples spent in build_strategy
+              <br />
+              
+              6 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from line_search
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L390'>line 390</a>
+              <br />
+            </div>
+            <div class='callees'>
+              6 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='abstractarray.jl-d615cb4f2872db4801d2111e745b5337dc9c0e81.html#L3371'>map</a>
+              <br />
+            </div>
+            <span class='code'>    map&#40;1:game.horizon-1&#41; do t</span>
+          </td>
+        </tr>
+        <tr id='L346'>
+          <td class='lineno'>346</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              11 &#40;0 &#37;&#41;
+              samples spent in #200
+              <br />
+              1 &#40;9 &#37;&#41; &#40;ex.&#41;,
+              11 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from rollout_strategy
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L154'>line 154</a>
+              <br />
+            </div>
+            
+            <span class='code'>        function &#40;belief::Beliefs&#41;</span>
+          </td>
+        </tr>
+        <tr id='L347'>
+          <td class='lineno'>347</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            block_sizes &#61; game.is_robust ? vcat&#40;game.dims.controls, sum&#40;game.dims.states&#41;&#41; : game.dims.controls</span>
+          </td>
+        </tr>
+        <tr id='L348'>
+          <td class='lineno'>348</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>11 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              10 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L88'>-</a>
+              <br />
+            </div>
+            <span class='code'>            return BlockVector&#40;nominal_controls&#91;t&#93; &#43; α * feedback_terms&#91;t&#93;&#91;1&#93; &#43; feedback_terms&#91;t&#93;&#91;2&#93; * &#40;belief - nominal_beliefs&#91;t&#93;&#41;, block_sizes&#41;</span>
+          </td>
+        </tr>
+        <tr id='L349'>
+          <td class='lineno'>349</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L350'>
+          <td class='lineno'>350</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L351'>
+          <td class='lineno'>351</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L352'>
+          <td class='lineno'>352</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L353'>
+          <td class='lineno'>353</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              216 &#40;1 &#37;&#41;
+              samples spent in line_search
+              <br />
+              2 &#40;1 &#37;&#41; &#40;ex.&#41;,
+              216 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from #solve#152
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L66'>line 66</a>
+              <br />
+            </div>
+            
+            <span class='code'>function line_search&#40;game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, kkt_error_norms, regularizations&#41;</span>
+          </td>
+        </tr>
+        <tr id='L354'>
+          <td class='lineno'>354</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    α &#61; 1.0</span>
+          </td>
+        </tr>
+        <tr id='L355'>
+          <td class='lineno'>355</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ρ &#61; 0.9</span>
+          </td>
+        </tr>
+        <tr id='L356'>
+          <td class='lineno'>356</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    c &#61; 1e-4</span>
+          </td>
+        </tr>
+        <tr id='L357'>
+          <td class='lineno'>357</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L358'>
+          <td class='lineno'>358</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    current_kkt_error &#61; kkt_error_norms</span>
+          </td>
+        </tr>
+        <tr id='L359'>
+          <td class='lineno'>359</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L360'>
+          <td class='lineno'>360</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              207 &#40;1 &#37;&#41;
+              samples spent in loss
+              <br />
+              1 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              151 &#40;73 &#37;&#41; &#40;incl.&#41;
+              when called from line_search
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L383'>line 383</a>
+              <br />
+              
+              56 &#40;27 &#37;&#41; &#40;incl.&#41;
+              when called from line_search
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L391'>line 391</a>
+              <br />
+            </div>
+            
+            <span class='code'>    function loss&#40;α_scalar&#41;</span>
+          </td>
+        </tr>
+        <tr id='L361'>
+          <td class='lineno'>361</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        strategy &#61; build_strategy&#40;game, nominal_beliefs, nominal_controls, feedback_terms, α_scalar&#41;</span>
+          </td>
+        </tr>
+        <tr id='L362'>
+          <td class='lineno'>362</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>14 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              14 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L146'>rollout_strategy</a>
+              <br />
+            </div>
+            <span class='code'>        b, u &#61; rollout_strategy&#40;game, strategy&#41;</span>
+          </td>
+        </tr>
+        <tr id='L363'>
+          <td class='lineno'>363</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L364'>
+          <td class='lineno'>364</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # Compute KKT error using control stationarity only</span>
+          </td>
+        </tr>
+        <tr id='L365'>
+          <td class='lineno'>365</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>185 &#40;1 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              185 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L136'>backward_pass</a>
+              <br />
+            </div>
+            <span class='code'>        _, _, candidate_stationarity_errors, _ &#61; backward_pass&#40;game, b, u, regularizations, 0; kkt_component&#61;:control&#41;</span>
+          </td>
+        </tr>
+        <tr id='L366'>
+          <td class='lineno'>366</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # ∇ᵤL &#61; mapreduce&#40;vcat, 1:game.horizon-1&#41; do t</span>
+          </td>
+        </tr>
+        <tr id='L367'>
+          <td class='lineno'>367</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #     stationarity_error &#61; candidate_stationarity_errors&#91;t&#93;</span>
+          </td>
+        </tr>
+        <tr id='L368'>
+          <td class='lineno'>368</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #     lagrange_multiplier &#61; lagrange_multipliers&#91;t&#93;</span>
+          </td>
+        </tr>
+        <tr id='L369'>
+          <td class='lineno'>369</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #     mapreduce&#40;vcat, 1:&#40;game.dims.n&#43;game.is_robust&#41;&#41; do ii</span>
+          </td>
+        </tr>
+        <tr id='L370'>
+          <td class='lineno'>370</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         g_s, _ &#61; ekf_update_gradient&#40;b&#91;t&#93;, u&#91;t&#93;, game.environment.dynamics, game.environment.sensor_models; is_robust&#61;game.is_robust&#41;</span>
+          </td>
+        </tr>
+        <tr id='L371'>
+          <td class='lineno'>371</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         g_s_u &#61; &#40;ii &gt; game.dims.n&#41; ? g_s&#91;:, total_size&#40;b&#91;t&#93;&#41;&#43;sum&#40;game.dims.controls&#41;&#43;1:end&#93; : g_s&#91;:, total_size&#40;b&#91;t&#93;&#41;&#43;sum&#40;game.dims.controls&#91;1:ii-1&#93;&#41;&#43;1:total_size&#40;b&#91;t&#93;&#41;&#43;sum&#40;game.dims.controls&#91;1:ii&#93;&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L372'>
+          <td class='lineno'>372</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         stat_error &#61; &#40;ii &gt; game.dims.n&#41; ? stationarity_error&#91;sum&#40;game.dims.controls&#41;&#43;1:end&#93; : stationarity_error&#91;sum&#40;game.dims.controls&#91;1:ii-1&#93;&#41;&#43;1:sum&#40;game.dims.controls&#91;1:ii&#93;&#41;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L373'>
+          <td class='lineno'>373</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #         stat_error .- g_s_u&#39; * lagrange_multiplier&#91;ii&#93;</span>
+          </td>
+        </tr>
+        <tr id='L374'>
+          <td class='lineno'>374</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        #     end</span>
+          </td>
+        </tr>
+        <tr id='L375'>
+          <td class='lineno'>375</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # end</span>
+          </td>
+        </tr>
+        <tr id='L376'>
+          <td class='lineno'>376</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        </span>
+          </td>
+        </tr>
+        <tr id='L377'>
+          <td class='lineno'>377</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # return norm&#40;∇ᵤL&#41;</span>
+          </td>
+        </tr>
+        <tr id='L378'>
+          <td class='lineno'>378</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>8 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              6 &#40;86 &#37;&#41;
+              samples spent calling
+              <a href='broadcast.jl-27c473cc851d44cf9c852f0e0e61c63b9c3240a8.html#L872'>materialize</a>
+              <br />
+              1 &#40;14 &#37;&#41;
+              samples spent calling
+              <a href='broadcast.jl-27c473cc851d44cf9c852f0e0e61c63b9c3240a8.html#L1325'>broadcasted</a>
+              <br />
+            </div>
+            <span class='code'>        return mean&#40;norm.&#40;candidate_stationarity_errors&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L379'>
+          <td class='lineno'>379</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L380'>
+          <td class='lineno'>380</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L381'>
+          <td class='lineno'>381</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # directional_derivative &#61; grad&#40;central_fdm&#40;5, 1&#41;, loss, 0.0&#41;&#91;1&#93;</span>
+          </td>
+        </tr>
+        <tr id='L382'>
+          <td class='lineno'>382</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    # Nocedal and Wright, 11.37</span>
+          </td>
+        </tr>
+        <tr id='L383'>
+          <td class='lineno'>383</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>151 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              151 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L360'>loss</a>
+              <br />
+            </div>
+            <span class='code'>    directional_derivative &#61; -loss&#40;0.0&#41;</span>
+          </td>
+        </tr>
+        <tr id='L384'>
+          <td class='lineno'>384</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L385'>
+          <td class='lineno'>385</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    if directional_derivative &gt; 0</span>
+          </td>
+        </tr>
+        <tr id='L386'>
+          <td class='lineno'>386</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        # println&#40;&quot;Warning: positive directional derivative. Skipping line search and increasing regularization.&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L387'>
+          <td class='lineno'>387</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        return nominal_beliefs, nominal_controls, calculate_costs&#40;game, nominal_beliefs, nominal_controls&#41;, false</span>
+          </td>
+        </tr>
+        <tr id='L388'>
+          <td class='lineno'>388</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L389'>
+          <td class='lineno'>389</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L390'>
+          <td class='lineno'>390</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>7 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              6 &#40;86 &#37;&#41;
+              samples spent calling
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L345'>build_strategy</a>
+              <br />
+              1 &#40;14 &#37;&#41;
+              samples spent calling
+              <a href='BeliefSpaceUtils.jl-b8ec14df9251ba28abbcb1d5bb200fa0d5baf0d0.html#L146'>rollout_strategy</a>
+              <br />
+            </div>
+            <span class='code'>    candidate_beliefs, candidate_controls &#61; rollout_strategy&#40;game, build_strategy&#40;game, nominal_beliefs, nominal_controls, feedback_terms, α&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L391'>
+          <td class='lineno'>391</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>56 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              56 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L360'>loss</a>
+              <br />
+            </div>
+            <span class='code'>    candidate_kkt_error &#61; loss&#40;α&#41;</span>
+          </td>
+        </tr>
+        <tr id='L392'>
+          <td class='lineno'>392</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L393'>
+          <td class='lineno'>393</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    iters &#61; 0</span>
+          </td>
+        </tr>
+        <tr id='L394'>
+          <td class='lineno'>394</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    alpha_limit_hit &#61; false</span>
+          </td>
+        </tr>
+        <tr id='L395'>
+          <td class='lineno'>395</td>
+          <td class='tracecount excl'>1 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>    while candidate_kkt_error &gt; current_kkt_error &#43; c * α * directional_derivative &amp;&amp; &#33;alpha_limit_hit</span>
+          </td>
+        </tr>
+        <tr id='L396'>
+          <td class='lineno'>396</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        α &#61; ρ * α</span>
+          </td>
+        </tr>
+        <tr id='L397'>
+          <td class='lineno'>397</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        if α &lt; 1e-3</span>
+          </td>
+        </tr>
+        <tr id='L398'>
+          <td class='lineno'>398</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            alpha_limit_hit &#61; true</span>
+          </td>
+        </tr>
+        <tr id='L399'>
+          <td class='lineno'>399</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L400'>
+          <td class='lineno'>400</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        candidate_beliefs, candidate_controls &#61; rollout_strategy&#40;game, build_strategy&#40;game, nominal_beliefs, nominal_controls, feedback_terms, α&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L401'>
+          <td class='lineno'>401</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        candidate_kkt_error &#61; loss&#40;α&#41;</span>
+          </td>
+        </tr>
+        <tr id='L402'>
+          <td class='lineno'>402</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        iters &#43;&#61; 1</span>
+          </td>
+        </tr>
+        <tr id='L403'>
+          <td class='lineno'>403</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L404'>
+          <td class='lineno'>404</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    </span>
+          </td>
+        </tr>
+        <tr id='L405'>
+          <td class='lineno'>405</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    new_costs &#61; calculate_costs&#40;game, candidate_beliefs, candidate_controls&#41;</span>
+          </td>
+        </tr>
+        <tr id='L406'>
+          <td class='lineno'>406</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if DEBUG</span>
+          </td>
+        </tr>
+        <tr id='L407'>
+          <td class='lineno'>407</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        for ii in 1:game.horizon-1</span>
+          </td>
+        </tr>
+        <tr id='L408'>
+          <td class='lineno'>408</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            println&#40;&quot;\t&#36;&#40;feedback_terms&#91;ii&#93;&#91;1&#93;&#41;&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L409'>
+          <td class='lineno'>409</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L410'>
+          <td class='lineno'>410</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        open&#40;DEBUG_FILE, &quot;a&quot;&#41; do f</span>
+          </td>
+        </tr>
+        <tr id='L411'>
+          <td class='lineno'>411</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            println&#40;f, &quot;&#91;line search&#93; α&#61;&#36;α feedforward terms: &quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L412'>
+          <td class='lineno'>412</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            for ii in 1:game.horizon-1</span>
+          </td>
+        </tr>
+        <tr id='L413'>
+          <td class='lineno'>413</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>                println&#40;f, &quot;\t&#36;&#40;feedback_terms&#91;ii&#93;&#91;1&#93;&#41;&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L414'>
+          <td class='lineno'>414</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>            end</span>
+          </td>
+        </tr>
+        <tr id='L415'>
+          <td class='lineno'>415</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        end</span>
+          </td>
+        </tr>
+        <tr id='L416'>
+          <td class='lineno'>416</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L417'>
+          <td class='lineno'>417</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return candidate_beliefs, candidate_controls, new_costs, &#33;alpha_limit_hit, candidate_kkt_error</span>
+          </td>
+        </tr>
+        <tr id='L418'>
+          <td class='lineno'>418</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L419'>
+          <td class='lineno'>419</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L420'>
+          <td class='lineno'>420</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L421'>
+          <td class='lineno'>421</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function compute_comprehensive_kkt_error end # retained name for compatibility if referenced elsewhere, but unused</span>
+          </td>
+        </tr>
+        <tr id='L422'>
+          <td class='lineno'>422</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L423'>
+          <td class='lineno'>423</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function get_dummy_strategy&#40;game::BeliefGame&#41;</span>
+          </td>
+        </tr>
+        <tr id='L424'>
+          <td class='lineno'>424</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if game.is_robust</span>
+          </td>
+        </tr>
+        <tr id='L425'>
+          <td class='lineno'>425</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        return &#91;&#40;belief::Beliefs&#41; -&gt; BlockVector&#40;fill&#40;0.0, sum&#40;game.dims.controls&#41; &#43; sum&#40;game.dims.states&#41;&#41;, vcat&#40;game.dims.controls, sum&#40;game.dims.states&#41;&#41;&#41; for _ in 1:game.horizon-1&#93;</span>
+          </td>
+        </tr>
+        <tr id='L426'>
+          <td class='lineno'>426</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    else</span>
+          </td>
+        </tr>
+        <tr id='L427'>
+          <td class='lineno'>427</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>        return &#91;&#40;belief::Beliefs&#41; -&gt; BlockVector&#40;fill&#40;0.0, sum&#40;game.dims.controls&#41;&#41;, game.dims.controls&#41; for _ in 1:game.horizon-1&#93;</span>
+          </td>
+        </tr>
+        <tr id='L428'>
+          <td class='lineno'>428</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L429'>
+          <td class='lineno'>429</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>
+

@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv='Content-Type' content='text/html; charset=utf-8'></meta>
+    <link rel='stylesheet' type='text/css' href='statprofiler.css'></link>
+    <title>StatProfilerHTML - Users\Henry\.julia\packages\ForwardDiff\UBbGT\src\apiutils.jl</title>
+  </head>
+  <body>
+    <div class='report-header'>
+      <div class='backlink'>
+        <a href='index.html'>Report index</a>
+      </div>
+      <div class='report-title'>
+        StatProfilerHTML.jl report
+      </div>
+      <div class='generated-on'>
+        Generated on Mon, 06 Oct 2025 23:08:20
+      </div>
+    </div>
+    <table>
+      <caption>File source code</caption>
+      <thead>
+        <tr>
+          <th>Line</th>
+          <th>Exclusive</th>
+          <th>Inclusive</th>
+          <th>Code</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id='L1'>
+          <td class='lineno'>1</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>####################</span>
+          </td>
+        </tr>
+        <tr id='L2'>
+          <td class='lineno'>2</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># value extraction #</span>
+          </td>
+        </tr>
+        <tr id='L3'>
+          <td class='lineno'>3</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>####################</span>
+          </td>
+        </tr>
+        <tr id='L4'>
+          <td class='lineno'>4</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L5'>
+          <td class='lineno'>5</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              2 &#40;0 &#37;&#41;
+              samples spent in extract_value&#33;
+              <br />
+              
+              2 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_gradient&#33;
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L145'>line 145</a>
+              <br />
+            </div>
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>@inline extract_value&#33;&#40;::Type&#123;T&#125;, out::DiffResult, ydual&#41; where &#123;T&#125; &#61;</span>
+          </td>
+        </tr>
+        <tr id='L6'>
+          <td class='lineno'>6</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    DiffResults.value&#33;&#40;d -&gt; value&#40;T,d&#41;, out, ydual&#41;</span>
+          </td>
+        </tr>
+        <tr id='L7'>
+          <td class='lineno'>7</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>@inline extract_value&#33;&#40;::Type&#123;T&#125;, out, ydual&#41; where &#123;T&#125; &#61; out # ???</span>
+          </td>
+        </tr>
+        <tr id='L8'>
+          <td class='lineno'>8</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L9'>
+          <td class='lineno'>9</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>@inline function extract_value&#33;&#40;::Type&#123;T&#125;, out, y, ydual&#41; where &#123;T&#125;</span>
+          </td>
+        </tr>
+        <tr id='L10'>
+          <td class='lineno'>10</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    map&#33;&#40;d -&gt; value&#40;T,d&#41;, y, ydual&#41;</span>
+          </td>
+        </tr>
+        <tr id='L11'>
+          <td class='lineno'>11</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    copy_value&#33;&#40;out, y&#41;</span>
+          </td>
+        </tr>
+        <tr id='L12'>
+          <td class='lineno'>12</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L13'>
+          <td class='lineno'>13</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L14'>
+          <td class='lineno'>14</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>@inline copy_value&#33;&#40;out::DiffResult, y&#41; &#61; DiffResults.value&#33;&#40;out, y&#41;</span>
+          </td>
+        </tr>
+        <tr id='L15'>
+          <td class='lineno'>15</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>@inline copy_value&#33;&#40;out, y&#41; &#61; out</span>
+          </td>
+        </tr>
+        <tr id='L16'>
+          <td class='lineno'>16</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L17'>
+          <td class='lineno'>17</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>###################################</span>
+          </td>
+        </tr>
+        <tr id='L18'>
+          <td class='lineno'>18</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># vector mode function evaluation #</span>
+          </td>
+        </tr>
+        <tr id='L19'>
+          <td class='lineno'>19</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>###################################</span>
+          </td>
+        </tr>
+        <tr id='L20'>
+          <td class='lineno'>20</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L21'>
+          <td class='lineno'>21</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              3 &#40;0 &#37;&#41;
+              samples spent in vector_mode_dual_eval&#33;
+              <br />
+              
+              3 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from vector_mode_jacobian
+              <a href='jacobian.jl-8a866a6a6ba5606800ca117cc6816ba0d20c8ea2.html#L129'>line 129</a>
+              <br />
+            </div>
+            
+            <span class='code'>function vector_mode_dual_eval&#33;&#40;f::F, cfg::Union&#123;JacobianConfig,GradientConfig&#125;, x&#41; where &#123;F&#125;</span>
+          </td>
+        </tr>
+        <tr id='L22'>
+          <td class='lineno'>22</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    xdual &#61; cfg.duals</span>
+          </td>
+        </tr>
+        <tr id='L23'>
+          <td class='lineno'>23</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    seed&#33;&#40;xdual, x, cfg.seeds&#41;</span>
+          </td>
+        </tr>
+        <tr id='L24'>
+          <td class='lineno'>24</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2971 &#40;9 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              2968 &#40;9 &#37;&#41;
+              samples spent in vector_mode_dual_eval&#33;
+              <br />
+              
+              2968 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from vector_mode_jacobian
+              <a href='jacobian.jl-8a866a6a6ba5606800ca117cc6816ba0d20c8ea2.html#L129'>line 129</a>
+              <br />
+            </div>
+            <div class='callees'>
+              1619 &#40;54 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L25'>H_fn</a>
+              <br />
+              486 &#40;16 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L24'>M_fn</a>
+              <br />
+              372 &#40;13 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L122'>H_fn</a>
+              <br />
+              328 &#40;11 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L23'>A_fn</a>
+              <br />
+              95 &#40;3 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L121'>M_fn</a>
+              <br />
+              68 &#40;2 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L120'>A_fn</a>
+              <br />
+              3 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='EKF.jl-4491cbbf580d036cc632098971c169715f005665.html#L26'>N_fn</a>
+              <br />
+            </div>
+            <span class='code'>    return f&#40;xdual&#41;</span>
+          </td>
+        </tr>
+        <tr id='L25'>
+          <td class='lineno'>25</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L26'>
+          <td class='lineno'>26</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L27'>
+          <td class='lineno'>27</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function vector_mode_dual_eval&#33;&#40;f&#33;::F, cfg::JacobianConfig, y, x&#41; where &#123;F&#125;</span>
+          </td>
+        </tr>
+        <tr id='L28'>
+          <td class='lineno'>28</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ydual, xdual &#61; cfg.duals</span>
+          </td>
+        </tr>
+        <tr id='L29'>
+          <td class='lineno'>29</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    seed&#33;&#40;xdual, x, cfg.seeds&#41;</span>
+          </td>
+        </tr>
+        <tr id='L30'>
+          <td class='lineno'>30</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    seed&#33;&#40;ydual, y&#41;</span>
+          </td>
+        </tr>
+        <tr id='L31'>
+          <td class='lineno'>31</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    f&#33;&#40;ydual, xdual&#41;</span>
+          </td>
+        </tr>
+        <tr id='L32'>
+          <td class='lineno'>32</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return ydual</span>
+          </td>
+        </tr>
+        <tr id='L33'>
+          <td class='lineno'>33</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L34'>
+          <td class='lineno'>34</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L35'>
+          <td class='lineno'>35</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>##################################</span>
+          </td>
+        </tr>
+        <tr id='L36'>
+          <td class='lineno'>36</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># seed construction/manipulation #</span>
+          </td>
+        </tr>
+        <tr id='L37'>
+          <td class='lineno'>37</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>##################################</span>
+          </td>
+        </tr>
+        <tr id='L38'>
+          <td class='lineno'>38</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L39'>
+          <td class='lineno'>39</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>@generated function construct_seeds&#40;::Type&#123;Partials&#123;N,V&#125;&#125;&#41; where &#123;N,V&#125;</span>
+          </td>
+        </tr>
+        <tr id='L40'>
+          <td class='lineno'>40</td>
+          <td class='tracecount excl'>6 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>7 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              7 &#40;0 &#37;&#41;
+              samples spent in #s29#80
+              <br />
+              6 &#40;86 &#37;&#41; &#40;ex.&#41;,
+              7 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from #s29#80
+              <a href='notfound.html#L0'>line 0</a>
+              <br />
+            </div>
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    return Expr&#40;:tuple, &#91;:&#40;single_seed&#40;Partials&#123;N,V&#125;, Val&#123;&#36;i&#125;&#40;&#41;&#41;&#41; for i in 1:N&#93;...&#41;</span>
+          </td>
+        </tr>
+        <tr id='L41'>
+          <td class='lineno'>41</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L42'>
+          <td class='lineno'>42</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L43'>
+          <td class='lineno'>43</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              2 &#40;0 &#37;&#41;
+              samples spent in seed&#33;
+              <br />
+              
+              2 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from seed&#33;
+              <a href='apiutils.jl-176dce576cdda7fa3355a6ea56e35d721e8f3a96.html#L45'>line 45</a>
+              <br />
+            </div>
+            
+            <span class='code'>function seed&#33;&#40;duals::AbstractArray&#123;Dual&#123;T,V,N&#125;&#125;, x,</span>
+          </td>
+        </tr>
+        <tr id='L44'>
+          <td class='lineno'>44</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>               seed::Partials&#123;N,V&#125; &#61; zero&#40;Partials&#123;N,V&#125;&#41;&#41; where &#123;T,V,N&#125;</span>
+          </td>
+        </tr>
+        <tr id='L45'>
+          <td class='lineno'>45</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>4 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              2 &#40;0 &#37;&#41;
+              samples spent in seed&#33;
+              <br />
+              
+              2 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_gradient&#33;
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L121'>line 121</a>
+              <br />
+            </div>
+            <div class='callees'>
+              2 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='apiutils.jl-176dce576cdda7fa3355a6ea56e35d721e8f3a96.html#L43'>seed&#33;</a>
+              <br />
+              2 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='broadcast.jl-27c473cc851d44cf9c852f0e0e61c63b9c3240a8.html#L880'>materialize&#33;</a>
+              <br />
+            </div>
+            <span class='code'>    duals .&#61; Dual&#123;T,V,N&#125;.&#40;x, Ref&#40;seed&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L46'>
+          <td class='lineno'>46</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return duals</span>
+          </td>
+        </tr>
+        <tr id='L47'>
+          <td class='lineno'>47</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L48'>
+          <td class='lineno'>48</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L49'>
+          <td class='lineno'>49</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function seed&#33;&#40;duals::AbstractArray&#123;Dual&#123;T,V,N&#125;&#125;, x,</span>
+          </td>
+        </tr>
+        <tr id='L50'>
+          <td class='lineno'>50</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>               seeds::NTuple&#123;N,Partials&#123;N,V&#125;&#125;&#41; where &#123;T,V,N&#125;</span>
+          </td>
+        </tr>
+        <tr id='L51'>
+          <td class='lineno'>51</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    dual_inds &#61; 1:N</span>
+          </td>
+        </tr>
+        <tr id='L52'>
+          <td class='lineno'>52</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    duals&#91;dual_inds&#93; .&#61; Dual&#123;T,V,N&#125;.&#40;view&#40;x,dual_inds&#41;, seeds&#41;</span>
+          </td>
+        </tr>
+        <tr id='L53'>
+          <td class='lineno'>53</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return duals</span>
+          </td>
+        </tr>
+        <tr id='L54'>
+          <td class='lineno'>54</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L55'>
+          <td class='lineno'>55</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L56'>
+          <td class='lineno'>56</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              2 &#40;0 &#37;&#41;
+              samples spent in seed&#33;
+              <br />
+              
+              2 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from seed&#33;
+              <a href='apiutils.jl-176dce576cdda7fa3355a6ea56e35d721e8f3a96.html#L58'>line 58</a>
+              <br />
+            </div>
+            
+            <span class='code'>function seed&#33;&#40;duals::AbstractArray&#123;Dual&#123;T,V,N&#125;&#125;, x, index,</span>
+          </td>
+        </tr>
+        <tr id='L57'>
+          <td class='lineno'>57</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>               seed::Partials&#123;N,V&#125; &#61; zero&#40;Partials&#123;N,V&#125;&#41;&#41; where &#123;T,V,N&#125;</span>
+          </td>
+        </tr>
+        <tr id='L58'>
+          <td class='lineno'>58</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              2 &#40;0 &#37;&#41;
+              samples spent in seed&#33;
+              <br />
+              
+              2 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_gradient&#33;
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L136'>line 136</a>
+              <br />
+            </div>
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='apiutils.jl-176dce576cdda7fa3355a6ea56e35d721e8f3a96.html#L56'>seed&#33;</a>
+              <br />
+            </div>
+            <span class='code'>    offset &#61; index - 1</span>
+          </td>
+        </tr>
+        <tr id='L59'>
+          <td class='lineno'>59</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    dual_inds &#61; &#40;1:N&#41; .&#43; offset</span>
+          </td>
+        </tr>
+        <tr id='L60'>
+          <td class='lineno'>60</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='broadcast.jl-27c473cc851d44cf9c852f0e0e61c63b9c3240a8.html#L880'>materialize&#33;</a>
+              <br />
+            </div>
+            <span class='code'>    duals&#91;dual_inds&#93; .&#61; Dual&#123;T,V,N&#125;.&#40;view&#40;x, dual_inds&#41;, Ref&#40;seed&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L61'>
+          <td class='lineno'>61</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return duals</span>
+          </td>
+        </tr>
+        <tr id='L62'>
+          <td class='lineno'>62</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L63'>
+          <td class='lineno'>63</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L64'>
+          <td class='lineno'>64</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              3 &#40;0 &#37;&#41;
+              samples spent in seed&#33;
+              <br />
+              
+              3 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from seed&#33;
+              <a href='apiutils.jl-176dce576cdda7fa3355a6ea56e35d721e8f3a96.html#L66'>line 66</a>
+              <br />
+            </div>
+            
+            <span class='code'>function seed&#33;&#40;duals::AbstractArray&#123;Dual&#123;T,V,N&#125;&#125;, x, index,</span>
+          </td>
+        </tr>
+        <tr id='L65'>
+          <td class='lineno'>65</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>               seeds::NTuple&#123;N,Partials&#123;N,V&#125;&#125;, chunksize &#61; N&#41; where &#123;T,V,N&#125;</span>
+          </td>
+        </tr>
+        <tr id='L66'>
+          <td class='lineno'>66</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>3 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              3 &#40;0 &#37;&#41;
+              samples spent in seed&#33;
+              <br />
+              
+              3 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_gradient&#33;
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L133'>line 133</a>
+              <br />
+            </div>
+            <div class='callees'>
+              3 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='apiutils.jl-176dce576cdda7fa3355a6ea56e35d721e8f3a96.html#L64'>seed&#33;</a>
+              <br />
+            </div>
+            <span class='code'>    offset &#61; index - 1</span>
+          </td>
+        </tr>
+        <tr id='L67'>
+          <td class='lineno'>67</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    seed_inds &#61; 1:chunksize</span>
+          </td>
+        </tr>
+        <tr id='L68'>
+          <td class='lineno'>68</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    dual_inds &#61; seed_inds .&#43; offset</span>
+          </td>
+        </tr>
+        <tr id='L69'>
+          <td class='lineno'>69</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>3 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              3 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='broadcast.jl-27c473cc851d44cf9c852f0e0e61c63b9c3240a8.html#L880'>materialize&#33;</a>
+              <br />
+            </div>
+            <span class='code'>    duals&#91;dual_inds&#93; .&#61; Dual&#123;T,V,N&#125;.&#40;view&#40;x, dual_inds&#41;, getindex.&#40;Ref&#40;seeds&#41;, seed_inds&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L70'>
+          <td class='lineno'>70</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return duals</span>
+          </td>
+        </tr>
+        <tr id='L71'>
+          <td class='lineno'>71</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>
+

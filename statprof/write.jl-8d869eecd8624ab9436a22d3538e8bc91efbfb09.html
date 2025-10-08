@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv='Content-Type' content='text/html; charset=utf-8'></meta>
+    <link rel='stylesheet' type='text/css' href='statprofiler.css'></link>
+    <title>StatProfilerHTML - Users\Henry\.julia\packages\BSON\mzJoC\src\write.jl</title>
+  </head>
+  <body>
+    <div class='report-header'>
+      <div class='backlink'>
+        <a href='index.html'>Report index</a>
+      </div>
+      <div class='report-title'>
+        StatProfilerHTML.jl report
+      </div>
+      <div class='generated-on'>
+        Generated on Mon, 06 Oct 2025 23:08:20
+      </div>
+    </div>
+    <table>
+      <caption>File source code</caption>
+      <thead>
+        <tr>
+          <th>Line</th>
+          <th>Exclusive</th>
+          <th>Inclusive</th>
+          <th>Code</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id='L1'>
+          <td class='lineno'>1</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_type&#40;::Nothing&#41; &#61; null</span>
+          </td>
+        </tr>
+        <tr id='L2'>
+          <td class='lineno'>2</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_type&#40;::Bool&#41; &#61; boolean</span>
+          </td>
+        </tr>
+        <tr id='L3'>
+          <td class='lineno'>3</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_type&#40;::Int32&#41; &#61; int32</span>
+          </td>
+        </tr>
+        <tr id='L4'>
+          <td class='lineno'>4</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_type&#40;::Int64&#41; &#61; int64</span>
+          </td>
+        </tr>
+        <tr id='L5'>
+          <td class='lineno'>5</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_type&#40;::Float64&#41; &#61; double</span>
+          </td>
+        </tr>
+        <tr id='L6'>
+          <td class='lineno'>6</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_type&#40;::String&#41; &#61; string</span>
+          </td>
+        </tr>
+        <tr id='L7'>
+          <td class='lineno'>7</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_type&#40;::Vector&#123;UInt8&#125;&#41; &#61; binary</span>
+          </td>
+        </tr>
+        <tr id='L8'>
+          <td class='lineno'>8</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_type&#40;::BSONDict&#41; &#61; document</span>
+          </td>
+        </tr>
+        <tr id='L9'>
+          <td class='lineno'>9</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_type&#40;::BSONArray&#41; &#61; array</span>
+          </td>
+        </tr>
+        <tr id='L10'>
+          <td class='lineno'>10</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L11'>
+          <td class='lineno'>11</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_primitive&#40;io::IO, ::Nothing&#41; &#61; return</span>
+          </td>
+        </tr>
+        <tr id='L12'>
+          <td class='lineno'>12</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_primitive&#40;io::IO, x::Union&#123;Bool,Int32,Int64,Float64&#125;&#41; &#61; write&#40;io, x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L13'>
+          <td class='lineno'>13</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_primitive&#40;io::IO, x::Float64&#41; &#61; write&#40;io, x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L14'>
+          <td class='lineno'>14</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_primitive&#40;io::IO, x::Vector&#123;UInt8&#125;&#41; &#61; write&#40;io, Int32&#40;length&#40;x&#41;&#41;, 0x00, x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L15'>
+          <td class='lineno'>15</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_primitive&#40;io::IO, x::String&#41; &#61; write&#40;io, Int32&#40;sizeof&#40;x&#41;&#43;1&#41;, x, 0x00&#41;</span>
+          </td>
+        </tr>
+        <tr id='L16'>
+          <td class='lineno'>16</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L17'>
+          <td class='lineno'>17</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson_key&#40;io::IO, k&#41; &#61; write&#40;io, Base.string&#40;k&#41;, 0x00&#41;</span>
+          </td>
+        </tr>
+        <tr id='L18'>
+          <td class='lineno'>18</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L19'>
+          <td class='lineno'>19</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              2004 &#40;6 &#37;&#41;
+              samples spent in bson_pair
+              <br />
+              
+              2004 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from bson_doc
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L28'>line 28</a>
+              <br />
+            </div>
+            
+            <span class='code'>function bson_pair&#40;io::IO, k, v&#41;</span>
+          </td>
+        </tr>
+        <tr id='L20'>
+          <td class='lineno'>20</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='Enums.jl-a92836e4e0b8869315e531b591a64c11ead51ebd.html#L21'>write</a>
+              <br />
+            </div>
+            <span class='code'>  write&#40;io, bson_type&#40;v&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L21'>
+          <td class='lineno'>21</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  bson_key&#40;io, k&#41;</span>
+          </td>
+        </tr>
+        <tr id='L22'>
+          <td class='lineno'>22</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2003 &#40;6 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1278 &#40;64 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L37'>bson_primitive</a>
+              <br />
+              725 &#40;36 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L36'>bson_primitive</a>
+              <br />
+            </div>
+            <span class='code'>  bson_primitive&#40;io, v&#41;</span>
+          </td>
+        </tr>
+        <tr id='L23'>
+          <td class='lineno'>23</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L24'>
+          <td class='lineno'>24</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L25'>
+          <td class='lineno'>25</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              2092 &#40;7 &#37;&#41;
+              samples spent in bson_doc
+              <br />
+              50 &#40;2 &#37;&#41; &#40;ex.&#41;,
+              1060 &#40;51 &#37;&#41; &#40;incl.&#41;
+              when called from bson_primitive
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L37'>line 37</a>
+              <br />
+              24 &#40;1 &#37;&#41; &#40;ex.&#41;,
+              1032 &#40;49 &#37;&#41; &#40;incl.&#41;
+              when called from bson_primitive
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L36'>line 36</a>
+              <br />
+            </div>
+            
+            <span class='code'>function bson_doc&#40;io::IO, doc&#41;</span>
+          </td>
+        </tr>
+        <tr id='L26'>
+          <td class='lineno'>26</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='iobuffer.jl-95d5ec4d2374a4d69f802b4ad051efdfefb3e74a.html#L119'>GenericIOBuffer</a>
+              <br />
+            </div>
+            <span class='code'>  buf &#61; IOBuffer&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L27'>
+          <td class='lineno'>27</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  for &#40;k, v&#41; in doc</span>
+          </td>
+        </tr>
+        <tr id='L28'>
+          <td class='lineno'>28</td>
+          <td class='tracecount excl'>74 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2086 &#40;7 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              2004 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L19'>bson_pair</a>
+              <br />
+              8 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>    bson_pair&#40;buf, k, v&#41;</span>
+          </td>
+        </tr>
+        <tr id='L29'>
+          <td class='lineno'>29</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='dict.jl-16dfe6614d6451fe49acf06cf9dad03894b79d41.html#L703'>iterate</a>
+              <br />
+            </div>
+            <span class='code'>  end</span>
+          </td>
+        </tr>
+        <tr id='L30'>
+          <td class='lineno'>30</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>3 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              3 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='Enums.jl-a92836e4e0b8869315e531b591a64c11ead51ebd.html#L21'>write</a>
+              <br />
+            </div>
+            <span class='code'>  write&#40;buf, eof&#41;</span>
+          </td>
+        </tr>
+        <tr id='L31'>
+          <td class='lineno'>31</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='iobuffer.jl-95d5ec4d2374a4d69f802b4ad051efdfefb3e74a.html#L564'>read</a>
+              <br />
+            </div>
+            <span class='code'>  bytes &#61; read&#40;seek&#40;buf,0&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L32'>
+          <td class='lineno'>32</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  write&#40;io, Int32&#40;length&#40;bytes&#41;&#43;4&#41;, bytes&#41;</span>
+          </td>
+        </tr>
+        <tr id='L33'>
+          <td class='lineno'>33</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  return</span>
+          </td>
+        </tr>
+        <tr id='L34'>
+          <td class='lineno'>34</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L35'>
+          <td class='lineno'>35</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L36'>
+          <td class='lineno'>36</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1032 &#40;3 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              1032 &#40;3 &#37;&#41;
+              samples spent in bson_primitive
+              <br />
+              
+              725 &#40;70 &#37;&#41; &#40;incl.&#41;
+              when called from bson_pair
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L22'>line 22</a>
+              <br />
+              
+              307 &#40;30 &#37;&#41; &#40;incl.&#41;
+              when called from bson
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L85'>line 85</a>
+              <br />
+            </div>
+            <div class='callees'>
+              1032 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L25'>bson_doc</a>
+              <br />
+            </div>
+            <span class='code'>bson_primitive&#40;io::IO, doc::BSONDict&#41; &#61; bson_doc&#40;io, doc&#41;</span>
+          </td>
+        </tr>
+        <tr id='L37'>
+          <td class='lineno'>37</td>
+          <td class='tracecount excl'>58 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1278 &#40;4 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              1278 &#40;4 &#37;&#41;
+              samples spent in bson_primitive
+              <br />
+              58 &#40;5 &#37;&#41; &#40;ex.&#41;,
+              1278 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from bson_pair
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L22'>line 22</a>
+              <br />
+            </div>
+            <div class='callees'>
+              1060 &#40;87 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L25'>bson_doc</a>
+              <br />
+              153 &#40;13 &#37;&#41;
+              samples spent calling
+              <a href='array.jl-f51aa114a1ce032a4d16e5e10886b084658b1636.html#L784'>collect</a>
+              <br />
+              7 &#40;1 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>bson_primitive&#40;io::IO, x::BSONArray&#41; &#61;</span>
+          </td>
+        </tr>
+        <tr id='L38'>
+          <td class='lineno'>38</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  bson_doc&#40;io, &#91;Base.string&#40;i-1&#41; &#61;&gt; v for &#40;i, v&#41; in enumerate&#40;x&#41;&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L39'>
+          <td class='lineno'>39</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L40'>
+          <td class='lineno'>40</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># Lowering</span>
+          </td>
+        </tr>
+        <tr id='L41'>
+          <td class='lineno'>41</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L42'>
+          <td class='lineno'>42</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>lower&#40;x::Primitive&#41; &#61; x</span>
+          </td>
+        </tr>
+        <tr id='L43'>
+          <td class='lineno'>43</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L44'>
+          <td class='lineno'>44</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>import Base: RefValue</span>
+          </td>
+        </tr>
+        <tr id='L45'>
+          <td class='lineno'>45</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L46'>
+          <td class='lineno'>46</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>if VERSION &lt; v&quot;1.7-&quot;</span>
+          </td>
+        </tr>
+        <tr id='L47'>
+          <td class='lineno'>47</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>ismutable&#40;T&#41; &#61; &#33;isa&#40;T, DataType&#41; || T.mutable</span>
+          </td>
+        </tr>
+        <tr id='L48'>
+          <td class='lineno'>48</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>else</span>
+          </td>
+        </tr>
+        <tr id='L49'>
+          <td class='lineno'>49</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>ismutable&#40;T&#41; &#61; &#33;isa&#40;T, DataType&#41; || ismutabletype&#40;T&#41;</span>
+          </td>
+        </tr>
+        <tr id='L50'>
+          <td class='lineno'>50</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L51'>
+          <td class='lineno'>51</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>ismutable&#40;::Type&#123;String&#125;&#41; &#61; false</span>
+          </td>
+        </tr>
+        <tr id='L52'>
+          <td class='lineno'>52</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L53'>
+          <td class='lineno'>53</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>typeof_&#40;x&#41; &#61; typeof&#40;x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L54'>
+          <td class='lineno'>54</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>typeof_&#40;T::DataType&#41; &#61; T</span>
+          </td>
+        </tr>
+        <tr id='L55'>
+          <td class='lineno'>55</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L56'>
+          <td class='lineno'>56</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              17472 &#40;56 &#37;&#41;
+              samples spent in _lower_recursive
+              <br />
+              2 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              11391 &#40;65 &#37;&#41; &#40;incl.&#41;
+              when called from #5
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L66'>line 66</a>
+              <br />
+              2 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              4978 &#40;28 &#37;&#41; &#40;incl.&#41;
+              when called from #3
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L57'>line 57</a>
+              <br />
+              
+              1103 &#40;6 &#37;&#41; &#40;incl.&#41;
+              when called from lower_recursive
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L77'>line 77</a>
+              <br />
+            </div>
+            
+            <span class='code'>function _lower_recursive&#40;x, cache, refs&#41;</span>
+          </td>
+        </tr>
+        <tr id='L57'>
+          <td class='lineno'>57</td>
+          <td class='tracecount excl'>10 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>10354 &#40;33 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              10354 &#40;33 &#37;&#41;
+              samples spent in _lower
+              <br />
+              
+              4978 &#40;48 &#37;&#41; &#40;incl.&#41;
+              when called from applychildren&#33;
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L19'>line 19</a>
+              <br />
+              10 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              2983 &#40;29 &#37;&#41; &#40;incl.&#41;
+              when called from _lower_recursive
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L58'>line 58</a>
+              <br />
+              
+              2393 &#40;23 &#37;&#41; &#40;incl.&#41;
+              when called from _lower_recursive
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L58'>line 58</a>
+              <br />
+            </div>
+            <div class='callees'>
+              5094 &#40;49 &#37;&#41;
+              samples spent calling
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L17'>applychildren&#33;</a>
+              <br />
+              4978 &#40;48 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L56'>_lower_recursive</a>
+              <br />
+              178 &#40;2 &#37;&#41;
+              samples spent calling
+              <a href='extensions.jl-947ade88bcc434406a2d31eeddc455005f1248cb.html#L122'>lower</a>
+              <br />
+              82 &#40;1 &#37;&#41;
+              samples spent calling
+              <a href='extensions.jl-947ade88bcc434406a2d31eeddc455005f1248cb.html#L64'>lower</a>
+              <br />
+              7 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='extensions.jl-947ade88bcc434406a2d31eeddc455005f1248cb.html#L46'>lower</a>
+              <br />
+              5 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>  _lower&#40;x&#41; &#61; applychildren&#33;&#40;x -&gt; _lower_recursive&#40;x, cache, refs&#41;, lower&#40;x&#41;::Primitive&#41;</span>
+          </td>
+        </tr>
+        <tr id='L58'>
+          <td class='lineno'>58</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>5378 &#40;17 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              2393 &#40;8 &#37;&#41;
+              samples spent in _lower_recursive
+              <br />
+              
+              2393 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from #5
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L66'>line 66</a>
+              <br />
+            </div>
+            <div class='callees'>
+              5376 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L57'>_lower</a>
+              <br />
+            </div>
+            <span class='code'>  ismutable&#40;typeof_&#40;x&#41;&#41; || return RefValue&#123;Any&#125;&#40;_lower&#40;x&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L59'>
+          <td class='lineno'>59</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='abstractdict.jl-aaa282fd88cbb3cf5f3102142c2a3a103a11965f.html#L19'>haskey</a>
+              <br />
+            </div>
+            <span class='code'>  if haskey&#40;cache, x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L60'>
+          <td class='lineno'>60</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    if &#33;any&#40;y -&gt; x &#61;&#61;&#61; y, refs&#41;</span>
+          </td>
+        </tr>
+        <tr id='L61'>
+          <td class='lineno'>61</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>      push&#33;&#40;refs, cache&#91;x&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L62'>
+          <td class='lineno'>62</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    end</span>
+          </td>
+        </tr>
+        <tr id='L63'>
+          <td class='lineno'>63</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return cache&#91;x&#93;</span>
+          </td>
+        </tr>
+        <tr id='L64'>
+          <td class='lineno'>64</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  end</span>
+          </td>
+        </tr>
+        <tr id='L65'>
+          <td class='lineno'>65</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  cache&#91;x&#93; &#61; RefValue&#123;Any&#125;&#40;nothing&#41;</span>
+          </td>
+        </tr>
+        <tr id='L66'>
+          <td class='lineno'>66</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>28268 &#40;90 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              13784 &#40;44 &#37;&#41;
+              samples spent in #5
+              <br />
+              
+              9305 &#40;68 &#37;&#41; &#40;incl.&#41;
+              when called from applychildren&#33;
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L26'>line 26</a>
+              <br />
+              
+              4479 &#40;32 &#37;&#41; &#40;incl.&#41;
+              when called from applychildren&#33;
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L19'>line 19</a>
+              <br />
+            </div>
+            <div class='callees'>
+              11391 &#40;40 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L56'>_lower_recursive</a>
+              <br />
+              9928 &#40;35 &#37;&#41;
+              samples spent calling
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L24'>applychildren&#33;</a>
+              <br />
+              4538 &#40;16 &#37;&#41;
+              samples spent calling
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L17'>applychildren&#33;</a>
+              <br />
+              2393 &#40;8 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L58'>_lower_recursive</a>
+              <br />
+              12 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='extensions.jl-947ade88bcc434406a2d31eeddc455005f1248cb.html#L123'>lower</a>
+              <br />
+              6 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='extensions.jl-947ade88bcc434406a2d31eeddc455005f1248cb.html#L64'>lower</a>
+              <br />
+            </div>
+            <span class='code'>  val &#61; applychildren&#33;&#40;x -&gt; _lower_recursive&#40;x, cache, refs&#41;, lower&#40;x&#41;::Primitive&#41;</span>
+          </td>
+        </tr>
+        <tr id='L67'>
+          <td class='lineno'>67</td>
+          <td class='tracecount excl'>2 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>2 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            
+            <span class='code'>  cache&#91;x&#93;.x &#61;&#61; nothing &amp;&amp; &#40;cache&#91;x&#93;.x &#61; val&#41;</span>
+          </td>
+        </tr>
+        <tr id='L68'>
+          <td class='lineno'>68</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  return cache&#91;x&#93;</span>
+          </td>
+        </tr>
+        <tr id='L69'>
+          <td class='lineno'>69</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L70'>
+          <td class='lineno'>70</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L71'>
+          <td class='lineno'>71</td>
+          <td class='tracecount excl'>4 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>22 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              22 &#40;0 &#37;&#41;
+              samples spent in stripref
+              <br />
+              4 &#40;18 &#37;&#41; &#40;ex.&#41;,
+              14 &#40;64 &#37;&#41; &#40;incl.&#41;
+              when called from applychildren&#33;
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L26'>line 26</a>
+              <br />
+              
+              8 &#40;36 &#37;&#41; &#40;incl.&#41;
+              when called from applychildren&#33;
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L19'>line 19</a>
+              <br />
+            </div>
+            <div class='callees'>
+              18 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L72'>stripref</a>
+              <br />
+            </div>
+            <span class='code'>stripref&#40;x::RefValue&#41; &#61; stripref&#40;x.x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L72'>
+          <td class='lineno'>72</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>52 &#40;0 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              52 &#40;0 &#37;&#41;
+              samples spent in stripref
+              <br />
+              
+              18 &#40;35 &#37;&#41; &#40;incl.&#41;
+              when called from stripref
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L71'>line 71</a>
+              <br />
+              
+              14 &#40;27 &#37;&#41; &#40;incl.&#41;
+              when called from applychildren&#33;
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L26'>line 26</a>
+              <br />
+              
+              11 &#40;21 &#37;&#41; &#40;incl.&#41;
+              when called from applychildren&#33;
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L19'>line 19</a>
+              <br />
+              
+              9 &#40;17 &#37;&#41; &#40;incl.&#41;
+              when called from lower_recursive
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L80'>line 80</a>
+              <br />
+            </div>
+            <div class='callees'>
+              28 &#40;54 &#37;&#41;
+              samples spent calling
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L24'>applychildren&#33;</a>
+              <br />
+              24 &#40;46 &#37;&#41;
+              samples spent calling
+              <a href='BSON.jl-87e367e9ec473a20bd42e24d0c9fca74c953c522.html#L17'>applychildren&#33;</a>
+              <br />
+            </div>
+            <span class='code'>stripref&#40;x&#41; &#61; applychildren&#33;&#40;stripref, x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L73'>
+          <td class='lineno'>73</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L74'>
+          <td class='lineno'>74</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              1118 &#40;4 &#37;&#41;
+              samples spent in lower_recursive
+              <br />
+              5 &#40;0 &#37;&#41; &#40;ex.&#41;,
+              1118 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from bson
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L85'>line 85</a>
+              <br />
+            </div>
+            
+            <span class='code'>function lower_recursive&#40;y&#41;</span>
+          </td>
+        </tr>
+        <tr id='L75'>
+          <td class='lineno'>75</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  cache &#61; IdDict&#40;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L76'>
+          <td class='lineno'>76</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  backrefs &#61; &#91;&#93;</span>
+          </td>
+        </tr>
+        <tr id='L77'>
+          <td class='lineno'>77</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1103 &#40;4 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1103 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L56'>_lower_recursive</a>
+              <br />
+            </div>
+            <span class='code'>  x &#61; _lower_recursive&#40;y, cache, backrefs&#41;.x</span>
+          </td>
+        </tr>
+        <tr id='L78'>
+          <td class='lineno'>78</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>  isempty&#40;backrefs&#41; || &#40;x&#91;:_backrefs&#93; &#61; Any&#91;x.x for x in backrefs&#93;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L79'>
+          <td class='lineno'>79</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>1 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              1 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='abstractarray.jl-d615cb4f2872db4801d2111e745b5337dc9c0e81.html#L3187'>foreach</a>
+              <br />
+            </div>
+            <span class='code'>  foreach&#40;&#40;ix&#41; -&gt; &#40;ix&#91;2&#93;.x &#61; BSONDict&#40;:tag&#61;&gt;&quot;backref&quot;,:ref&#61;&gt;ix&#91;1&#93;&#41;&#41;, enumerate&#40;backrefs&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L80'>
+          <td class='lineno'>80</td>
+          <td class='tracecount excl'>5 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>14 &#40;0 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              9 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L72'>stripref</a>
+              <br />
+            </div>
+            <span class='code'>  return stripref&#40;x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L81'>
+          <td class='lineno'>81</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L82'>
+          <td class='lineno'>82</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L83'>
+          <td class='lineno'>83</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># Interface</span>
+          </td>
+        </tr>
+        <tr id='L84'>
+          <td class='lineno'>84</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L85'>
+          <td class='lineno'>85</td>
+          <td class='tracecount excl'>11 &#40;0 &#37;&#41;</td>
+          <td class='tracecount incl'>1438 &#40;5 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              1438 &#40;5 &#37;&#41;
+              samples spent in bson
+              <br />
+              11 &#40;1 &#37;&#41; &#40;ex.&#41;,
+              1438 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from #12
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L87'>line 87</a>
+              <br />
+            </div>
+            <div class='callees'>
+              1118 &#40;78 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L74'>lower_recursive</a>
+              <br />
+              307 &#40;22 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L36'>bson_primitive</a>
+              <br />
+              2 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+            </div>
+            <span class='code'>bson&#40;io::IO, doc::AbstractDict&#41; &#61; bson_primitive&#40;io, lower_recursive&#40;doc&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L86'>
+          <td class='lineno'>86</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L87'>
+          <td class='lineno'>87</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>2890 &#40;9 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              2890 &#40;9 &#37;&#41;
+              samples spent in bson
+              <br />
+              
+              1452 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from #save_viz_call#62
+              <a href='Senate.jl-55513855ce2c205a70e6cb68f3557cddc8b9a95a.html#L480'>line 480</a>
+              <br />
+              
+              1438 &#40;50 &#37;&#41; &#40;incl.&#41;
+              when called from #open#465
+              <a href='io.jl-9494c6bd1fa8688e63cb1e887913b2319b63cf3e.html#L410'>line 410</a>
+              <br />
+            </div>
+            <div class='callees'>
+              1452 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='io.jl-9494c6bd1fa8688e63cb1e887913b2319b63cf3e.html#L407'>open</a>
+              <br />
+              1438 &#40;50 &#37;&#41;
+              samples spent calling
+              <a href='write.jl-8d869eecd8624ab9436a22d3538e8bc91efbfb09.html#L85'>bson</a>
+              <br />
+            </div>
+            <span class='code'>bson&#40;path::String, doc::AbstractDict&#41; &#61; open&#40;io -&gt; bson&#40;io, doc&#41;, path, &quot;w&quot;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L88'>
+          <td class='lineno'>88</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L89'>
+          <td class='lineno'>89</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>bson&#40;path::String; kws...&#41; &#61; bson&#40;path, Dict&#40;kws&#41;&#41;</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>
+

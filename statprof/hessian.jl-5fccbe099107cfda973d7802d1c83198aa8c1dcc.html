@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv='Content-Type' content='text/html; charset=utf-8'></meta>
+    <link rel='stylesheet' type='text/css' href='statprofiler.css'></link>
+    <title>StatProfilerHTML - Users\Henry\.julia\packages\ForwardDiff\UBbGT\src\hessian.jl</title>
+  </head>
+  <body>
+    <div class='report-header'>
+      <div class='backlink'>
+        <a href='index.html'>Report index</a>
+      </div>
+      <div class='report-title'>
+        StatProfilerHTML.jl report
+      </div>
+      <div class='generated-on'>
+        Generated on Mon, 06 Oct 2025 23:08:20
+      </div>
+    </div>
+    <table>
+      <caption>File source code</caption>
+      <thead>
+        <tr>
+          <th>Line</th>
+          <th>Exclusive</th>
+          <th>Inclusive</th>
+          <th>Code</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr id='L1'>
+          <td class='lineno'>1</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>###############</span>
+          </td>
+        </tr>
+        <tr id='L2'>
+          <td class='lineno'>2</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># API methods #</span>
+          </td>
+        </tr>
+        <tr id='L3'>
+          <td class='lineno'>3</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>###############</span>
+          </td>
+        </tr>
+        <tr id='L4'>
+          <td class='lineno'>4</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L5'>
+          <td class='lineno'>5</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L6'>
+          <td class='lineno'>6</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ForwardDiff.hessian&#40;f, x::AbstractArray, cfg::HessianConfig &#61; HessianConfig&#40;f, x&#41;, check&#61;Val&#123;true&#125;&#40;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L7'>
+          <td class='lineno'>7</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L8'>
+          <td class='lineno'>8</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Return &#96;H&#40;f&#41;&#96; &#40;i.e. &#96;J&#40;∇&#40;f&#41;&#41;&#96;&#41; evaluated at &#96;x&#96;, assuming &#96;f&#96; is called as &#96;f&#40;x&#41;&#96;.</span>
+          </td>
+        </tr>
+        <tr id='L9'>
+          <td class='lineno'>9</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L10'>
+          <td class='lineno'>10</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>This method assumes that &#96;isa&#40;f&#40;x&#41;, Real&#41;&#96;.</span>
+          </td>
+        </tr>
+        <tr id='L11'>
+          <td class='lineno'>11</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L12'>
+          <td class='lineno'>12</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Set &#96;check&#96; to &#96;Val&#123;false&#125;&#40;&#41;&#96; to disable tag checking. This can lead to perturbation confusion, so should be used with care.</span>
+          </td>
+        </tr>
+        <tr id='L13'>
+          <td class='lineno'>13</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L14'>
+          <td class='lineno'>14</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function hessian&#40;f::F, x::AbstractArray, cfg::HessianConfig&#123;T&#125; &#61; HessianConfig&#40;f, x&#41;, ::Val&#123;CHK&#125;&#61;Val&#123;true&#125;&#40;&#41;&#41; where &#123;F, T,CHK&#125;</span>
+          </td>
+        </tr>
+        <tr id='L15'>
+          <td class='lineno'>15</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    require_one_based_indexing&#40;x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L16'>
+          <td class='lineno'>16</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    CHK &amp;&amp; checktag&#40;T, f, x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L17'>
+          <td class='lineno'>17</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ∇f &#61; y -&gt; gradient&#40;f, y, cfg.gradient_config, Val&#123;false&#125;&#40;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L18'>
+          <td class='lineno'>18</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return jacobian&#40;∇f, x, cfg.jacobian_config, Val&#123;false&#125;&#40;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L19'>
+          <td class='lineno'>19</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L20'>
+          <td class='lineno'>20</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L21'>
+          <td class='lineno'>21</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L22'>
+          <td class='lineno'>22</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ForwardDiff.hessian&#33;&#40;result::AbstractArray, f, x::AbstractArray, cfg::HessianConfig &#61; HessianConfig&#40;f, x&#41;, check&#61;Val&#123;true&#125;&#40;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L23'>
+          <td class='lineno'>23</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L24'>
+          <td class='lineno'>24</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Compute &#96;H&#40;f&#41;&#96; &#40;i.e. &#96;J&#40;∇&#40;f&#41;&#41;&#96;&#41; evaluated at &#96;x&#96; and store the result&#40;s&#41; in &#96;result&#96;,</span>
+          </td>
+        </tr>
+        <tr id='L25'>
+          <td class='lineno'>25</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>assuming &#96;f&#96; is called as &#96;f&#40;x&#41;&#96;.</span>
+          </td>
+        </tr>
+        <tr id='L26'>
+          <td class='lineno'>26</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L27'>
+          <td class='lineno'>27</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>This method assumes that &#96;isa&#40;f&#40;x&#41;, Real&#41;&#96;.</span>
+          </td>
+        </tr>
+        <tr id='L28'>
+          <td class='lineno'>28</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L29'>
+          <td class='lineno'>29</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Set &#96;check&#96; to &#96;Val&#123;false&#125;&#40;&#41;&#96; to disable tag checking. This can lead to perturbation confusion, so should be used with care.</span>
+          </td>
+        </tr>
+        <tr id='L30'>
+          <td class='lineno'>30</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L31'>
+          <td class='lineno'>31</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function hessian&#33;&#40;result::AbstractArray, f::F, x::AbstractArray, cfg::HessianConfig&#123;T&#125; &#61; HessianConfig&#40;f, x&#41;, ::Val&#123;CHK&#125;&#61;Val&#123;true&#125;&#40;&#41;&#41; where &#123;F,T,CHK&#125;</span>
+          </td>
+        </tr>
+        <tr id='L32'>
+          <td class='lineno'>32</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    require_one_based_indexing&#40;result, x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L33'>
+          <td class='lineno'>33</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    CHK &amp;&amp; checktag&#40;T, f, x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L34'>
+          <td class='lineno'>34</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ∇f &#61; y -&gt; gradient&#40;f, y, cfg.gradient_config, Val&#123;false&#125;&#40;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L35'>
+          <td class='lineno'>35</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    jacobian&#33;&#40;result, ∇f, x, cfg.jacobian_config, Val&#123;false&#125;&#40;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L36'>
+          <td class='lineno'>36</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return result</span>
+          </td>
+        </tr>
+        <tr id='L37'>
+          <td class='lineno'>37</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L38'>
+          <td class='lineno'>38</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L39'>
+          <td class='lineno'>39</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L40'>
+          <td class='lineno'>40</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># We use this struct below instead of an</span>
+          </td>
+        </tr>
+        <tr id='L41'>
+          <td class='lineno'>41</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># equivalent closure in order to avoid</span>
+          </td>
+        </tr>
+        <tr id='L42'>
+          <td class='lineno'>42</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># JuliaLang/julia#15276-related performance</span>
+          </td>
+        </tr>
+        <tr id='L43'>
+          <td class='lineno'>43</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'># issues. See #316.</span>
+          </td>
+        </tr>
+        <tr id='L44'>
+          <td class='lineno'>44</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>mutable struct InnerGradientForHess&#123;R,C,F&#125;</span>
+          </td>
+        </tr>
+        <tr id='L45'>
+          <td class='lineno'>45</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    result::R</span>
+          </td>
+        </tr>
+        <tr id='L46'>
+          <td class='lineno'>46</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    cfg::C</span>
+          </td>
+        </tr>
+        <tr id='L47'>
+          <td class='lineno'>47</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    f::F</span>
+          </td>
+        </tr>
+        <tr id='L48'>
+          <td class='lineno'>48</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L49'>
+          <td class='lineno'>49</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L50'>
+          <td class='lineno'>50</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>function &#40;g::InnerGradientForHess&#41;&#40;y, z&#41;</span>
+          </td>
+        </tr>
+        <tr id='L51'>
+          <td class='lineno'>51</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    inner_result &#61; DiffResult&#40;zero&#40;eltype&#40;y&#41;&#41;, y&#41;</span>
+          </td>
+        </tr>
+        <tr id='L52'>
+          <td class='lineno'>52</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>814 &#40;3 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              814 &#40;3 &#37;&#41;
+              samples spent in InnerGradientForHess
+              <br />
+              
+              757 &#40;93 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_jacobian&#33;
+              <a href='jacobian.jl-8a866a6a6ba5606800ca117cc6816ba0d20c8ea2.html#L187'>line 187</a>
+              <br />
+              
+              45 &#40;6 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_jacobian&#33;
+              <a href='jacobian.jl-8a866a6a6ba5606800ca117cc6816ba0d20c8ea2.html#L198'>line 198</a>
+              <br />
+              
+              12 &#40;1 &#37;&#41; &#40;incl.&#41;
+              when called from chunk_mode_jacobian&#33;
+              <a href='jacobian.jl-8a866a6a6ba5606800ca117cc6816ba0d20c8ea2.html#L205'>line 205</a>
+              <br />
+            </div>
+            <div class='callees'>
+              813 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='gradient.jl-e7eb106484514b70d496a3b800bb49b832964686.html#L41'>gradient&#33;</a>
+              <br />
+              1 &#40;0 &#37;&#41;
+              samples spent calling
+              <a href='Base.jl-ad36116cbe3b223d86c3a72a18734ea87e4b6e5d.html#L49'>getproperty</a>
+              <br />
+            </div>
+            <span class='code'>    gradient&#33;&#40;inner_result, g.f, z, g.cfg.gradient_config, Val&#123;false&#125;&#40;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L53'>
+          <td class='lineno'>53</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    g.result &#61; DiffResults.value&#33;&#40;g.result, value&#40;DiffResults.value&#40;inner_result&#41;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L54'>
+          <td class='lineno'>54</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return y</span>
+          </td>
+        </tr>
+        <tr id='L55'>
+          <td class='lineno'>55</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+        <tr id='L56'>
+          <td class='lineno'>56</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L57'>
+          <td class='lineno'>57</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L58'>
+          <td class='lineno'>58</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ForwardDiff.hessian&#33;&#40;result::DiffResult, f, x::AbstractArray, cfg::HessianConfig &#61; HessianConfig&#40;f, result, x&#41;, check&#61;Val&#123;true&#125;&#40;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L59'>
+          <td class='lineno'>59</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L60'>
+          <td class='lineno'>60</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Exactly like &#96;ForwardDiff.hessian&#33;&#40;result::AbstractArray, f, x::AbstractArray, cfg::HessianConfig&#41;&#96;, but</span>
+          </td>
+        </tr>
+        <tr id='L61'>
+          <td class='lineno'>61</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>because &#96;isa&#40;result, DiffResult&#41;&#96;, &#96;cfg&#96; is constructed as &#96;HessianConfig&#40;f, result, x&#41;&#96; instead of</span>
+          </td>
+        </tr>
+        <tr id='L62'>
+          <td class='lineno'>62</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&#96;HessianConfig&#40;f, x&#41;&#96;.</span>
+          </td>
+        </tr>
+        <tr id='L63'>
+          <td class='lineno'>63</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'></span>
+          </td>
+        </tr>
+        <tr id='L64'>
+          <td class='lineno'>64</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>Set &#96;check&#96; to &#96;Val&#123;false&#125;&#40;&#41;&#96; to disable tag checking. This can lead to perturbation confusion, so should be used with care.</span>
+          </td>
+        </tr>
+        <tr id='L65'>
+          <td class='lineno'>65</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>&quot;&quot;&quot;</span>
+          </td>
+        </tr>
+        <tr id='L66'>
+          <td class='lineno'>66</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            <div class='call-sites'>
+              4729 &#40;15 &#37;&#41;
+              samples spent in hessian&#33;
+              <br />
+              1676 &#40;35 &#37;&#41; &#40;ex.&#41;,
+              2488 &#40;53 &#37;&#41; &#40;incl.&#41;
+              when called from #backward_pass#155
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L176'>line 176</a>
+              <br />
+              1090 &#40;23 &#37;&#41; &#40;ex.&#41;,
+              1427 &#40;30 &#37;&#41; &#40;incl.&#41;
+              when called from #backward_pass#155
+              <a href='RobustBeliefSpaceSolver.jl-ad4c5fa4b9ca7ec785f7ee2874829e1d7769bc5c.html#L158'>line 158</a>
+              <br />
+              
+              814 &#40;17 &#37;&#41; &#40;incl.&#41;
+              when called from hessian&#33;
+              <a href='hessian.jl-5fccbe099107cfda973d7802d1c83198aa8c1dcc.html#L67'>line 67</a>
+              <br />
+            </div>
+            
+            <span class='code'>function hessian&#33;&#40;result::DiffResult, f::F, x::AbstractArray, cfg::HessianConfig&#123;T&#125; &#61; HessianConfig&#40;f, result, x&#41;, ::Val&#123;CHK&#125;&#61;Val&#123;true&#125;&#40;&#41;&#41; where &#123;F,T,CHK&#125;</span>
+          </td>
+        </tr>
+        <tr id='L67'>
+          <td class='lineno'>67</td>
+          <td class='tracecount excl'>2766 &#40;9 &#37;&#41;</td>
+          <td class='tracecount incl'>4729 &#40;15 &#37;&#41;</td>
+          <td>
+            
+            <div class='callees'>
+              814 &#40;41 &#37;&#41;
+              samples spent calling
+              <a href='hessian.jl-5fccbe099107cfda973d7802d1c83198aa8c1dcc.html#L66'>hessian&#33;</a>
+              <br />
+              814 &#40;41 &#37;&#41;
+              samples spent calling
+              <a href='hessian.jl-5fccbe099107cfda973d7802d1c83198aa8c1dcc.html#L69'>hessian&#33;</a>
+              <br />
+              275 &#40;14 &#37;&#41;
+              samples spent calling
+              <a href='typeinfer.jl-77636aef47b9d0b4ddca516ce62a00a6b0ec3585.html#L1135'>typeinf_ext_toplevel</a>
+              <br />
+              60 &#40;3 &#37;&#41;
+              samples spent calling
+              <a href='config.jl-d2967a391f7a248b6dbe5bb4fa638c32721ae62c.html#L245'>HessianConfig</a>
+              <br />
+            </div>
+            <span class='code'>    CHK &amp;&amp; checktag&#40;T, f, x&#41;</span>
+          </td>
+        </tr>
+        <tr id='L68'>
+          <td class='lineno'>68</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    ∇f&#33; &#61; InnerGradientForHess&#40;result, cfg, f&#41;</span>
+          </td>
+        </tr>
+        <tr id='L69'>
+          <td class='lineno'>69</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'>814 &#40;3 &#37;&#41;</td>
+          <td>
+            <div class='call-sites'>
+              814 &#40;3 &#37;&#41;
+              samples spent in hessian&#33;
+              <br />
+              
+              814 &#40;100 &#37;&#41; &#40;incl.&#41;
+              when called from hessian&#33;
+              <a href='hessian.jl-5fccbe099107cfda973d7802d1c83198aa8c1dcc.html#L67'>line 67</a>
+              <br />
+            </div>
+            <div class='callees'>
+              814 &#40;100 &#37;&#41;
+              samples spent calling
+              <a href='jacobian.jl-8a866a6a6ba5606800ca117cc6816ba0d20c8ea2.html#L84'>jacobian&#33;</a>
+              <br />
+            </div>
+            <span class='code'>    jacobian&#33;&#40;DiffResults.hessian&#40;result&#41;, ∇f&#33;, DiffResults.gradient&#40;result&#41;, x, cfg.jacobian_config, Val&#123;false&#125;&#40;&#41;&#41;</span>
+          </td>
+        </tr>
+        <tr id='L70'>
+          <td class='lineno'>70</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>    return ∇f&#33;.result</span>
+          </td>
+        </tr>
+        <tr id='L71'>
+          <td class='lineno'>71</td>
+          <td class='tracecount excl'></td>
+          <td class='tracecount incl'></td>
+          <td>
+            
+            
+            <span class='code'>end</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </body>
+</html>
+
