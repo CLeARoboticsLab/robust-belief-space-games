@@ -112,7 +112,7 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
     Label(plan_slider_grid[3, 1], @lift("$(Int($plan_time_step))"))
 
     # Plot activist preferences
-    for (activist_id, activist_key) in [(1,Main.Senate.robust_activist), (2,Main.Senate.non_robust_activist)] #[non_robust_activist, robust_activist]
+    for (activist_id, activist_key) in [(1,Main.Senate.non_robust_activist), (2,Main.Senate.robust_activist)] #[non_robust_activist, robust_activist]
         params = cost_params[activist_key]
         center = params.pos[1]
         scale = params.scale[1]
@@ -123,7 +123,6 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
 
     point_colors = vcat([fill(c, dims.num_senators) for c in colors]...)
 
-    @infiltrate
     #executed_trajectory holds the solved trajectory for each time_step for each senator, based on each activist (we only care about gt first state, which is repeated twice)
     for senator_id in 1:dims.num_senators
         senator_states = [robust_solution_history[time][1][1].beliefs[senator_id].belief_mean for time in eachindex(robust_solution_history)]
@@ -240,7 +239,6 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
     else
         false
     end
-    @infiltrate
     for senator_id in 1:dims.num_senators
         arrow_starts = @lift if $plan_time_step <= length($robust_means_trajectory) && senator_id <= length(($robust_means_trajectory)[$plan_time_step].blocks)
             [Point2f(($robust_means_trajectory)[$plan_time_step][Block(senator_id)])]
@@ -264,7 +262,6 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
         else
             Point2f[]
         end
-        @infiltrate
         arrows!(ax, arrow_starts, arrow_vectors, color=:green, visible=show_nature_controls)
     end
 
