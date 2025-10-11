@@ -9,10 +9,11 @@ using Infiltrator
 
 export visualize_receding_horizon_solution, load_solution
 
+
 function load_solution(filename)
     path = "exp/senate/outputs/$filename.dat"
-    solutions, games = open(deserialize, path, "r")
-    visualize_receding_horizon_solution(solutions, games)
+    solutions, games, cost_params = open(deserialize, path, "r")
+    visualize_receding_horizon_solution(solutions, games, cost_params)
 end
 
 function plot_ellipse!(ax, center, a, b; n=100, label="", color=:black)
@@ -45,13 +46,14 @@ function get_ellipse_points(center, cov; n=50, conf=1.0)
     return pts
 end
 
-function visualize_receding_horizon_solution(solutions::Dict, games::Dict)
-    solution_keys = collect(keys(games))
+function visualize_receding_horizon_solution(solutions::Dict, games::Dict, cost_params::Dict)
+    solution_keys = collect(keys(games)) # rh_params_etc
     screens = []
     figures = Dict{String, Figure}()
-    for sol_name in solution_keys
+    for sol_name in solution_keys 
         sol_data = solutions[sol_name]
-        dims = games[sol_name].robust.dims
+        dims = games[sol_name].robust.dims 
+        current_cost_params = cost_params[sol_name]
         screen = GLMakie.Screen()
         fig = Figure()
         figures[sol_name] = fig
@@ -59,30 +61,26 @@ function visualize_receding_horizon_solution(solutions::Dict, games::Dict)
 
         ax = Axis(fig[1, 1], title="$sol_name Solution", xlabel="Opinion Dimension 1", ylabel="Opinion Dimension 2", aspect=DataAspect())
         
-        create_individual_solution_plot(fig, ax, sol_name, sol_data, dims)
+        create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, current_cost_params)
         
         display(screen, fig)
+
     end
     return figures, screens
 end
 
-function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims)
+function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost_params)
     robust_solution_history = sol_data.robust.solution_history
-    non_robust_solution_history = sol_data.non_robust.solution_history
+    non_robust_solution_history = sol_data.non_robust.solution_history #TODO: CHECK ARROW COLOR LABELING (arrows seem inversed)
 
     # --- Layout ---
     controls_grid = fig[2, 1] = GridLayout(tellwidth=false)
     colsize!(fig.layout, 1, Relative(0.75))
     current_time_step = Observable(1)
     plan_time_step = Observable(1)
-    show_robust_planned_trajectory = Observable(false)
+    show_robust_planned_trajectory = Observable(true)
     show_non_robust_planned_trajectory = Observable(false)
     show_executed_trajectory = Observable(false)
-
-    cost_params = Dict(
-        1 => (;pos = [[1,1]], scale = [[1,2]]),
-        2 => (;pos = [[3,0]], scale = [[2,1]]),
-    )
     colors = [:blue, :red]
 
     # --- Sliders ---
@@ -114,27 +112,32 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims)
     Label(plan_slider_grid[3, 1], @lift("$(Int($plan_time_step))"))
 
     # Plot activist preferences
-    for activist_id in 1:dims.num_activists
-        params = cost_params[activist_id]
+    for (activist_id, activist_key) in [(1,Main.Senate.robust_activist), (2,Main.Senate.non_robust_activist)] #[non_robust_activist, robust_activist]
+        params = cost_params[activist_key]
         center = params.pos[1]
         scale = params.scale[1]
         a = sqrt(1 / scale[1])
         b = sqrt(1 / scale[2])
-        plot_ellipse!(ax, center, a, b, label="Activist $activist_id Pref.", color=colors[activist_id])
+        plot_ellipse!(ax, center, a, b, label="Activist $activist_key Pref.", color=colors[activist_id])
     end
 
     point_colors = vcat([fill(c, dims.num_senators) for c in colors]...)
 
-    # executed_trajectory = [robust_solution_history[time][1][1] for time in eachindex(robust_solution_history)]
-    # lines!(ax, executed_trajectory, color=:green, visible=show_executed_trajectory)
+    @infiltrate
+    #executed_trajectory holds the solved trajectory for each time_step for each senator, based on each activist (we only care about gt first state, which is repeated twice)
+    for senator_id in 1:dims.num_senators
+        senator_states = [robust_solution_history[time][1][1].beliefs[senator_id].belief_mean for time in eachindex(robust_solution_history)]
+        gt_trajectory = [Point2f(state[1],state[2]) for state in senator_states]
+        scatter!(ax, gt_trajectory, color=:green, markersize=8, visible=show_executed_trajectory)
+        lines!(ax, gt_trajectory, color=:green, visible=show_executed_trajectory)
 
+    end
     # Plot full planned trajectories as lines
     for activist_id in 1:dims.num_activists
         for senator_id in 1:dims.num_senators
             belief_idx = (activist_id-1)*dims.num_senators + senator_id
             
             robust_traj_points = @lift if $robust_planning_horizon > 0
-                # num_senators = Int(length(($robust_means_trajectory)[1]) / (dims.num_activists*2))
                 if belief_idx <= length(($robust_means_trajectory)[1].blocks)
                     [Point2f(($robust_means_trajectory)[time][Block(belief_idx)][1], ($robust_means_trajectory)[time][Block(belief_idx)][2]) for time in 1:($robust_planning_horizon)]
                 else
@@ -179,7 +182,7 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims)
     on(show_executed_trajectory_toggle.active) do active; show_executed_trajectory[] = active; end
     Label(toggles_grid[4, 1], "Show Executed Trajectory")
 
-    show_robust_planned_trajectory_toggle = Toggle(toggles_grid[5, 1], active=false)
+    show_robust_planned_trajectory_toggle = Toggle(toggles_grid[5, 1], active=true)
     on(show_robust_planned_trajectory_toggle.active) do active; show_robust_planned_trajectory[] = active; end
     Label(toggles_grid[5, 1], "Show Robust Planned Trajectory")
 
@@ -231,20 +234,19 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims)
         end
     end
 
-    # Draw arrows for nature's controls
+    # Draw arrows for nature's controls #TODO: FIX nature controls
     is_robust = @lift if !isempty($robust_planned_controls) && !isempty($robust_planned_controls[1].blocks)
-        length(($robust_planned_controls)[1].blocks) > sum(dims.controls_per_activist)
+        length(($robust_planned_controls)[1]) > sum(dims.controls_per_activist)
     else
         false
     end
-
+    @infiltrate
     for senator_id in 1:dims.num_senators
         arrow_starts = @lift if $plan_time_step <= length($robust_means_trajectory) && senator_id <= length(($robust_means_trajectory)[$plan_time_step].blocks)
             [Point2f(($robust_means_trajectory)[$plan_time_step][Block(senator_id)])]
         else
             Point2f[]
         end
-
         arrow_vectors = @lift if $is_robust && $plan_time_step <= length($robust_planned_controls)
             control_vec = ($robust_planned_controls)[$plan_time_step]
             last_block_idx = length(control_vec.blocks)
@@ -262,7 +264,7 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims)
         else
             Point2f[]
         end
-
+        @infiltrate
         arrows!(ax, arrow_starts, arrow_vectors, color=:green, visible=show_nature_controls)
     end
 
@@ -361,15 +363,19 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims)
                 end
             end
         end
+        @infiltrate
     end
     
     # Also update ellipses when the main time slider changes
-    on(current_time_step) do _
+    # prev_time_step = Ref(current_time_step[])  # store previous time step
+
+    on(current_time_step) do new_t
+        # @infiltrate
+        # Δt = new_t - prev_time_step[]
+        # set_close_to!(plan_slider, clamp(plan_slider[] - Δt, 1, plan_slider_range))
+        # prev_time_step[] = new_t               # update for next iteration
         set_close_to!(plan_slider, 1)
     end
-
-    # Trigger initial plot
-    # current_time_step[] = 1 
 
     axislegend(ax)
 end

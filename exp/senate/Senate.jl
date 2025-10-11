@@ -8,8 +8,8 @@ using Random
 using Statistics
 using Serialization
 
-# include("./SenateVisuals.jl")
-# using .SenateVisuals
+include("./SenateVisuals.jl")
+using .SenateVisuals
 
 export receding_horizon_main
 
@@ -24,8 +24,8 @@ opinion_dim=2
 end
 
 cost_params = Dict(
-    non_robust_activist => (;pos = [[1,1]], scale = [[1,2]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
-    robust_activist => (;pos = [[3,0]], scale = [[2,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
+    non_robust_activist => (;pos = [[1,1]], scale = [[1,4]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
+    robust_activist => (;pos = [[4,0]], scale = [[4,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
     nature_activist => (;terminal_weight=1.0, control_weight=(;direction=2.0, control_cost=2.0)),
 
 ) 
@@ -294,7 +294,7 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
             solution_history=solution_history["robust"]
         )
     )
-    return solutions_dict, representative_games
+    return solutions_dict, representative_games, current_cost_params
 end
 
 
@@ -302,6 +302,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
     solution_filename = "exp/senate/outputs/$file_id.dat"
     solutions = Dict()
     games = Dict()
+    cost_params = Dict()
 
     if isfile(solution_filename) && !override
         println("Loading solution from $solution_filename")
@@ -339,7 +340,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
         control_cost_scale_factors  # robust_activist control_cost
     )
 
-    nature_params = Iterators.product(
+    nature_params = Iterators.product(  
         terminal_weight_scale_factors, # nature_activist terminal_weight
         control_cost_scale_factors  # nature_activist control_cost
     )
@@ -350,7 +351,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
             for trial in 1:trials
                 println("Running trial $trial with scale_scale_factors: $s_nr, $s_r, terminal_weight_scale_factors: $tw_nr, $tw_r, $tw_n, control_cost_scale_factors: $cc_nr, $cc_r, $cc_n")
                 
-                rh_solutions, rh_games = run_receding_horizon_trial(
+                rh_solutions, rh_games, rh_cost = run_receding_horizon_trial(
                     scale_scale_factors=[s_nr, s_r],
                     terminal_weight_scale_factors=[tw_nr, tw_r, tw_n],
                     control_cost_scale_factors=[1.0, 1.0, cc_n],
@@ -363,9 +364,10 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
                 # solutions[non_robust_key] = rh_solutions["non_robust"]
                 # games[non_robust_key] = rh_games["non_robust"]
 
-                robust_key = "r_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
-                solutions[robust_key] = (;robust=rh_solutions["robust"], non_robust=rh_solutions["non_robust"])
-                games[robust_key] = (;robust=rh_games["robust"], non_robust=rh_games["non_robust"])
+                key = "r_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
+                solutions[key] = (;robust=rh_solutions["robust"], non_robust=rh_solutions["non_robust"])
+                games[key] = (;robust=rh_games["robust"], non_robust=rh_games["non_robust"])
+                cost_params[key] = rh_cost
 
                 _random_seed += 1
             end
@@ -375,7 +377,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
 
     println("Saving solution to $solution_filename")
     open(solution_filename, "w") do f
-        serialize(f, (solutions, games))
+        serialize(f, (solutions, games, cost_params))
     end
     # SenateVisuals.visualize_receding_horizon_solution(solutions, games; dims=dims)
 end
