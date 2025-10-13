@@ -24,8 +24,10 @@ opinion_dim=2
 end
 
 cost_params = Dict(
-    non_robust_activist => (;pos = [[1,1]], scale = [[1,4]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
-    robust_activist => (;pos = [[4,0]], scale = [[4,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
+    # non_robust_activist => (;pos = [[1,1]], scale = [[1,4]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
+    # robust_activist => (;pos = [[4,0]], scale = [[4,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
+    non_robust_activist => (;pos = [[2,-1]], scale = [[3,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
+    robust_activist => (;pos = [[-1,2]], scale = [[1,3]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
     nature_activist => (;terminal_weight=1.0, control_weight=(;direction=2.0, control_cost=2.0)),
 
 ) 
@@ -36,9 +38,9 @@ state_dim_per_senator = (;mean=opinion_dim, covariance=opinion_dim^2)
 control_dim_per_senator = (;direction=1, effort=1)
 #xmove, ymove
 ground_truth_senator_states = mortar([
-        [2, 0.5],
-        [1.5, 0],
-        [2, -0.5],
+        [0.5, 0.5],
+        [0, 0],
+        [-0.5, -0.5],
     ])
 num_senators = length(ground_truth_senator_states.blocks)
 initial_beliefs = Beliefs(vcat([[Belief(ground_truth_senator_states[Block(i)], 0.2 * Symmetric(I(opinion_dim))) for i in 1:num_senators] for _ in 1:num_activists]...))
@@ -298,31 +300,27 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
 end
 
 
-function receding_horizon_main(file_id::String=""; horizon=10, min_planning_horizon=5, override=false, random_seed=1, trials=1)
+function receding_horizon_main(file_id::String=""; horizon=10, min_planning_horizon=5, override=false, random_seed=1, trials=1,
+    params = [(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)] # (s_nr, s_r, tw_nr, tw_r, tw_n, cc_nr, cc_r, cc_n) 8 elements tuple
+    )
     solution_filename = "exp/senate/outputs/$file_id.dat"
     solutions = Dict()
     games = Dict()
     cost_params = Dict()
 
     if isfile(solution_filename) && !override
-        println("Loading solution from $solution_filename")
-        open(solution_filename, "r") do f
-            solutions, games = deserialize(f)
-        end
+        println("Solution from $solution_filename already exists")
+        # open(solution_filename, "r") do f
+        #     solutions, games = deserialize(f)
+        # end
         # SenateVisuals.visualize_receding_horizon_solution(solutions, games; dims=dims)
         return
     end
 
-    scale_scale_factors = [1.0]
-    terminal_weight_scale_factors = [1.0]
-    control_cost_scale_factors = [1.0]
     
-    num_non_robust_runs = length(scale_scale_factors)^2 * length(terminal_weight_scale_factors)^2 * length(control_cost_scale_factors)^2
-    num_robust_runs = num_non_robust_runs * length(terminal_weight_scale_factors) * length(control_cost_scale_factors)
-    total_runs = (num_non_robust_runs + num_robust_runs) * trials
+    total_runs = length(params) * trials
 
     println("This experiment will run $total_runs simulations.")
-    println("Breakdown: $(num_non_robust_runs*trials) non-robust runs and $(num_robust_runs*trials) robust runs.")
     println("Do you want to continue? (y/n)")
     user_input = readline()
     if user_input != "y"
@@ -330,47 +328,26 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
         return
     end
 
+    for (s_nr, s_r, tw_nr, tw_r, tw_n, cc_nr, cc_r, cc_n) in params
+        _random_seed = random_seed
+        for trial in 1:trials
+            println("Running trial $trial with scale_scale_factors: $s_nr, $s_r, terminal_weight_scale_factors: $tw_nr, $tw_r, $tw_n, control_cost_scale_factors: $cc_nr, $cc_r, $cc_n")
+            
+            rh_solutions, rh_games, rh_cost = run_receding_horizon_trial(
+                scale_scale_factors=[s_nr, s_r],
+                terminal_weight_scale_factors=[tw_nr, tw_r, tw_n],
+                control_cost_scale_factors=[1.0, 1.0, cc_n],
+                horizon=horizon,
+                planning_horizon=min_planning_horizon,
+                random_seed=_random_seed
+            )
 
-    non_robust_params = Iterators.product(
-        scale_scale_factors, # non_robust_activist scale
-        scale_scale_factors, # robust_activist scale
-        terminal_weight_scale_factors, # non_robust_activist terminal_weight
-        terminal_weight_scale_factors, # robust_activist terminal_weight
-        control_cost_scale_factors, # non_robust_activist control_cost
-        control_cost_scale_factors  # robust_activist control_cost
-    )
+            key = "r_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
+            solutions[key] = (;robust=rh_solutions["robust"], non_robust=rh_solutions["non_robust"])
+            games[key] = (;robust=rh_games["robust"], non_robust=rh_games["non_robust"])
+            cost_params[key] = rh_cost
 
-    nature_params = Iterators.product(  
-        terminal_weight_scale_factors, # nature_activist terminal_weight
-        control_cost_scale_factors  # nature_activist control_cost
-    )
-
-    for (s_nr, s_r, tw_nr, tw_r, cc_nr, cc_r) in non_robust_params
-        for (tw_n, cc_n) in nature_params
-            _random_seed = random_seed
-            for trial in 1:trials
-                println("Running trial $trial with scale_scale_factors: $s_nr, $s_r, terminal_weight_scale_factors: $tw_nr, $tw_r, $tw_n, control_cost_scale_factors: $cc_nr, $cc_r, $cc_n")
-                
-                rh_solutions, rh_games, rh_cost = run_receding_horizon_trial(
-                    scale_scale_factors=[s_nr, s_r],
-                    terminal_weight_scale_factors=[tw_nr, tw_r, tw_n],
-                    control_cost_scale_factors=[1.0, 1.0, cc_n],
-                    horizon=horizon,
-                    planning_horizon=min_planning_horizon,
-                    random_seed=_random_seed
-                )
-                
-                # non_robust_key = "nr_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_cc_$(cc_nr)_$(cc_r)_$trial"
-                # solutions[non_robust_key] = rh_solutions["non_robust"]
-                # games[non_robust_key] = rh_games["non_robust"]
-
-                key = "r_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
-                solutions[key] = (;robust=rh_solutions["robust"], non_robust=rh_solutions["non_robust"])
-                games[key] = (;robust=rh_games["robust"], non_robust=rh_games["non_robust"])
-                cost_params[key] = rh_cost
-
-                _random_seed += 1
-            end
+            _random_seed += 1
         end
     end
 
@@ -379,6 +356,5 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
     open(solution_filename, "w") do f
         serialize(f, (solutions, games, cost_params))
     end
-    # SenateVisuals.visualize_receding_horizon_solution(solutions, games; dims=dims)
 end
 end # module
