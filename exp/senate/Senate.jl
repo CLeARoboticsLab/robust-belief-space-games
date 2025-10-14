@@ -336,7 +336,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
             rh_solutions, rh_games, rh_cost = run_receding_horizon_trial(
                 scale_scale_factors=[s_nr, s_r],
                 terminal_weight_scale_factors=[tw_nr, tw_r, tw_n],
-                control_cost_scale_factors=[1.0, 1.0, cc_n],
+                control_cost_scale_factors=[cc_nr, cc_r, cc_n],
                 horizon=horizon,
                 planning_horizon=min_planning_horizon,
                 random_seed=_random_seed
