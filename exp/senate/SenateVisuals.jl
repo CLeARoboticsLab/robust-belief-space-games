@@ -360,7 +360,6 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
                 end
             end
         end
-        @infiltrate
     end
     
     # Also update ellipses when the main time slider changes

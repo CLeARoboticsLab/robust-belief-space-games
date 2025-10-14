@@ -26,9 +26,9 @@ end
 cost_params = Dict(
     # non_robust_activist => (;pos = [[1,1]], scale = [[1,4]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
     # robust_activist => (;pos = [[4,0]], scale = [[4,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
-    non_robust_activist => (;pos = [[2,-1]], scale = [[3,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
-    robust_activist => (;pos = [[-1,2]], scale = [[1,3]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=2.0)),
-    nature_activist => (;terminal_weight=1.0, control_weight=(;direction=2.0, control_cost=2.0)),
+    non_robust_activist => (;pos = [[1,-1]], scale = [[3,1]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=1.0)),
+    robust_activist => (;pos = [[-1,1]], scale = [[1,3]], terminal_weight=2.0, control_weight=(;direction=1.0, control_cost=1.0)),
+    nature_activist => (;terminal_weight=1.0, control_weight=(;direction=2.0, control_cost=1.0)),
 
 ) 
 # Ideally, we can "save" cost functions by storing the parameters of components used to generate the cost.
@@ -130,18 +130,36 @@ function terminal_cost_generator(cost_params::NamedTuple, ellipsoids::Function; 
     return terminal_cost_function
 end
 
-function f(x::BlockVector, u::BlockVector, ms::BlockVector)
+function f(x_all_senators::BlockVector, u::BlockVector, ms::BlockVector; repulsion_strength=0.1, min_repulsion_dist=0.5, dt=1)
     # transformed_u = u_transform(u)
     # us_per_senator = [[transformed_u[Block(num_senators * (j-1) + i)] for j in 1:num_activists] for i in 1:num_senators]
-    BlockVector(mapreduce(vcat, enumerate(zip(x.blocks, ms.blocks))) do (i, (x, m))
+    BlockVector(mapreduce(vcat, enumerate(zip(x_all_senators.blocks, ms.blocks))) do (i, (x_i, m))
         senator = 1 + (i-1) % num_senators
         us = BlockVector(vcat([u[Block((j-1) * num_senators + senator)] for j in 1:num_activists]...), [sum(control_dim_per_senator) for _ in 1:num_activists])
-        transformed_us = u_transform(us)
 
         x_move = sum([u[1] for u in us.blocks])
         y_move = sum([u[2] for u in us.blocks])
-        [1 0; 0 1] * x + [x_move; y_move] + m # Maybe some scalar for noise?
-    end, length.(x.blocks))
+        # sigmoidal_constant = 3/(1+exp(-5(dot([x_move; y_move], [x_move; y_move])-0.1)))
+
+        # attraction_force = sigmoidal_constant * [x_move; y_move]
+        attraction_force = [x_move; y_move]
+
+        repulsion_force = zeros(opinion_dim)
+        for j in 1:num_senators
+            if i != j
+                x_j = x_all_senators.blocks[j]
+                diff = x_i - x_j
+                dist_sq = dot(diff, diff)
+                if dist_sq > 1e-4
+                    dist = sqrt(dist_sq)
+                    strength_factor = 3 * (1.0 - 1.0 / (1.0 + exp(-5 * (dist - min_repulsion_dist))))
+                    repulsion_force += repulsion_strength * strength_factor * (diff / dist)
+                end
+            end
+        end
+
+        [1 0; 0 1] * x_i + dt * (attraction_force + repulsion_force) + m 
+    end, length.(x_all_senators.blocks))
 end
 
 function h(x::BlockVector, ns::BlockVector)
@@ -301,7 +319,9 @@ end
 
 
 function receding_horizon_main(file_id::String=""; horizon=10, min_planning_horizon=5, override=false, random_seed=1, trials=1,
-    params = [(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0)] # (s_nr, s_r, tw_nr, tw_r, tw_n, cc_nr, cc_r, cc_n) 8 elements tuple
+    params = [(1.0, 1.0,
+    1.0, 1.0, 1.0,
+    1.0, 1.0, 10.0)] # (s_nr, s_r, tw_nr, tw_r, tw_n, cc_nr, cc_r, cc_n) 8 elements tuple
     )
     solution_filename = "exp/senate/outputs/$file_id.dat"
     solutions = Dict()
@@ -309,11 +329,8 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
     cost_params = Dict()
 
     if isfile(solution_filename) && !override
-        println("Solution from $solution_filename already exists")
-        # open(solution_filename, "r") do f
-        #     solutions, games = deserialize(f)
-        # end
-        # SenateVisuals.visualize_receding_horizon_solution(solutions, games; dims=dims)
+        println("Loading solution from $solution_filename")
+        SenateVisuals.load_solution(file_id)
         return
     end
 
@@ -321,11 +338,13 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
     total_runs = length(params) * trials
 
     println("This experiment will run $total_runs simulations.")
-    println("Do you want to continue? (y/n)")
-    user_input = readline()
-    if user_input != "y"
-        println("Aborting.")
-        return
+    if total_runs > 5
+        println("Do you want to continue? (y/n)")
+        user_input = readline()
+        if user_input != "y"
+            println("Aborting.")
+            return
+        end
     end
 
     for (s_nr, s_r, tw_nr, tw_r, tw_n, cc_nr, cc_r, cc_n) in params
@@ -356,5 +375,6 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
     open(solution_filename, "w") do f
         serialize(f, (solutions, games, cost_params))
     end
+    SenateVisuals.load_solution(file_id)
 end
 end # module
