@@ -324,6 +324,7 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
     end
     scatter!(ax, non_robust_points, color=point_colors, markersize=8, visible=show_non_robust_planned_trajectory)
 
+
     robust_total_costs = [c.total for c in robust_costs]
     robust_terminal_costs = [c.terminal for c in robust_costs]
     robust_non_terminal_costs = [c.non_terminal for c in robust_costs]
@@ -341,19 +342,20 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
         ylabel="cost",
         # timesteps = 0:4,                     # optional custom x-axis
         scalarizer = to_scalar_cost,            # no-op for numbers; handy for cost structs
-        loc=(2,2)                               # put it in column 2, row 1 (side graph)
+        loc=(1,2)                               # put it in column 2, row 1 (side graph)
     )
 
     add_multi_line_graph!(fig;
         series=[robust_terminal_costs, robust_non_terminal_costs, non_robust_terminal_costs, non_robust_non_terminal_costs],
-        labels=["robust terminal", "robust non-terminal", "non-robust terminal", "non-robust non-terminal"],
+        labels=["r terminal", "r non-terminal", "nr terminal", "nr non-terminal"],
         current_time_step=current_time_step,
         title="Component Cost Over Time",
         ylabel="cost",
         # timesteps = 0:4,                     # optional custom x-axis
         scalarizer = to_scalar_cost,            # no-op for numbers; handy for cost structs
-        loc=(1,2)                               # put it in column 2, row 1 (side graph)
+        loc=(2,2)                               # put it in column 2, row 1 (side graph)
     )
+    colsize!(fig.layout, 2, Relative(0.25))
 
 
 
@@ -396,7 +398,6 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
                 end
             end
         end
-        @infiltrate
     end
     
     # Also update ellipses when the main time slider changes
@@ -494,8 +495,7 @@ function add_multi_line_graph!(parent;
     end
     axislegend(ax, position=:rb)
     ylims!(ax,0, maxvalue()*1.1)
-    xlims!(ax,0.5, k+0.5)
-    @infiltrate
+    xlims!(ax,0.5, k+3)
     # # Keep y-limits comfy as we reveal more points
     # on(current_time_step) do _
     #     k_now = min(current_time_step[], minlen())
