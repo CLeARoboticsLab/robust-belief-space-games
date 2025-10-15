@@ -195,7 +195,6 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
     costs = [BeliefCost(non_terminal_cost_generator(current_cost_params[non_robust_activist], ellipsoids[1]), terminal_cost_generator(current_cost_params[non_robust_activist], ellipsoids[1])),
             BeliefCost(non_terminal_cost_generator(current_cost_params[robust_activist], ellipsoids[2]), terminal_cost_generator(current_cost_params[robust_activist], ellipsoids[2])),
             BeliefCost(non_terminal_cost_generator(current_cost_params[nature_activist], ellipsoids[3]; nature=true), terminal_cost_generator(current_cost_params[nature_activist], ellipsoids[3]; nature=true))]
-
     
     # --- Receding Horizon Loop ---
     
@@ -209,6 +208,7 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
     
     warm_starts = Dict{String, Any}("non_robust"=>nothing, "robust"=>nothing)
     representative_games = Dict{String, Any}("non_robust"=>nothing, "robust"=>nothing)
+    plan_cost_history = Dict("non_robust"=>Any[], "robust"=>Any[])
 
     Random.seed!(random_seed)
     
@@ -237,7 +237,7 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
                 representative_games[type] = game
             end
 
-            nominal_beliefs, nominal_controls, _ = solve(game; debug=false, warm_start=warm_starts[type])
+            nominal_beliefs, nominal_controls, _, plan_cost = solve(game; debug=false, warm_start=warm_starts[type])
 
             push!(solution_history[type], (nominal_beliefs, nominal_controls))
             
@@ -262,6 +262,7 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
             else
                 warm_starts[type] = (nominal_beliefs, nominal_controls)
             end
+            push!(plan_cost_history[type], plan_cost)
         end
 
         u_non_robust = solution_history["non_robust"][end][2][1]
@@ -288,12 +289,14 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
         "non_robust" => (
             gt_state_history=gt_state_history,
             observation_history=observation_history,
-            solution_history=solution_history["non_robust"]
+            solution_history=solution_history["non_robust"],
+            cost_history=plan_cost_history["non_robust"]
         ),
         "robust" => (
             gt_state_history=gt_state_history,
             observation_history=observation_history,
-            solution_history=solution_history["robust"]
+            solution_history=solution_history["robust"],
+            cost_history=plan_cost_history["robust"]
         )
     )
     return solutions_dict, representative_games, current_cost_params
