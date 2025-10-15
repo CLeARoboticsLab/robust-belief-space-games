@@ -124,11 +124,15 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         println("error mean: ", round(mean(norm.(kkt_error_norms)), digits=7))
     end
     
+    final_cost = (;terminal=calculate_terminal_costs(game, nominal_beliefs), 
+    non_terminal = calculate_non_terminal_costs(game, nominal_beliefs, nominal_controls), 
+    total = calculate_costs(game, nominal_beliefs, nominal_controls))
+
     if save_intermediate_solutions
         return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], kkt_error_history[2:end], cond
     end
     
-    return nominal_beliefs, nominal_controls, kkt_error_norms
+    return nominal_beliefs, nominal_controls, kkt_error_norms, final_cost
 end
 
 # TODO: take a gradient step on one player's control (IBR style)

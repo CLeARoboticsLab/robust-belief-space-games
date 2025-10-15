@@ -113,14 +113,20 @@ struct BeliefGame{E, C}
     gt_initial_state::BlockVector
     is_robust::Bool # Assuming player 1 is robust
 end
-
-function calculate_costs(game::BeliefGame, beliefs::Vector{Beliefs}, controls::Vector{BlockVector})
+function calculate_non_terminal_costs(game::BeliefGame, beliefs::Vector{Beliefs}, controls::Vector{BlockVector})
     return map(1:(game.dims.n+game.is_robust)) do ii
         mapreduce(+, 1:game.horizon - 1, init=0.0) do t
             game.costs[ii].non_terminal_cost(beliefs[t], controls[t][Block(1):Block(game.dims.num_senators*game.dims.num_activists)])
-        end +
+        end
+    end
+end
+function calculate_terminal_costs(game::BeliefGame, beliefs::Vector{Beliefs})
+    return map(1:(game.dims.n+game.is_robust)) do ii
         game.costs[ii].terminal_cost(beliefs[end])
     end
+end
+function calculate_costs(game::BeliefGame, beliefs::Vector{Beliefs}, controls::Vector{BlockVector})
+    return calculate_non_terminal_costs(game, beliefs, controls) .+ calculate_terminal_costs(game, beliefs)
 end
 
 function clip(x, max_norm)

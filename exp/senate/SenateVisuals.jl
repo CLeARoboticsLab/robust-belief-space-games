@@ -71,8 +71,8 @@ end
 
 function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost_params)
     robust_solution_history = sol_data.robust.solution_history
-    non_robust_solution_history = sol_data.non_robust.solution_history #TODO: CHECK ARROW COLOR LABELING (arrows seem inversed)
-
+    non_robust_solution_history = sol_data.non_robust.solution_history
+    
     # --- Layout ---
     controls_grid = fig[2, 1] = GridLayout(tellwidth=false)
     colsize!(fig.layout, 1, Relative(0.75))
@@ -103,6 +103,9 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
     non_robust_covariances_trajectory = @lift [covs(b) for b in $non_robust_planned_belief_trajectory]
     robust_planning_horizon = @lift length($robust_means_trajectory)
     non_robust_planning_horizon = @lift length($non_robust_means_trajectory)
+
+    robust_costs = sol_data.robust.cost_history #Contains terminal, non-terminal, and total costs
+    non_robust_costs = sol_data.non_robust.cost_history #Contains terminal, non-terminal, and total costs
 
     plan_slider_grid = controls_grid[2, 1] = GridLayout(tellwidth=false)
     Label(plan_slider_grid[1, 1], "Plan Time")
@@ -321,6 +324,41 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
     end
     scatter!(ax, non_robust_points, color=point_colors, markersize=8, visible=show_non_robust_planned_trajectory)
 
+
+    robust_total_costs = [c.total for c in robust_costs]
+    robust_terminal_costs = [c.terminal for c in robust_costs]
+    robust_non_terminal_costs = [c.non_terminal for c in robust_costs]
+
+    non_robust_total_costs = [c.total for c in non_robust_costs]
+    non_robust_terminal_costs = [c.terminal for c in non_robust_costs]
+    non_robust_non_terminal_costs = [c.non_terminal for c in non_robust_costs]
+
+    
+    add_multi_line_graph!(fig;
+        series=[robust_total_costs, non_robust_total_costs],
+        labels=["robust","non_robust"],
+        current_time_step=current_time_step,
+        title="Cost Over Time",
+        ylabel="cost",
+        # timesteps = 0:4,                     # optional custom x-axis
+        scalarizer = to_scalar_cost,            # no-op for numbers; handy for cost structs
+        loc=(1,2)                               # put it in column 2, row 1 (side graph)
+    )
+
+    add_multi_line_graph!(fig;
+        series=[robust_terminal_costs, robust_non_terminal_costs, non_robust_terminal_costs, non_robust_non_terminal_costs],
+        labels=["r terminal", "r non-terminal", "nr terminal", "nr non-terminal"],
+        current_time_step=current_time_step,
+        title="Component Cost Over Time",
+        ylabel="cost",
+        # timesteps = 0:4,                     # optional custom x-axis
+        scalarizer = to_scalar_cost,            # no-op for numbers; handy for cost structs
+        loc=(2,2)                               # put it in column 2, row 1 (side graph)
+    )
+    colsize!(fig.layout, 2, Relative(0.25))
+
+
+
     # Update ellipses on slider change
     on(plan_time_step) do time_step
         # Update robust ellipses
@@ -376,4 +414,102 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, dims, cost
     axislegend(ax)
 end
 
+# ---- Optional: convert complex "cost" objects to scalars ----
+to_scalar_cost(c) = c isa Number ? float(c) :
+                    c isa AbstractArray ? sum(skipmissing(vec(c))) :
+                    c isa NamedTuple && hasproperty(c, :total) ? float(c.total) :
+                    c isa AbstractDict && haskey(c, :total) ? float(c[:total]) :
+                    try
+                        float(getfield(c, :total))
+                    catch
+                        missing
+                    end
+
+"""
+    add_multi_line_graph!(
+        parent;
+        series::Vector{<:AbstractVector},
+        labels::Vector{<:AbstractString},
+        current_time_step::Observable{Int}=Observable(typemax(Int)),
+        title::AbstractString = "Series over time",
+        xlabel::AbstractString = "t",
+        ylabel::AbstractString = "value",
+        timesteps::Union{Nothing,AbstractVector}=nothing,
+        scalarizer::Function = identity,
+        loc::Tuple{Int,Int} = (1, 2)
+    ) -> Axis
+
+Plot multiple time-aligned series on a single axis. Each element of `series` is a
+vector of values at the same discrete timesteps. Use `scalarizer` (e.g., `to_scalar_cost`)
+if your elements aren’t plain numbers.
+
+- `parent`: either a `Figure` (an axis will be placed at `loc`) or an existing `Axis`.
+- `current_time_step`: if you pass the same Observable you use for your main slider,
+  the plot reveals points up to that step; otherwise it shows all points.
+- `timesteps`: optional x-values (defaults to `1:N`).
+- Returns the created/used `Axis`.
+"""
+function add_multi_line_graph!(parent;
+    series::Vector,
+    labels::Vector{<:AbstractString},
+    current_time_step::Observable{Int}=Observable(typemax(Int)),
+    title::AbstractString = "Series over time",
+    xlabel::AbstractString = "t",
+    ylabel::AbstractString = "value",
+    timesteps::Union{Nothing,AbstractVector}=nothing,
+    scalarizer::Function = identity,
+    loc::Tuple{Int,Int} = (1, 2)
+)
+    @assert length(series) == length(labels) "series and labels must have same length"
+
+    # Create or use an axis
+    ax = parent isa Figure ? Axis(parent[loc...], title=title, xlabel=xlabel, ylabel=ylabel) :
+                             (parent isa Axis ? parent :
+                              error("parent must be a Figure or an Axis"))
+
+    # Scalarize & sanitize each series, wrap in Observables for reactive updates
+    obs_series = Vector{Observable{Vector{Float64}}}(undef, length(series))
+    for i in eachindex(series)
+        sc = scalarizer.(series[i])
+        sc = collect(skipmissing(sc))
+        obs_series[i] = Observable(Float64.(sc))
+    end
+
+    # All series should share the same time grid; we use the shortest length
+    minlen() = minimum(length.([obs[] for obs in obs_series]))
+    maxvalue() = maximum(vcat([obs[] for obs in obs_series]...))
+    k = minlen()#@lift(clamp($current_time_step, 1, minlen()))
+
+    # X values (shared)
+    x_all = if timesteps === nothing
+        @lift(1:$k)
+    else
+        xt = Observable(vec(timesteps))
+        @lift(xt[][1:$k])
+    end
+
+    # Plot each series; capture local Observable in the loop for @lift closures
+    for i in eachindex(obs_series)
+        local oi = obs_series[i]
+        lines!(ax, x_all, @lift(oi[][1:$k]), label=labels[i])
+    end
+    axislegend(ax, position=:rb)
+    ylims!(ax,0, maxvalue()*1.1)
+    xlims!(ax,0.5, k+3)
+    # # Keep y-limits comfy as we reveal more points
+    # on(current_time_step) do _
+    #     k_now = min(current_time_step[], minlen())
+    #     ys = Float64[]
+    #     for oi in obs_series
+    #         append!(ys, oi[][1:k_now])
+    #     end
+    #     if !isempty(ys)
+    #         ymin, ymax = extrema(ys)
+    #         pad = max(1e-9, 0.05 * (ymax - ymin + 1e-12))
+    #         ax.ylimits = (ymin - pad, ymax + pad)
+    #     end
+    # end
+
+    return ax
+end
 end
