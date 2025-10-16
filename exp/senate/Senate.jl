@@ -8,8 +8,8 @@ using Random
 using Statistics
 using Serialization
 
-include("./SenateVisuals.jl")
-using .SenateVisuals
+# include("./SenateVisuals.jl")
+# using .SenateVisuals
 
 export receding_horizon_main
 
@@ -130,21 +130,21 @@ function terminal_cost_generator(cost_params::NamedTuple, ellipsoids::Function; 
     return terminal_cost_function
 end
 
-function f(x_all_senators::BlockVector, u::BlockVector, ms::BlockVector; repulsion_strength=0.1, min_repulsion_dist=0.5, dt=1)
-    # transformed_u = u_transform(u)
-    # us_per_senator = [[transformed_u[Block(num_senators * (j-1) + i)] for j in 1:num_activists] for i in 1:num_senators]
+function f(x_all_senators::BlockVector, u::BlockVector, ms::BlockVector; repulsion_strength=0.1, min_repulsion_dist=0.1, dt=1)
     BlockVector(mapreduce(vcat, enumerate(zip(x_all_senators.blocks, ms.blocks))) do (i, (x_i, m))
         senator = 1 + (i-1) % num_senators
         us = BlockVector(vcat([u[Block((j-1) * num_senators + senator)] for j in 1:num_activists]...), [sum(control_dim_per_senator) for _ in 1:num_activists])
 
-        x_move = sum([u[1] for u in us.blocks])
-        y_move = sum([u[2] for u in us.blocks])
+        x_move = sum([u[1] for u in us.blocks[1:num_activists-1]])
+        y_move = sum([u[2] for u in us.blocks[2:num_activists]])
         # sigmoidal_constant = 3/(1+exp(-5(dot([x_move; y_move], [x_move; y_move])-0.1)))
 
         # attraction_force = sigmoidal_constant * [x_move; y_move]
-        attraction_force = [x_move; y_move]
+        control_force = [x_move; y_move]
 
-        repulsion_force = zeros(opinion_dim)
+        party_forces = zeros(opinion_dim)
+        direction = i <= 2 ? 1 : -1
+
         for j in 1:num_senators
             if i != j
                 x_j = x_all_senators.blocks[j]
@@ -152,13 +152,14 @@ function f(x_all_senators::BlockVector, u::BlockVector, ms::BlockVector; repulsi
                 dist_sq = dot(diff, diff)
                 if dist_sq > 1e-4
                     dist = sqrt(dist_sq)
-                    strength_factor = 3 * (1.0 - 1.0 / (1.0 + exp(-5 * (dist - min_repulsion_dist))))
-                    repulsion_force += repulsion_strength * strength_factor * (diff / dist)
+                    strength_factor = 1 * (1.0 - 1.0 / (1.0 + exp(-3 * (dist - min_repulsion_dist))))
+                    party_forces += (j <= 2 ? -1 : 1) * direction * repulsion_strength * strength_factor * (diff / dist)
                 end
             end
         end
 
-        [1 0; 0 1] * x_i + dt * (attraction_force + repulsion_force) + m 
+        # [1 0; 0 1] * x_i + control_force + party_forces + m 
+        [1 0; 0 1] * x_i + control_force + m 
     end, length.(x_all_senators.blocks))
 end
 
@@ -333,11 +334,10 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
 
     if isfile(solution_filename) && !override
         println("Loading solution from $solution_filename")
-        SenateVisuals.load_solution(file_id)
+        # SenateVisuals.load_solution(file_id)
         return
     end
 
-    
     total_runs = length(params) * trials
 
     println("This experiment will run $total_runs simulations.")
@@ -378,6 +378,6 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
     open(solution_filename, "w") do f
         serialize(f, (solutions, games, cost_params))
     end
-    SenateVisuals.load_solution(file_id)
+    # SenateVisuals.load_solution(file_id)
 end
 end # module
