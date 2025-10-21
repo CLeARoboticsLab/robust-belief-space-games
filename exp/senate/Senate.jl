@@ -177,6 +177,17 @@ function h(x::BlockVector, ns::BlockVector)
     BlockVector(x + 0.1 * ns, length.(x.blocks))
 end
 
+function real_dynamics(x::BlockVector, u::BlockVector, m::BlockVector)
+    t = f(x, u, m) 
+    drift = 0.02 * ones(length(x))
+    BlockVector(t+drift, length.(x.blocks))
+end
+function real_sensor(x::BlockVector)
+    drift = 0.02 * ones(length(x))
+    t = h(x, BlockVector(zeros(length(x)), dims.states))
+    return BlockVector(t + drift, length.(x.blocks))
+end
+
 #Assertions for global variables
 function init_checks()
     if (length(non_robust_activist.pos) != opinion_dim || length(robust_activist.pos) != opinion_dim ||
@@ -359,17 +370,6 @@ function table_exp(file_id::String="table_exp"; horizon=10, min_planning_horizon
 
     rows = [["non_robust", "robust"], ["non_robust", "non_robust"]]
     cols = ["nominal", "non-nominal belief update", "non-nominal dynamics"]
-
-    function real_dynamics(x::BlockVector, u::BlockVector, m::BlockVector)
-        t = f(x, u, m) 
-        drift = 0.02 * ones(length(x))
-        BlockVector(t+drift, length.(x.blocks))
-    end
-    function real_sensor(x::BlockVector)
-        drift = 0.02 * ones(length(x))
-        t = h(x, BlockVector(zeros(length(x)), dims.states))
-        return BlockVector(t + drift, length.(x.blocks))
-    end
 
     for row in rows
         for col in cols
