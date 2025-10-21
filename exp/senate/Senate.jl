@@ -130,7 +130,8 @@ function terminal_cost_generator(cost_params::NamedTuple, ellipsoids::Function; 
     return terminal_cost_function
 end
 
-function f(x_all_senators::BlockVector, u::BlockVector, ms::BlockVector; repulsion_strength=0.1, min_repulsion_dist=0.1, dt=1)
+function f(x_all_senators::BlockVector, u::BlockVector, ms::BlockVector;
+    party_forces_enabled=false, party_forces_strength=0.1, min_repulsion_dist=0.1, dt=1)
     BlockVector(mapreduce(vcat, enumerate(zip(x_all_senators.blocks, ms.blocks))) do (i, (x_i, m))
         senator = 1 + (i-1) % num_senators
         us = BlockVector(vcat([u[Block((j-1) * num_senators + senator)] for j in 1:num_activists]...), [sum(control_dim_per_senator) for _ in 1:num_activists])
@@ -142,24 +143,33 @@ function f(x_all_senators::BlockVector, u::BlockVector, ms::BlockVector; repulsi
         # attraction_force = sigmoidal_constant * [x_move; y_move]
         control_force = [x_move; y_move]
 
-        party_forces = zeros(opinion_dim)
-        direction = i <= 2 ? 1 : -1
+        if party_forces_enabled
+            party_forces = zeros(opinion_dim)
+            i_party_id = i <= 2 ? 1 : -1
 
-        for j in 1:num_senators
-            if i != j
-                x_j = x_all_senators.blocks[j]
-                diff = x_i - x_j
-                dist_sq = dot(diff, diff)
-                if dist_sq > 1e-4
-                    dist = sqrt(dist_sq)
-                    strength_factor = 1 * (1.0 - 1.0 / (1.0 + exp(-3 * (dist - min_repulsion_dist))))
-                    party_forces += (j <= 2 ? -1 : 1) * direction * repulsion_strength * strength_factor * (diff / dist)
+            for j in 1:num_senators
+                if i != j
+                    x_j = x_all_senators.blocks[j]
+                    diff = x_j - x_i # attraction direction
+                    dist_sq = dot(diff, diff)
+
+                    j_party_id = j <= 2 ? 1 : -1
+                    if j_party_id == i_party_id
+                        # attraction
+                        strength_factor = 1*(1/(1+exp(-1*(dist_sq-min_repulsion_dist))))
+                        party_forces += strength_factor * (diff / sqrt(dist_sq))
+                    else
+                        # repulsion
+                        # strength_factor = .1*(1-1/(1+exp(-1*(dist_sq-min_repulsion_dist))))
+                    end
+                    
                 end
             end
-        end
 
-        # [1 0; 0 1] * x_i + control_force + party_forces + m 
-        [1 0; 0 1] * x_i + control_force + m 
+            [1 0; 0 1] * x_i + control_force + party_forces + m 
+        else
+            [1 0; 0 1] * x_i + control_force + m 
+        end
     end, length.(x_all_senators.blocks))
 end
 
@@ -189,6 +199,10 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
     scale_scale_factors = [1.0, 1.0],
     terminal_weight_scale_factors = [1.0, 1.0, 1.0],
     control_cost_scale_factors = [1.0, 1.0, 1.0],
+    robust=["non_robust", "robust"],
+    real_dynamics=nothing,
+    real_sensor=nothing,
+    party_forces_enabled=false,
 )
     current_cost_params = deepcopy(cost_params)
     current_cost_params[non_robust_activist] = (;
@@ -220,7 +234,12 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
     gt_state_history = [ground_truth_senator_states]
     observation_history = []
     solution_history = Dict("non_robust"=>[], "robust"=>[])
-    environments::Vector{BeliefEnvironment} = [BeliefEnvironment(f, ground_truth_senator_states, h) for _ in 1:dims.num_activists]
+    environments::Vector{BeliefEnvironment} = []
+    if isnothing(real_dynamics)
+        environments = [BeliefEnvironment((x, u, m)-> f(x, u, m; party_forces_enabled=party_forces_enabled), ground_truth_senator_states, h) for _ in 1:dims.num_activists]
+    else
+        environments = [BeliefEnvironment(real_dynamics, ground_truth_senator_states, h) for _ in 1:dims.num_activists]
+    end
     
     current_beliefs = initial_beliefs
     current_gt_state = ground_truth_senator_states
@@ -237,13 +256,13 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
     for t in 1:horizon-1
         println("Receding Horizon Step $t / $(horizon-1)")
 
-        for type in ["non_robust", "robust"]
+        for type in robust
             is_robust = type == "robust"
             
             game_horizon = min(planning_horizon, horizon - t + 1)
             
             game = BeliefGame(
-                BeliefEnvironment(f, current_gt_state, h),
+                BeliefEnvironment((x, u, m)-> f(x, u, m; party_forces_enabled=party_forces_enabled), current_gt_state, h),
                 is_robust ? costs : costs[1:2],
                 current_beliefs,
                 game_horizon,
@@ -297,7 +316,11 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
         current_gt_state = f(current_gt_state, activist_u, process_noise)
         push!(gt_state_history, current_gt_state)
 
-        observations = [h(current_gt_state, BlockVector(rand(sensor_noise_dist), dims.states)) for _ in 1:dims.num_activists]
+        if isnothing(real_sensor)
+            observations = [h(current_gt_state, BlockVector(rand(sensor_noise_dist), dims.states)) for _ in 1:dims.num_activists]
+        else
+            observations = [real_sensor(current_gt_state) for _ in 1:dims.num_activists]
+        end
         observations = mortar(observations)
         push!(observation_history, observations)
         
@@ -322,10 +345,60 @@ function run_receding_horizon_trial(;horizon=10, planning_horizon=5, random_seed
 end
 
 
+function table_exp(file_id::String="table_exp"; horizon=10, min_planning_horizon=5, override=false, random_seed=1,
+    )
+    solution_filename = "exp/senate/outputs/$file_id.dat"
+    solutions = Dict()
+    games = Dict()
+    cost_params = Dict()
+
+    if isfile(solution_filename) && !override
+        println("Solution already exists in $solution_filename")
+        return
+    end
+
+    rows = [["non_robust", "robust"], ["non_robust", "non_robust"]]
+    cols = ["nominal", "non-nominal belief update", "non-nominal dynamics"]
+
+    function real_dynamics(x::BlockVector, u::BlockVector, m::BlockVector)
+        t = f(x, u, m) 
+        drift = 0.02 * ones(length(x))
+        BlockVector(t+drift, length.(x.blocks))
+    end
+    function real_sensor(x::BlockVector)
+        drift = 0.02 * ones(length(x))
+        t = h(x, BlockVector(zeros(length(x)), dims.states))
+        return BlockVector(t + drift, length.(x.blocks))
+    end
+
+    for row in rows
+        for col in cols
+            println("Running trial $(row[1])-$(row[2]): $col")
+            solution_dict, representative_games, current_cost_params = run_receding_horizon_trial(
+                scale_scale_factors=[1.0, 1.0],
+                terminal_weight_scale_factors=[1.0, 1.0, 1.0],
+                control_cost_scale_factors=[1.5, 1.5, 10.0],
+                real_dynamics=(col == "non-nominal dynamics" ? real_dynamics : nothing),
+                real_sensor=(col == "non-nominal belief update" ? real_sensor : nothing),
+                party_forces_enabled=false
+            )
+            key = row[1] * "," * row[2] * ": " * col
+            solutions[key] = solution_dict
+            games[key] = representative_games
+            cost_params[key] = current_cost_params
+        end
+    end
+    println("Saving solution to $solution_filename")
+    open(solution_filename, "w") do f
+        serialize(f, (solutions, games, cost_params))
+    end
+end
+
 function receding_horizon_main(file_id::String=""; horizon=10, min_planning_horizon=5, override=false, random_seed=1, trials=1,
     params = [(1.0, 1.0,
     1.0, 1.0, 1.0,
-    1.0, 1.0, 10.0)] # (s_nr, s_r, tw_nr, tw_r, tw_n, cc_nr, cc_r, cc_n) 8 elements tuple
+    1.5, 1.5, 10.0)], # (s_nr, s_r, tw_nr, tw_r, tw_n, cc_nr, cc_r, cc_n) 8 elements tuple
+    party_forces_enabled=true
     )
     solution_filename = "exp/senate/outputs/$file_id.dat"
     solutions = Dict()
@@ -361,7 +434,8 @@ function receding_horizon_main(file_id::String=""; horizon=10, min_planning_hori
                 control_cost_scale_factors=[cc_nr, cc_r, cc_n],
                 horizon=horizon,
                 planning_horizon=min_planning_horizon,
-                random_seed=_random_seed
+                random_seed=_random_seed,
+                party_forces_enabled=party_forces_enabled
             )
 
             key = "r_s_$(s_nr)_$(s_r)_tw_$(tw_nr)_$(tw_r)_$(tw_n)_cc_$(cc_nr)_$(cc_r)_$(cc_n)_$trial"
