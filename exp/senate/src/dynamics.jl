@@ -1,7 +1,6 @@
-function base_dynamics(x::BlockVector, u::BlockVector, m::BlockVector; config::PlayerConfig, debug::Bool=false)
+function base_dynamics(x::BlockVector, u::BlockVector, m::BlockVector; config::PlayerConfig)
     BlockVector(mapreduce(vcat, enumerate(zip(x.blocks, m.blocks))) do (i, (x_i, m))
         senator = 1 + (i-1) % config.num_senators
-        @infiltrate debug
         us = BlockVector(vcat([u[Block((j-1) * config.num_senators + senator)] for j in 1:config.num_activists]...), config.control_dims_per_senator[senator])
         
         x_move = sum([us[1] for u in us.blocks])
