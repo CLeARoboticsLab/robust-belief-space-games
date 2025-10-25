@@ -1,12 +1,11 @@
-function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false, n_players=2)
-    num_beliefs_per_player = length(beliefs.beliefs) ÷ n_players
-    g_player_parts = Vector{Vector{eltype(beliefs.beliefs[1].belief_mean)}}(undef, n_players)
-    W_player_parts = Vector{Matrix{eltype(beliefs.beliefs[1].belief_mean)}}(undef, n_players)
+function ekf_update(beliefs::Beliefs, control::BlockVector, game::BeliefGame)
+    g_player_parts = Vector{Vector{eltype(beliefs.beliefs[1].belief_mean)}}(undef, length(game.environments))
+    W_player_parts = Vector{Matrix{eltype(beliefs.beliefs[1].belief_mean)}}(undef, length(game.environments))
 
-    for i in 1:n_players
-        player_belief_indices = (i-1)*num_beliefs_per_player+1:i*num_beliefs_per_player
+    for i in 1:length(game.environments) 
+        player_belief_indices = (i-1)*game.dims.num_beliefs_per_player[i]+1:i*game.dims.num_beliefs_per_player[i]
         player_beliefs = Beliefs(beliefs.beliefs[player_belief_indices])
-        g_player_parts[i], W_player_parts[i] = ekf_update_per_player(player_beliefs, control, dynamics, sensor_model, is_robust=(is_robust && i == 1))
+        g_player_parts[i], W_player_parts[i] = ekf_update_per_player(player_beliefs, control, game, i)
     end
     
     g = vcat(g_player_parts...)
@@ -15,8 +14,10 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, dynamics, sensor_mod
     return g, W
 end
 
-function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false)
-    non_robust_control = mortar(control.blocks[1:end-is_robust])
+function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, game::BeliefGame, player_idx::Int)
+    dynamics = game.environments[player_idx].dynamics
+    sensor_model = game.environments[player_idx].sensor_models
+    non_robust_control = mortar(control.blocks[1:end-length(game.robust_players)])
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
     expected_dynamics = dynamics(BlockVector(means(beliefs), dims(beliefs)), non_robust_control, zero_noise)
 
@@ -47,7 +48,7 @@ function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, dynamics,
         cov_range = current_idx:(current_idx + dim_i - 1)
         
         mean_i = expected_dynamics.blocks[i]
-        if is_robust
+        if !(player_idx in game.robust_players) && length(game.robust_players) > 0
             mean_i += control.blocks[end][sum(dims(beliefs)[1:i-1])+1:sum(dims(beliefs)[1:i])]
         end
         cov_i = Symmetric(updated_covs_matrix[cov_range, cov_range])
@@ -80,21 +81,21 @@ function my_matrix_sqrt(A; max_iterations = 10)
     return Y * sqrt(old_norm)
 end
 
-function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, sensor_model::Function; is_robust=false, n_players=2)
+function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, game::BeliefGame)
     old_debug = DEBUG
     global DEBUG = false #TODO: Remove use of global var. manipulation
 
     function g_grad_wrapper(x)
         current_beliefs = unvec(x[1:total_size(beliefs)], dims(beliefs))
         current_controls = BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control)))
-        g, _ = ekf_update(current_beliefs, current_controls, dynamics, sensor_model; is_robust=is_robust, n_players=n_players)
+        g, _ = ekf_update(current_beliefs, current_controls, game)
         return g
     end
 
     function W_grad_wrapper(x)
         current_beliefs = unvec(x[1:total_size(beliefs)], dims(beliefs))
         current_controls = BlockVector(x[total_size(beliefs)+1:end], length.(blocks(control)))
-        _, W = ekf_update(current_beliefs, current_controls, dynamics, sensor_model; is_robust=is_robust, n_players=n_players)
+        _, W = ekf_update(current_beliefs, current_controls, game)
         return vec(W) # Flatten for jacobian calculation
     end
 
@@ -113,7 +114,9 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, dynamics, s
     return g_s_val, W_s_val
 end
 
-function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dynamics::Function, sensor_model::Function, observations::BlockVector)
+function ekf_update_with_observations_per_player(beliefs::Beliefs, control::BlockVector, game::BeliefGame, player_idx::Int, observations::BlockVector)
+    dynamics = game.environments[player_idx].dynamics
+    sensor_model = game.environments[player_idx].sensor_models
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
     stacked_controls = mortar([control.blocks..., control.blocks...])
     expected_dynamics = dynamics(means(beliefs), stacked_controls, zero_noise)
@@ -140,19 +143,19 @@ function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, dy
     return Beliefs([Belief(@view(mean_update[Block(ii)]), @view(temp[Block(ii), Block(ii)])) for ii in 1:length(beliefs.beliefs)])
 end
 
-function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, environments::Vector{BeliefEnvironment}, observations::BlockVector)
-    num_players = length(environments)
+function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, game::BeliefGame, observations::BlockVector)
+    num_players = length(game.environments)
     if length(beliefs.beliefs) % num_players != 0
         error("Number of beliefs must be a multiple of the number of players.")
     end
-    beliefs_per_player = length(beliefs.beliefs) ÷ num_players
     new_beliefs = Vector{Belief}(undef, length(beliefs.beliefs))
 
     for p in 1:num_players
+        beliefs_per_player = game.dims.num_beliefs_per_player[p]
         player_belief_indices = (p-1)*beliefs_per_player+1:p*beliefs_per_player
         player_beliefs = Beliefs(beliefs.beliefs[player_belief_indices])
         player_observations = BlockVector(observations.blocks[p], dims(player_beliefs))
-        updated_player_beliefs = ekf_update_with_observations(player_beliefs, control, environments[p].dynamics, environments[p].sensor_models, player_observations)
+        updated_player_beliefs = ekf_update_with_observations_per_player(player_beliefs, control, game, p, player_observations)
         new_beliefs[player_belief_indices] .= updated_player_beliefs.beliefs
     end
     

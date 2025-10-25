@@ -104,24 +104,24 @@ struct BeliefEnvironment{D, S}
     sensor_models::S
 end
 
-struct BeliefGame{E, C}
-    environment::E
-    costs::C
+struct BeliefGame
+    environments::Vector{BeliefEnvironment}
+    costs::Vector{BeliefCost}
     initial_beliefs::Beliefs
     horizon::Int
     dims::NamedTuple
     gt_initial_state::BlockVector
-    is_robust::Bool # Assuming player 1 is robust
+    robust_players::Vector{Int}
 end
 function calculate_non_terminal_costs(game::BeliefGame, beliefs::Vector{Beliefs}, controls::Vector{BlockVector})
-    return map(1:(game.dims.n+game.is_robust)) do ii
+    return map(1:(length(game.environments)+length(game.robust_players))) do ii
         mapreduce(+, 1:game.horizon - 1, init=0.0) do t
             game.costs[ii].non_terminal_cost(beliefs[t], controls[t][Block(1):Block(game.dims.num_senators*game.dims.num_activists)])
         end
     end
 end
 function calculate_terminal_costs(game::BeliefGame, beliefs::Vector{Beliefs})
-    return map(1:(game.dims.n+game.is_robust)) do ii
+    return map(1:(length(game.environments)+length(game.robust_players))) do ii
         game.costs[ii].terminal_cost(beliefs[end])
     end
 end
@@ -171,8 +171,8 @@ function rollout_strategy(game::BeliefGame, strategy::Vector)
                 println(f)
             end
         end
-        g, W = ekf_update(beliefs[i], controls[i], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust)
-        beliefs[i+1] = unvec(g, game.dims.belief)
+        g, W = ekf_update(beliefs[i], controls[i], game)
+        beliefs[i+1] = unvec(g, dims(beliefs[i]))
     end
     
     return beliefs, controls

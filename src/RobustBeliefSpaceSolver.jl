@@ -139,16 +139,17 @@ end
 
 function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nominal_controls::Vector{BlockVector}, regularizations::Regularizations, iteration::Int; kkt_component::Symbol = :control)
     T = eltype(nominal_beliefs[1].beliefs[1].belief_mean)
-    n_players = game.dims.n + game.is_robust
+    n_players = length(game.environments)
+    is_robust = length(game.robust_players) > 0
     belief_size = total_size(nominal_beliefs[end])
     
-    V = Vector{T}(undef, n_players+game.is_robust)
-    V_b = [Vector{T}(undef, belief_size) for _ in 1:n_players+game.is_robust]
-    V_bb = [Matrix{T}(undef, belief_size, belief_size) for _ in 1:n_players+game.is_robust]
+    V = Vector{T}(undef, n_players+is_robust)
+    V_b = [Vector{T}(undef, belief_size) for _ in 1:n_players+is_robust]
+    V_bb = [Matrix{T}(undef, belief_size, belief_size) for _ in 1:n_players+is_robust]
 
     # lagrange_multipliers = [[Vector{T}(undef, belief_size) for _ in 1:n_players+game.is_robust] for _ in 1:game.horizon-1]
 
-    cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:(game.dims.n+game.is_robust)]
+    cost_gradient_info = [DiffResults.HessianResult(vcat(vec(nominal_beliefs[end]), vec(nominal_controls[end]))) for _ in 1:(n_players+is_robust)]
 
     joint_feedback_strategies = Vector{Any}()
     feed_forward_norms = Vector{Float64}()
@@ -158,10 +159,10 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     # Initialize gradient helpers
     x_val = vec(nominal_beliefs[end])
     terminal_cost_gradient_info = DiffResults.HessianResult(x_val)
-    for ii in 1:(game.dims.n+game.is_robust)
+    for ii in 1:(n_players+is_robust)
         ForwardDiff.hessian!(
             terminal_cost_gradient_info,
-            (x) -> game.costs[ii].terminal_cost(unvec(x, game.dims.belief)),
+            (x) -> game.costs[ii].terminal_cost(unvec(x, dims(nominal_beliefs[end]))),
             x_val)
         V[ii] = DiffResults.value(terminal_cost_gradient_info)
         V_b[ii] = DiffResults.gradient(terminal_cost_gradient_info)
@@ -170,21 +171,21 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     end
 
     for t in game.horizon-1:-1:1
-        g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust, n_players = game.dims.n)
-        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game.environment.dynamics, game.environment.sensor_models; is_robust=game.is_robust, n_players = game.dims.n)
+        g, W = ekf_update(nominal_beliefs[t], nominal_controls[t], game)
+        g_s, W_s = ekf_update_gradient(nominal_beliefs[t], nominal_controls[t], game)
         g_s = real.(g_s)
         W_s = real.(W_s)
         W = real.(W)
         
-        for ii in 1:(game.dims.n+game.is_robust)
+        for ii in 1:(n_players+is_robust)
         ForwardDiff.hessian!(
             cost_gradient_info[ii],
             x -> game.costs[ii].non_terminal_cost(
-                unvec(x[1:total_size(nominal_beliefs[t])], game.dims.belief),
-                BlockVector(x[total_size(nominal_beliefs[t])+1:end], game.is_robust ? vcat(game.dims.controls, sum(game.dims.states)) : game.dims.controls)
+                unvec(x[1:total_size(nominal_beliefs[t])], dims(nominal_beliefs[t])),
+                BlockVector(x[total_size(nominal_beliefs[t])+1:end], is_robust ? vcat(game.dims.total_controls_dim, sum(game.dims.player_state_dim)) : game.dims.total_controls_dim)
                     ),
-                vcat(vec(nominal_beliefs[t]), vec(nominal_controls[t]))
-                )
+            vcat(vec(nominal_beliefs[t]), vec(nominal_controls[t]))
+            )
         end
         if DEBUG
             open(DEBUG_FILE, "a") do f
@@ -199,35 +200,35 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 println(f)
             end
         end
-        Q = map(1:(game.dims.n+game.is_robust)) do ii
+        Q = map(1:(n_players+is_robust)) do ii
             clip(DiffResults.value(cost_gradient_info[ii]) +
             V[ii] + 
-            only(0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
+            only(0.5 * mapreduce(+, 1:sum(game.dims.player_state_dim)) do jj
                 W[:, jj, :]' *V_bb[ii] * W[:, jj]
             end), clip_norm)
         end
-        belief_size = game.is_robust ? [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls..., sum(game.dims.states)] : [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.controls...]
-        Q_s = map(1:(game.dims.n+game.is_robust)) do ii
+        belief_size = is_robust ? [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.total_controls_dim..., sum(game.dims.player_state_dim)] : [[total_size(b) for b in nominal_beliefs[t].beliefs]..., game.dims.total_controls_dim...]
+        Q_s = map(1:(n_players+is_robust)) do ii
             BlockVector(
                 clip(DiffResults.gradient(cost_gradient_info[ii]) +
                 g_s' * V_b[ii] + 
-                0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
+                0.5 * mapreduce(+, 1:sum(game.dims.player_state_dim)) do jj
                     W_s[:,jj,:]' *V_bb[ii] * W[:,jj]
                 end, clip_norm), 
                 belief_size
             )
         end
-        Q_ss = map(1:(game.dims.n+game.is_robust)) do ii
+        Q_ss = map(1:(n_players+is_robust)) do ii
             temp = BlockArray(
                 clip(DiffResults.hessian(cost_gradient_info[ii]) +
                 g_s' * (V_bb[ii]+regularizations.belief_reg * I) * g_s +
-                0.5 * mapreduce(+, 1:sum(game.dims.states)) do jj
+                0.5 * mapreduce(+, 1:sum(game.dims.player_state_dim)) do jj
                     W_s[:,jj,:]' * (V_bb[ii]+regularizations.belief_reg * I) * W_s[:,jj,:]
                 end, clip_norm),
                 belief_size,
                 belief_size
             )
-            temp[Block(game.dims.n+1):Block(2*game.dims.n), Block(game.dims.n+1):Block(2*game.dims.n)] += regularizations.control_reg * I
+            temp[Block(n_players+1):Block(2*n_players), Block(n_players+1):Block(2*n_players)] += regularizations.control_reg * I
             temp
         end
         if DEBUG
@@ -237,35 +238,35 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 println(f, "belief reg: $(regularizations.belief_reg)")
             end
         end
-        Qh_u = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            if ii <= game.dims.n  # Regular players (activists)
-                @view Q_s[ii][Block(game.dims.num_senators*(ii-1)+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.num_senators*(ii)+game.dims.n*game.dims.num_beliefs_per_activist)] # control gradient
+        Qh_u = mapreduce(vcat, 1:(n_players+is_robust)) do ii
+            if ii <= n_players  # Regular players (activists)
+                @view Q_s[ii][Block(game.dims.num_senators*(ii-1)+n_players*game.dims.num_beliefs_per_player[ii]+1):Block(game.dims.num_senators*(ii)+n_players*game.dims.num_beliefs_per_player[ii])] # control gradient
             else  # Nature player (single block)
-                @view Q_s[ii][Block(game.dims.num_senators*game.dims.n+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.num_senators*game.dims.n+game.dims.n*game.dims.num_beliefs_per_activist+1)] # nature control gradient
+                @view Q_s[ii][Block(game.dims.num_senators*n_players+n_players*game.dims.num_beliefs_per_player[ii]+1):Block(game.dims.num_senators*n_players+n_players*game.dims.num_beliefs_per_player[ii]+1)] # nature control gradient
             end
         end
-        Qh_b = mapreduce(vcat, 1:(game.dims.n)) do ii
-            @view Q_s[ii][Block((ii-1)*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_beliefs_per_activist)] # belief gradient
+        Qh_b = mapreduce(vcat, 1:(n_players)) do ii
+            @view Q_s[ii][Block((ii-1)*game.dims.num_beliefs_per_player[ii]+1):Block(ii*game.dims.num_beliefs_per_player[ii])] # belief gradient
         end
         
-        Qh_uu = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            if ii <= game.dims.n  # Regular players (activists)
-                @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist),
-                                Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+game.is_robust)]
+        Qh_uu = mapreduce(vcat, 1:(n_players+is_robust)) do ii
+            if ii <= n_players  # Regular players (activists)
+                @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+1):Block(ii*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]),
+                                Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust)]
             else  # Nature player (single block)
-                nature_block_start = game.dims.num_senators*game.dims.n+game.dims.n*game.dims.num_beliefs_per_activist+1
+                nature_block_start = game.dims.num_senators*n_players+n_players*game.dims.num_beliefs_per_player[ii]+1
                 @view Q_ss[ii][Block(nature_block_start):Block(nature_block_start),
-                                Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+game.is_robust)]
+                                Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust)]
             end
         end
-        Qh_ub = mapreduce(vcat, 1:(game.dims.n+game.is_robust)) do ii
-            if ii <= game.dims.n  # Regular players (activists)
-                @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist+1):Block(ii*game.dims.num_senators+game.dims.n*game.dims.num_beliefs_per_activist),
-                Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
+        Qh_ub = mapreduce(vcat, 1:(n_players+is_robust)) do ii
+            if ii <= n_players  # Regular players (activists)
+                @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+1):Block(ii*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]),
+                Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii])]
             else  # Nature player (single block)
-                nature_block_start = game.dims.num_senators*game.dims.n+game.dims.n*game.dims.num_beliefs_per_activist+1
+                nature_block_start = game.dims.num_senators*n_players+n_players*game.dims.num_beliefs_per_player[ii]+1
                 @view Q_ss[ii][Block(nature_block_start):Block(nature_block_start),
-                Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
+                Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii])]
             end
         end
 
@@ -282,15 +283,15 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         push!(stationarity_errors, stationarity_error)
         push!(Q_suite, (;Qh_uu, Qh_ub, Qh_u, Qh_b))
 
-        for ii in 1:(game.dims.n + game.is_robust)
-            Q_u = @view Q_s[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_beliefs_per_activist+game.dims.num_senators*game.dims.n+game.is_robust)]
-            Q_uu = @view Q_ss[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_beliefs_per_activist+game.dims.num_senators*game.dims.n+game.is_robust),
-                            Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_beliefs_per_activist+game.dims.num_senators*game.dims.n+game.is_robust)]
-            Q_b = @view Q_s[ii][Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
-            Q_ub = @view Q_ss[ii][Block(game.dims.n*game.dims.num_beliefs_per_activist+1):Block(game.dims.n*game.dims.num_beliefs_per_activist+game.dims.num_senators*game.dims.n+game.is_robust),
-                            Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
-            Q_bb = @view Q_ss[ii][Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist),
-                            Block(1):Block(game.dims.n*game.dims.num_beliefs_per_activist)]
+        for ii in 1:(n_players + is_robust)
+            Q_u = @view Q_s[ii][Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust)]
+            Q_uu = @view Q_ss[ii][Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust),
+                            Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust)]
+            Q_b = @view Q_s[ii][Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii])]
+            Q_ub = @view Q_ss[ii][Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust),
+                            Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii])]
+            Q_bb = @view Q_ss[ii][Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii]),
+                            Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii])]
 
             V[ii] = clip(Q[ii] + Q_u' * feed_forward +
                              0.5 * feed_forward' * Q_uu * feed_forward, clip_norm)
@@ -348,7 +349,7 @@ end
 function build_strategy(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, α)
     map(1:game.horizon-1) do t
         function (belief::Beliefs)
-            block_sizes = game.is_robust ? vcat(game.dims.controls, sum(game.dims.states)) : game.dims.controls
+            block_sizes = length(game.robust_players) > 0 ? vcat(game.dims.total_controls_dim, sum(game.dims.total_states_dim)) : game.dims.total_controls_dim
             return BlockVector(nominal_controls[t] + α * feedback_terms[t][1] + feedback_terms[t][2] * (belief - nominal_beliefs[t]), block_sizes)
         end
     end
@@ -425,9 +426,9 @@ end
 function compute_comprehensive_kkt_error end # retained name for compatibility if referenced elsewhere, but unused
 
 function get_dummy_strategy(game::BeliefGame)
-    if game.is_robust
-        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.controls) + sum(game.dims.states)), vcat(game.dims.controls, sum(game.dims.states))) for _ in 1:game.horizon-1]
+    if length(game.robust_players) > 0
+        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.total_controls_dim) + sum(game.dims.total_states_dim)), vcat(game.dims.total_controls_dim, sum(game.dims.total_states_dim))) for _ in 1:game.horizon-1]
     else
-        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.controls)), game.dims.controls) for _ in 1:game.horizon-1]
+        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.total_controls_dim)), game.dims.total_controls_dim) for _ in 1:game.horizon-1]
     end
 end
