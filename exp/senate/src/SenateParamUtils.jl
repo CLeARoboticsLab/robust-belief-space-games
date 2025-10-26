@@ -1,15 +1,15 @@
 function _populate_configs!(config::PlayerConfig; force::Bool=false)
     if isnothing(config.self_dynamics_model) || force
-        config.self_dynamics_model = (x::BlockVector, u::BlockVector, m::BlockVector) -> base_dynamics(x, u, m; config=config)
+        config.self_dynamics_model = (x::BlockVector, u::BlockVector, m::BlockVector) -> config.self_dynamics_model_template(x, u, m; config=config)
     end
     if isnothing(config.self_sensor_model) || force
-        config.self_sensor_model = (x::BlockVector, ns::BlockVector) -> base_sensor_model(x, ns; config=config)
+        config.self_sensor_model = (x::BlockVector, ns::BlockVector) -> config.self_sensor_model_template(x, ns; config=config)
     end
     if isnothing(config.self_non_terminal_cost_model) || force
-        config.self_non_terminal_cost_model = (beliefs::Beliefs, u::BlockVector) -> base_non_terminal_cost_function_generator(config)(beliefs, u)
+        config.self_non_terminal_cost_model = (beliefs::Beliefs, u::BlockVector) -> config.self_non_terminal_cost_model_template(config)(beliefs, u)
     end
     if isnothing(config.self_terminal_cost_model) || force
-        config.self_terminal_cost_model = (beliefs::Beliefs) -> base_terminal_cost_function_generator(config)(beliefs)
+        config.self_terminal_cost_model = (beliefs::Beliefs) -> config.self_terminal_cost_model_template(config)(beliefs)
     end
 end
 

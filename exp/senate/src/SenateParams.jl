@@ -32,9 +32,13 @@ Base.@kwdef mutable struct PlayerConfig
     
     # These can be populated by the synchronize function
     self_dynamics_model::Union{Function, Nothing} = nothing
+    self_dynamics_model_template::Function = base_dynamics
     self_sensor_model::Union{Function, Nothing} = nothing
+    self_sensor_model_template::Function = base_sensor_model
     self_non_terminal_cost_model::Union{Function, Nothing} = nothing
+    self_non_terminal_cost_model_template::Function = base_non_terminal_cost_function_generator
     self_terminal_cost_model::Union{Function, Nothing} = nothing
+    self_terminal_cost_model_template::Function = base_terminal_cost_function_generator
     other_player_configs::Dict{Int, PlayerConfig} = Dict()
     # definitely intended to be set by synchronize function, not by the constructor
     num_senators::Int = -1

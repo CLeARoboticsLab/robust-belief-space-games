@@ -22,14 +22,16 @@ function ellipsoidal_cost(point::Vector, pos::Vector, scale::Vector; config::Pla
     end
 end
 
-function control_cost(u::BlockVector, control_effort, agent_idx)
-    control_effort * dot(u[Block(agent_idx)], u[Block(agent_idx)])
+function control_cost(u::Vector, control_effort)
+    control_effort * dot(u, u)
 end
 
 function base_non_terminal_cost_function_generator(config::PlayerConfig)
+    player_belief_indices = (config.player_idx-1) * config.num_activists + 1:config.player_idx * config.num_activists
+    player_control_indices = sum(config.control_dims_per_activist) * (config.player_idx-1) + 1:sum(config.control_dims_per_activist) * config.player_idx
     function(beliefs::Beliefs, u::BlockVector)
-        preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config, nature=config.type == nature) for pos in means(beliefs).blocks)
-        control = control_cost(u, config.control_cost_weight, config.player_idx)
+        preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config, nature=config.type == nature) for pos in means(beliefs).blocks[player_belief_indices])
+        control = control_cost(u[player_control_indices], config.control_cost_weight)
         return preference + control
     end
 end
