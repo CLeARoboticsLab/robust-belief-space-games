@@ -33,9 +33,18 @@ end
 function _sync_params_to_configs_other_configs!(params::SenateParams)
     for (_, player_config) in params.player_configs
         beliefs_about_others = deepcopy(params.player_configs)
+        if player_config.type == robust
+            nature_idx = max(keys(beliefs_about_others)...) + 1
+            beliefs_about_others[nature_idx] = DefaultNaturePlayerConfig(base_player_config=player_config, player_idx=nature_idx)
+        end
         for (_, belief_config) in beliefs_about_others
-            _populate_configs!(belief_config; force=true) 
-            belief_config.other_player_configs = beliefs_about_others
+            belief_config.other_player_configs = Dict{Int, PlayerConfig}()
+            if belief_config.player_idx == player_config.player_idx
+                continue
+            else
+                belief_config.type = non_robust # TODO: right now, default to everyone thinking there is only one robust player
+            end
+            _populate_configs!(belief_config; force=true)
         end
         player_config.other_player_configs = beliefs_about_others
     end
@@ -45,6 +54,18 @@ end
 function DefaultPlayerConfig(;kwargs...)
     config = PlayerConfig(;kwargs...)
     _populate_configs!(config)
+    return config
+end
+
+function DefaultNaturePlayerConfig(;base_player_config::PlayerConfig, player_idx::Int)
+    config = deepcopy(base_player_config)
+    config.other_player_configs = Dict{Int, PlayerConfig}()
+    config.player_idx = player_idx
+    config.type = nature
+    config.ellipsoidal_cost_weight = base_player_config.ellipsoidal_cost_weight
+    config.control_cost_weight = base_player_config.control_cost_weight * base_player_config.nature_multiplier
+    config.terminal_cost_weight = base_player_config.terminal_cost_weight
+    _populate_configs!(config; force=true)
     return config
 end
 

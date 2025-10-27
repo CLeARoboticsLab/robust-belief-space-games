@@ -242,7 +242,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
             if ii <= n_players  # Regular players (activists)
                 @view Q_s[ii][Block(game.dims.num_senators*(ii-1)+n_players*game.dims.num_beliefs_per_player[ii]+1):Block(game.dims.num_senators*(ii)+n_players*game.dims.num_beliefs_per_player[ii])] # control gradient
             else  # Nature player (single block)
-                @view Q_s[ii][Block(game.dims.num_senators*n_players+n_players*game.dims.num_beliefs_per_player[ii]+1):Block(game.dims.num_senators*n_players+n_players*game.dims.num_beliefs_per_player[ii]+1)] # nature control gradient
+                @view Q_s[ii][Block(game.dims.num_senators*n_players+length(game.dims.total_states_dim)+1):Block(game.dims.num_senators*n_players+length(game.dims.total_states_dim)+length(game.robust_players))] # nature control gradient
             end
         end
         Qh_b = mapreduce(vcat, 1:(n_players)) do ii
@@ -254,9 +254,9 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+1):Block(ii*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]),
                                 Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust)]
             else  # Nature player (single block)
-                nature_block_start = game.dims.num_senators*n_players+n_players*game.dims.num_beliefs_per_player[ii]+1
+                nature_block_start = game.dims.num_senators*n_players+length(game.dims.total_states_dim)+1
                 @view Q_ss[ii][Block(nature_block_start):Block(nature_block_start),
-                                Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust)]
+                                Block(length(game.dims.total_states_dim)+1):Block(n_players*game.dims.num_senators+length(game.dims.total_states_dim)+is_robust)]
             end
         end
         Qh_ub = mapreduce(vcat, 1:(n_players+is_robust)) do ii
@@ -264,9 +264,9 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                 @view Q_ss[ii][Block((ii-1)*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+1):Block(ii*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]),
                 Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii])]
             else  # Nature player (single block)
-                nature_block_start = game.dims.num_senators*n_players+n_players*game.dims.num_beliefs_per_player[ii]+1
+                nature_block_start = game.dims.num_senators*n_players+length(game.dims.total_states_dim)+1
                 @view Q_ss[ii][Block(nature_block_start):Block(nature_block_start),
-                Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii])]
+                Block(1):Block(length(game.dims.total_states_dim))]
             end
         end
 
@@ -284,14 +284,15 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         push!(Q_suite, (;Qh_uu, Qh_ub, Qh_u, Qh_b))
 
         for ii in 1:(n_players + is_robust)
-            Q_u = @view Q_s[ii][Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust)]
-            Q_uu = @view Q_ss[ii][Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust),
-                            Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust)]
-            Q_b = @view Q_s[ii][Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii])]
-            Q_ub = @view Q_ss[ii][Block(n_players*game.dims.num_beliefs_per_player[ii]+1):Block(n_players*game.dims.num_senators+n_players*game.dims.num_beliefs_per_player[ii]+is_robust),
-                            Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii])]
-            Q_bb = @view Q_ss[ii][Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii]),
-                            Block(1):Block(n_players*game.dims.num_beliefs_per_player[ii])]
+            belief_offset = (ii <= n_players) ? n_players*game.dims.num_beliefs_per_player[ii] : length(game.dims.total_states_dim)
+            Q_u = @view Q_s[ii][Block(belief_offset+1):Block(n_players*game.dims.num_senators+belief_offset+is_robust)]
+            Q_uu = @view Q_ss[ii][Block(belief_offset+1):Block(n_players*game.dims.num_senators+belief_offset+is_robust),
+                            Block(belief_offset+1):Block(n_players*game.dims.num_senators+belief_offset+is_robust)]
+            Q_b = @view Q_s[ii][Block(1):Block(belief_offset)]
+            Q_ub = @view Q_ss[ii][Block(belief_offset+1):Block(n_players*game.dims.num_senators+belief_offset+is_robust),
+                            Block(1):Block(belief_offset)]
+            Q_bb = @view Q_ss[ii][Block(1):Block(belief_offset),
+                            Block(1):Block(belief_offset)]
 
             V[ii] = clip(Q[ii] + Q_u' * feed_forward +
                              0.5 * feed_forward' * Q_uu * feed_forward, clip_norm)
@@ -349,7 +350,7 @@ end
 function build_strategy(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, α)
     map(1:game.horizon-1) do t
         function (belief::Beliefs)
-            block_sizes = length(game.robust_players) > 0 ? vcat(game.dims.total_controls_dim, sum(game.dims.total_states_dim)) : game.dims.total_controls_dim
+            block_sizes = length(game.robust_players) > 0 ? vcat(game.dims.total_controls_dim, sum(game.dims.state_dims_per_activist)) : game.dims.total_controls_dim
             return BlockVector(nominal_controls[t] + α * feedback_terms[t][1] + feedback_terms[t][2] * (belief - nominal_beliefs[t]), block_sizes)
         end
     end
@@ -427,7 +428,7 @@ function compute_comprehensive_kkt_error end # retained name for compatibility i
 
 function get_dummy_strategy(game::BeliefGame)
     if length(game.robust_players) > 0
-        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.total_controls_dim) + sum(game.dims.total_states_dim)), vcat(game.dims.total_controls_dim, sum(game.dims.total_states_dim))) for _ in 1:game.horizon-1]
+        return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.total_controls_dim) + sum(game.dims.player_state_dim)), vcat(game.dims.total_controls_dim, sum(game.dims.player_state_dim))) for _ in 1:game.horizon-1]
     else
         return [(belief::Beliefs) -> BlockVector(fill(0.0, sum(game.dims.total_controls_dim)), game.dims.total_controls_dim) for _ in 1:game.horizon-1]
     end

@@ -49,7 +49,7 @@ function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, game::Bel
         
         mean_i = expected_dynamics.blocks[i]
         if !(player_idx in game.robust_players) && length(game.robust_players) > 0
-            mean_i += control.blocks[end][sum(dims(beliefs)[1:i-1])+1:sum(dims(beliefs)[1:i])]
+            mean_i += control.blocks[end][sum(dims(beliefs)[1:i-1])+1:sum(dims(beliefs)[1:i])] # TODO this assumes that the nature's controls has only one block (for the only non-robust player's beliefs)
         end
         cov_i = Symmetric(updated_covs_matrix[cov_range, cov_range])
 
@@ -144,7 +144,7 @@ function ekf_update_with_observations_per_player(beliefs::Beliefs, control::Bloc
 end
 
 function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, game::BeliefGame, observations::BlockVector)
-    num_players = length(game.environments)
+    num_players = game.dims.num_players
     if length(beliefs.beliefs) % num_players != 0
         error("Number of beliefs must be a multiple of the number of players.")
     end

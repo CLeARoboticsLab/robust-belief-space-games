@@ -15,6 +15,7 @@ Base.@kwdef mutable struct PlayerConfig
     ellipsoidal_cost_weight::Float64 = 0.1
     control_cost_weight::Float64 = 1.0
     terminal_cost_weight::Float64 = 1.0
+    nature_multiplier::Float64 = 5.0
 
     # attraction params
     attraction_numerator::Float64 = 1.0
@@ -121,6 +122,7 @@ function dims(params::SenateParams)
         total_controls_dim=vcat([params.player_configs[i].control_dims_per_activist for i in sort(collect(keys(params.player_configs)))]...),
         total_beliefs_dim=vcat([params.player_configs[i].belief_dims_per_activist for i in sort(collect(keys(params.player_configs)))]...),
         num_beliefs_per_player=[length(params.player_configs[i].belief_dims_per_activist) for i in sort(collect(keys(params.player_configs)))],
-        player_state_dim=params.state_dims_per_activist
+        player_state_dim=params.state_dims_per_activist,
+        num_players=length(params.player_configs)
     )
 end

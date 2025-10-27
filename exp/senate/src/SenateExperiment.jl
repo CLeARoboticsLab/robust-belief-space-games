@@ -76,7 +76,7 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
                 continue
             end
             is_robust_player = player_config.type == robust
-            robust_players = []
+            robust_players = [] # TODO: wip to potentially do more than one robust player. Should just be length one (or zero) for now.
             for idx in player_indices
                 if player_config.other_player_configs[idx].type == robust
                     push!(robust_players, idx)
@@ -89,7 +89,7 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
                     params.ground_truth_initial_states,
                     player_config.other_player_configs[idx].self_sensor_model
                 ) for idx in player_indices
-            ]
+            ] # Nature doesn't have an environment (environment does a lot of EKF stuff, don't need nature to have their own belief/belief propogation)
             
             # What this player believes about everyone's costs
             costs = [
@@ -97,8 +97,8 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
                     player_config.other_player_configs[idx].self_non_terminal_cost_model,
                     player_config.other_player_configs[idx].self_terminal_cost_model
                 )
-                for idx in player_indices
-            ]
+                for idx in sort(collect(keys(player_config.other_player_configs)))
+            ] # nature should have their own costs though
 
             game_horizon = min(params.planning_horizon, params.horizon - t + 1)
             game = BeliefGame(
@@ -146,7 +146,7 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
         control_indices = [1:6, 7:12] # TODO 1:6 for first player, 7:12 for second but dynamically from control_dims_per_activist or something
         merged_controls = BlockVector(vcat(
             [solution_history[idx][end].controls[1][control_indices[idx]] for idx in player_indices]...),
-            length.(solution_history[1][end].controls[1].blocks))
+            vcat(collect(params.control_dims_per_activist for player_idx in player_indices)...))
         
         process_noise_vec = rand(params.process_noise_distribution)
         process_noise = BlockVector(process_noise_vec, length.(current_gt_state.blocks))
