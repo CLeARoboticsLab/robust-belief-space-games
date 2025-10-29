@@ -1,0 +1,377 @@
+include("base_experiment.jl")
+using Senate
+using BlockArrays
+
+#Sample Step Functions
+const STEP_ADD = n -> (x -> x + n)
+const STEP_MULTIPLY = n -> (x -> n * x)
+const STEP_MULTIPLY_CEIL = n -> (x -> ceil(Int, n * x))
+const STEP_POWER = n -> (x -> x^n)
+
+function generate_range(param_spec)
+    if param_spec isa Tuple && length(param_spec) == 3
+        start, stop, step_func = param_spec
+        @assert start < stop "Start value must be less than stop value, if single value is intended pass a Float64 or Int"
+        
+        values = [start]
+        current = start
+        while current < stop
+            next_val = step_func(current)
+            @assert next_val > current "Step function must increase value"
+            if next_val > stop
+                break
+            end
+            push!(values, next_val)
+            current = next_val
+        end
+        return values
+    elseif param_spec isa Float64 || param_spec isa Int
+        # Single value
+        return [param_spec]
+    else
+        error("Invalid parameter specification: $param_spec")
+    end
+end
+
+function build_player_configs(combo, fixed_params)
+    player_configs = Dict()
+    
+    # Player 1 config
+    p1_config = DefaultPlayerConfig(player_idx=1, type=non_robust)
+    for (key, value) in combo
+        if startswith(String(key), "p1_")
+            field_name = Symbol(replace(String(key), "p1_" => ""))
+            if hasproperty(p1_config, field_name)
+                setproperty!(p1_config, field_name, value)
+            else
+                error("Player 1 config has no property named $field_name")
+            end
+        end
+    end
+    # Apply fixed player 1 params
+    for (key, value) in fixed_params
+        if startswith(String(key), "p1_")
+            field_name = Symbol(replace(String(key), "p1_" => ""))
+            if hasproperty(p1_config, field_name)
+                setproperty!(p1_config, field_name, value)
+            end
+        end
+    end
+    player_configs[1] = p1_config
+    
+    # Player 2 config
+    p2_config = DefaultPlayerConfig(player_idx=2, type=robust)
+    for (key, value) in combo
+        if startswith(String(key), "p2_")
+            field_name = Symbol(replace(String(key), "p2_" => ""))
+            if hasproperty(p2_config, field_name)
+                setproperty!(p2_config, field_name, value)
+            else
+                error("Player 2 config has no property named $field_name")
+            end
+        end
+    end
+    
+    # Apply fixed player 2 params
+    for (key, value) in fixed_params
+        if startswith(String(key), "p2_")
+            field_name = Symbol(replace(String(key), "p2_" => ""))
+            if hasproperty(p2_config, field_name)
+                setproperty!(p2_config, field_name, value)
+            end
+        end
+    end
+    player_configs[2] = p2_config
+    if haskey(fixed_params, :dynamics_model_template)
+        if fixed_params[:dynamics_model_template] == :under_actuated
+            p2_config.self_dynamics_model_template = under_actuated_dynamics
+        elseif fixed_params[:dynamics_model_template] == :attraction
+            p2_config.self_dynamics_model_template = attraction_dynamics_model
+        end
+        if fixed_params[:dynamics_model_template] == :under_actuated
+            p1_config.self_dynamics_model_template = under_actuated_dynamics
+        elseif fixed_params[:dynamics_model_template] == :attraction
+            p1_config.self_dynamics_model_template = attraction_dynamics_model
+        end
+    end
+    return player_configs
+end
+
+function build_senate_params(combo, fixed_params, player_configs)
+    senate_kwargs = Dict{Symbol, Any}()
+    senate_kwargs[:player_configs] = player_configs
+    
+    # Add experiment parameters
+    for (key, value) in combo
+        if !startswith(String(key), "p1_") && !startswith(String(key), "p2_")
+            senate_kwargs[key] = value
+        end
+    end
+    
+    # Add fixed parameters (excluding player-specific ones)
+    for (key, value) in fixed_params
+        if !startswith(String(key), "p1_") && !startswith(String(key), "p2_")
+            senate_kwargs[key] = value
+        end
+    end
+    
+    # Handle num_senators changes - update dependent parameters
+    if haskey(combo, :num_senators)
+        n_sens = combo[:num_senators]
+        if !haskey(fixed_params, :state_dims_per_activist)
+            senate_kwargs[:state_dims_per_activist] = fill(2, n_sens)
+        end
+        if !haskey(fixed_params, :control_dims_per_activist)
+            senate_kwargs[:control_dims_per_activist] = fill(2, n_sens)
+        end
+        senate_kwargs[:ground_truth_initial_states] = mortar([fill(0.0, 2) for _ in 1:n_sens])
+        senate_kwargs[:belief_dims_per_activist] = [(2, 4) for _ in 1:n_sens]
+        senate_kwargs[:sensor_dims_per_activist] = fill(2, n_sens)
+    end
+    
+    # Validate horizon ordering if both present
+    if haskey(senate_kwargs, :planning_horizon) && haskey(senate_kwargs, :horizon)
+        @assert senate_kwargs[:planning_horizon] <= senate_kwargs[:horizon] "Planning horizon must be <= horizon"
+    end
+    
+    return DefaultSenateParams(; senate_kwargs...)
+end
+
+
+#All experiment parameters are optional and can be single values or (start, stop, step_function) tuples
+#Ellipsoid centers and radii are single values only (Vector{Vector{Real}})
+#TODO: Add bool for perceived dynamics model with drift / no drift & for sensor model with drift / no drift
+#Example: julia> using Revise; includet("exp/senate/versions/mass_experiment.jl"); run_mass_experiment(;p1_control_cost_weight = (1.0, 2.0, STEP_ADD(0.5)), experiment_name_prefix="control_cost_test")
+function run_mass_experiment(;
+    # Player 1 parameters
+    p1_ellipsoid_centers = nothing,  # Single value only: Vector{Vector{Real}}
+    p1_ellipsoid_radii = nothing,    # Single value only: Vector{Vector{Real}}
+    p1_ellipsoidal_cost_weight = nothing,
+    p1_control_cost_weight = nothing,
+    p1_terminal_cost_weight = nothing,
+    p1_nature_multiplier = nothing,
+    p1_attraction_strength = nothing,
+    
+    # Player 2 parameters
+    p2_ellipsoid_centers = nothing,  # Single value only: Vector{Vector{Real}}
+    p2_ellipsoid_radii = nothing,    # Single value only: Vector{Vector{Real}}
+    p2_ellipsoidal_cost_weight = nothing,
+    p2_control_cost_weight = nothing,
+    p2_terminal_cost_weight = nothing,
+    p2_nature_multiplier = nothing,
+    p2_attraction_strength = nothing,
+    dynamics_model_template = nothing,
+    # Experiment parameters
+    planning_horizon = nothing,
+    horizon = nothing,
+    trials = nothing,  # Single int only
+    random_seed = nothing,  # Single int only
+    num_senators = nothing,
+    
+    # Control parameters
+    override = false,
+    experiment_name_prefix = "mass_exp",
+    save_intermediate_results = true
+)
+    
+    # Collect all parameter variations
+    param_variations = Dict()
+    fixed_params = Dict()
+    
+    #region Param parsing
+    # Process Player 1 ellipsoid parameters (single values only)
+    if !isnothing(p1_ellipsoid_centers)
+        @assert p1_ellipsoid_centers isa Vector{<:Vector{<:Real}} "p1_ellipsoid_centers must be Vector{Vector{Real}}"
+        fixed_params[:p1_ellipsoid_centers] = p1_ellipsoid_centers
+    end
+    
+    if !isnothing(p1_ellipsoid_radii)
+        @assert p1_ellipsoid_radii isa Vector{<:Vector{<:Real}} "p1_ellipsoid_radii must be Vector{Vector{Real}}"
+        @assert all(v -> all(x -> x >= 0, v), p1_ellipsoid_radii) "Ellipsoid radii must be non-negative"
+        fixed_params[:p1_ellipsoid_radii] = p1_ellipsoid_radii
+    end
+    
+    # Process Player 1 range parameters
+    if !isnothing(p1_ellipsoidal_cost_weight)
+        param_variations[:p1_ellipsoidal_cost_weight] = generate_range(p1_ellipsoidal_cost_weight)
+        @assert all(x -> x >= 0, param_variations[:p1_ellipsoidal_cost_weight]) "Cost weights must be non-negative"
+    end
+    if !isnothing(p1_control_cost_weight)
+        param_variations[:p1_control_cost_weight] = generate_range(p1_control_cost_weight)
+        @assert all(x -> x >= 0, param_variations[:p1_control_cost_weight]) "Cost weights must be non-negative"
+    end
+    if !isnothing(p1_terminal_cost_weight)
+        param_variations[:p1_terminal_cost_weight] = generate_range(p1_terminal_cost_weight)
+        @assert all(x -> x >= 0, param_variations[:p1_terminal_cost_weight]) "Cost weights must be non-negative"
+    end
+    if !isnothing(p1_nature_multiplier)
+        param_variations[:p1_nature_multiplier] = generate_range(p1_nature_multiplier)
+        @assert all(x -> x >= 0, param_variations[:p1_nature_multiplier]) "Nature multiplier must be non-negative"
+    end
+    if !isnothing(p1_attraction_strength)
+        param_variations[:p1_attraction_strength] = generate_range(p1_attraction_strength)
+    end
+    
+    # Process Player 2 ellipsoid parameters (single values only)
+    if !isnothing(p2_ellipsoid_centers)
+        @assert p2_ellipsoid_centers isa Vector{<:Vector{<:Real}} "p2_ellipsoid_centers must be Vector{Vector{Real}}"
+        fixed_params[:p2_ellipsoid_centers] = p2_ellipsoid_centers
+    end
+    
+    if !isnothing(p2_ellipsoid_radii)
+        @assert p2_ellipsoid_radii isa Vector{<:Vector{<:Real}} "p2_ellipsoid_radii must be Vector{Vector{Real}}"
+        @assert all(v -> all(x -> x >= 0, v), p2_ellipsoid_radii) "Ellipsoid radii must be non-negative"
+        fixed_params[:p2_ellipsoid_radii] = p2_ellipsoid_radii
+    end
+    
+    # Process Player 2 range parameters
+    if !isnothing(p2_ellipsoidal_cost_weight)
+        param_variations[:p2_ellipsoidal_cost_weight] = generate_range(p2_ellipsoidal_cost_weight)
+        @assert all(x -> x >= 0, param_variations[:p2_ellipsoidal_cost_weight]) "Cost weights must be non-negative"
+    end
+    if !isnothing(p2_control_cost_weight)
+        param_variations[:p2_control_cost_weight] = generate_range(p2_control_cost_weight)
+        @assert all(x -> x >= 0, param_variations[:p2_control_cost_weight]) "Cost weights must be non-negative"
+    end
+    if !isnothing(p2_terminal_cost_weight)
+        param_variations[:p2_terminal_cost_weight] = generate_range(p2_terminal_cost_weight)
+        @assert all(x -> x >= 0, param_variations[:p2_terminal_cost_weight]) "Cost weights must be non-negative"
+    end
+    if !isnothing(p2_nature_multiplier)
+        param_variations[:p2_nature_multiplier] = generate_range(p2_nature_multiplier)
+        @assert all(x -> x >= 0, param_variations[:p2_nature_multiplier]) "Nature multiplier must be non-negative"
+    end
+    if !isnothing(p2_attraction_strength)
+        param_variations[:p2_attraction_strength] = generate_range(p2_attraction_strength)
+    end
+    
+    # Process experiment parameters
+    if !isnothing(planning_horizon)
+        param_variations[:planning_horizon] = generate_range(planning_horizon)
+        @assert all(x -> x >= 1, param_variations[:planning_horizon]) "Planning horizon must be at least 1"
+    end
+    if !isnothing(horizon)
+        param_variations[:horizon] = generate_range(horizon)
+        @assert all(x -> x >= 1, param_variations[:horizon]) "Horizon must be at least 1"
+    end
+    if !isnothing(num_senators)
+        param_variations[:num_senators] = generate_range(num_senators)
+        @assert all(x -> x >= 1, param_variations[:num_senators]) "Number of senators must be at least 1"
+    end
+    
+    # Single value parameters (no range)
+    if !isnothing(trials) && trials isa Int
+        @assert trials >= 1 "Trials must be at least 1"
+        fixed_params[:trials] = trials
+    end
+    if !isnothing(random_seed) && random_seed isa Int
+        @assert random_seed >= 1 "Random seed must be at least 1"
+        fixed_params[:random_seed] = random_seed
+    end
+
+    if !isnothing(dynamics_model_template)
+        @assert dynamics_model_template in [:default, :under_actuated, :attraction] "dynamics_model_template must be :default, :under_actuated, or :attraction"
+        fixed_params[:dynamics_model_template] = dynamics_model_template
+    end
+    #endregion
+    
+    # Generate all combinations
+    param_keys = collect(keys(param_variations))
+    param_values = [param_variations[k] for k in param_keys]
+    
+    if isempty(param_values)
+        combinations = [Dict()]
+    else
+        combinations = vec([
+            Dict(zip(param_keys, combo))
+            for combo in Iterators.product(param_values...)
+        ])
+    end
+    
+    #region Debug Run Info
+    println("\n" * "="^60)
+    println("MASS EXPERIMENT RUN INFO")
+    println("="^60)
+    println("Total number of experiments to run: $(length(combinations))")
+    if !isempty(param_keys)
+        println("\nParameter variations:")
+        for key in param_keys
+            println("  $key: $(length(param_variations[key])) value(s)")
+        end
+    end
+    if !isempty(fixed_params)
+        println("\nFixed parameters:")
+        for (key, value) in fixed_params
+            println("  $key: $value")
+        end
+    end
+    println("="^60 * "\n")
+    #endregion
+    
+    # Run experiments for each combination
+    all_results = []
+    
+    for (idx, combo) in enumerate(combinations)
+        println("\n=== Running experiment $idx/$(length(combinations)) ===")
+        println("Parameters: ", combo)
+        
+        # Build configs and params
+        player_configs = build_player_configs(combo, fixed_params)
+        params = build_senate_params(combo, fixed_params, player_configs)
+        
+        # Generate experiment name
+        abbrev_from_key(k::AbstractString) = join(first.(split(k, "_")))
+
+        function abbrev_key(k::AbstractString)
+            for prefix in ("p1", "p2")
+                if startswith(k, prefix)
+                    rest = k[length(prefix)+2:end]
+                    return prefix * abbrev_from_key(rest)
+                end
+            end
+            return abbrev_from_key(k)
+        end
+
+        exp_name = experiment_name_prefix
+        for (key, value) in combo
+            kstr = String(key)   
+            abbr = abbrev_key(kstr)
+            exp_name *= "_$(abbr)_$(value)"
+        end
+        
+        # Run experiment
+        results = run_experiment(
+            params;
+            override=override,
+            experiment_name=exp_name
+        )
+        
+        # Store results with metadata
+        push!(all_results, (
+            params=combo,
+            fixed=fixed_params,
+            results=results,
+            name=exp_name
+        ))
+
+        # Save intermediate cumulative results if needed
+        if save_intermediate_results
+            mass_filename = "exp/senate/outputs/merged/$(experiment_name_prefix)_mass_results.dat"
+            println("Saving all results to $mass_filename")
+
+            open(mass_filename, "w") do f
+                serialize(f, all_results)
+            end
+        end
+    end
+    
+    println("\n=== Completed all $(length(combinations)) experiments ===")
+
+    # Save all results to a single file
+    mass_filename = "exp/senate/outputs/merged/$(experiment_name_prefix)_mass_results.dat"
+    println("Saving all results to $mass_filename")
+
+    open(mass_filename, "w") do f
+        serialize(f, all_results)
+    end
+end

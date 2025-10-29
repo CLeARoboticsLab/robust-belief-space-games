@@ -1,5 +1,23 @@
 using Senate
 using BlockArrays
+using Serialization
+
+function run_experiment(params::SenateParams;override::Bool=false, experiment_name::String="experiment")
+    solution_filename = "exp/senate/outputs/runs/$(experiment_name).dat"
+    if experiment_name != "" && isfile(solution_filename)
+        println("Solution already exists at $solution_filename. Override is $override.")
+        if !override
+            return
+        end
+    end
+
+    results = run_receding_horizon_trials(params; override=override)
+    println("Saving solution to $solution_filename")
+    open(solution_filename, "w") do f
+        serialize(f,results)
+    end
+    return results
+end
 
 function base_experiment(;override::Bool=false)
     params = DefaultSenateParams(;
@@ -22,9 +40,7 @@ function base_experiment(;override::Bool=false)
                 ),
         ),
     )
-
-    results = run_receding_horizon_trials(params; override=override)
-    return results
+    run_experiment(params;override=override, experiment_name="base_experiment")
 end
 
 function robust_base_experiment(;override::Bool=false)
@@ -48,7 +64,5 @@ function robust_base_experiment(;override::Bool=false)
             ),
         ),
     )
-
-    results = run_receding_horizon_trials(params; override=override)
-    return results
+    run_experiment(params;override=override, experiment_name="robust_base_experiment")
 end

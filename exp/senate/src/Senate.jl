@@ -13,7 +13,7 @@ import RobustBeliefGame.dims
 include("./SenateParams.jl")
 export SenateParams, PlayerConfig, PlayerType, non_robust, robust, nature, ground_truth_config, dims
 include("./dynamics.jl")
-export base_dynamics, under_actuated_dynamics, attraction_dynamics_model, drift_dynamics_model
+export base_dynamics, under_actuated_dynamics, attraction_dynamics_model, drift_dynamics_model, drift_dynamics_model_generator
 include("./cost.jl")
 export non_terminal_cost_components, terminal_cost_components, ellipsoidal_cost, control_cost, non_terminal_cost_function_generator, terminal_cost_function_generator
 include("./sensor.jl")

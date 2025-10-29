@@ -47,8 +47,15 @@ function attraction_dynamics_model(x_all_senators::BlockVector, u::BlockVector, 
 
     end, length.(x_all_senators.blocks))
 end
-
-function drift_dynamics_model(x::BlockVector, u::BlockVector, m::BlockVector; config::PlayerConfig, undrifted_dynamics_model::Function)
+function drift_dynamics_model_generator(undrifted_dynamics_model::Function)
+    function(x::BlockVector, u::BlockVector, m::BlockVector; config::PlayerConfig)
+        BlockVector(
+            undrifted_dynamics_model(x, u, m; config=config) +
+                config.dynamics_drift_scale * ones(length(x)),
+            length.(x.blocks))
+    end
+end
+function drift_dynamics_model(x::BlockVector, u::BlockVector, m::BlockVector; config::PlayerConfig, undrifted_dynamics_model::Function = base_dynamics)
     BlockVector(
         undrifted_dynamics_model(x, u, m; config=config) +
             config.dynamics_drift_scale * ones(length(x)),

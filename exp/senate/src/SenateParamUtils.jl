@@ -32,6 +32,10 @@ end
 
 function _sync_params_to_configs_other_configs!(params::SenateParams)
     for (_, player_config) in params.player_configs
+        if player_config.other_player_configs !== Dict{Int, PlayerConfig}() && !isempty(player_config.other_player_configs)
+            continue
+        end
+
         beliefs_about_others = deepcopy(params.player_configs)
         if player_config.type == robust
             nature_idx = max(keys(beliefs_about_others)...) + 1
