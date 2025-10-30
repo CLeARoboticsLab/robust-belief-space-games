@@ -36,8 +36,9 @@ end
 function build_player_configs(combo, fixed_params)
     player_configs = Dict()
     
+    p1_type = haskey(fixed_params, :p1_type) ? fixed_params[:p1_type] : non_robust
     # Player 1 config
-    p1_config = DefaultPlayerConfig(player_idx=1, type=non_robust)
+    p1_config = DefaultPlayerConfig(player_idx=1, type=p1_type)
     for (key, value) in combo
         if startswith(String(key), "p1_")
             field_name = Symbol(replace(String(key), "p1_" => ""))
@@ -59,8 +60,9 @@ function build_player_configs(combo, fixed_params)
     end
     player_configs[1] = p1_config
     
+    p2_type = haskey(fixed_params, :p2_type) ? fixed_params[:p2_type] : robust
     # Player 2 config
-    p2_config = DefaultPlayerConfig(player_idx=2, type=robust)
+    p2_config = DefaultPlayerConfig(player_idx=2, type=p2_type)
     for (key, value) in combo
         if startswith(String(key), "p2_")
             field_name = Symbol(replace(String(key), "p2_" => ""))
@@ -111,6 +113,10 @@ function build_senate_params(combo, fixed_params, player_configs)
     # Add fixed parameters (excluding player-specific ones)
     for (key, value) in fixed_params
         if !startswith(String(key), "p1_") && !startswith(String(key), "p2_")
+            # These are meta-parameters for the experiment script, not for SenateParams
+            if key in [:gt_drift_dynamics_scale, :gt_drift_sensor_scale]
+                continue
+            end
             senate_kwargs[key] = value
         end
     end
@@ -134,6 +140,28 @@ function build_senate_params(combo, fixed_params, player_configs)
         @assert senate_kwargs[:planning_horizon] <= senate_kwargs[:horizon] "Planning horizon must be <= horizon"
     end
     
+    if haskey(fixed_params, :gt_drift_dynamics_scale)
+        gt_dynamics_configs = Dict(
+            1 => DefaultPlayerConfig(player_idx=1, type=ground_truth_config),
+            2 => DefaultPlayerConfig(player_idx=2, type=ground_truth_config),
+        )
+        for (_, config) in gt_dynamics_configs
+            config.drift_dynamics_scale = fixed_params[:gt_drift_dynamics_scale]
+        end
+        senate_kwargs[:ground_truth_dynamics_configs] = gt_dynamics_configs
+    end
+    if haskey(fixed_params, :gt_drift_sensor_scale)
+        gt_sensor_configs = Dict(
+            1 => DefaultPlayerConfig(player_idx=1, type=ground_truth_config),
+            2 => DefaultPlayerConfig(player_idx=2, type=ground_truth_config),
+        )
+        for (_, config) in gt_sensor_configs
+            config.drift_sensor_scale = fixed_params[:gt_drift_sensor_scale]
+        end
+        senate_kwargs[:ground_truth_sensor_configs] = gt_sensor_configs
+    end
+
+
     return DefaultSenateParams(; senate_kwargs...)
 end
 
@@ -151,6 +179,9 @@ function run_mass_experiment(;
     p1_terminal_cost_weight = nothing,
     p1_nature_multiplier = nothing,
     p1_attraction_strength = nothing,
+    p1_drift_dynamics_scale = nothing,
+    p1_drift_sensor_scale = nothing,
+    p1_type = nothing,
     
     # Player 2 parameters
     p2_ellipsoid_centers = nothing,  # Single value only: Vector{Vector{Real}}
@@ -161,6 +192,11 @@ function run_mass_experiment(;
     p2_nature_multiplier = nothing,
     p2_attraction_strength = nothing,
     dynamics_model_template = nothing,
+    p2_drift_dynamics_scale = nothing,
+    p2_drift_sensor_scale = nothing,
+    p2_type = nothing,
+    gt_drift_dynamics_scale = nothing,
+    gt_drift_sensor_scale = nothing,
     # Experiment parameters
     planning_horizon = nothing,
     horizon = nothing,
@@ -211,6 +247,15 @@ function run_mass_experiment(;
     if !isnothing(p1_attraction_strength)
         param_variations[:p1_attraction_strength] = generate_range(p1_attraction_strength)
     end
+    if !isnothing(p1_drift_dynamics_scale)
+        param_variations[:p1_drift_dynamics_scale] = generate_range(p1_drift_dynamics_scale)
+    end
+    if !isnothing(p1_drift_sensor_scale)
+        param_variations[:p1_drift_sensor_scale] = generate_range(p1_drift_sensor_scale)
+    end
+    if !isnothing(p1_type)
+        fixed_params[:p1_type] = p1_type
+    end
     
     # Process Player 2 ellipsoid parameters (single values only)
     if !isnothing(p2_ellipsoid_centers)
@@ -244,6 +289,15 @@ function run_mass_experiment(;
     if !isnothing(p2_attraction_strength)
         param_variations[:p2_attraction_strength] = generate_range(p2_attraction_strength)
     end
+    if !isnothing(p2_drift_dynamics_scale)
+        param_variations[:p2_drift_dynamics_scale] = generate_range(p2_drift_dynamics_scale)
+    end
+    if !isnothing(p2_drift_sensor_scale)
+        param_variations[:p2_drift_sensor_scale] = generate_range(p2_drift_sensor_scale)
+    end
+    if !isnothing(p2_type)
+        fixed_params[:p2_type] = p2_type
+    end
     
     # Process experiment parameters
     if !isnothing(planning_horizon)
@@ -272,6 +326,12 @@ function run_mass_experiment(;
     if !isnothing(dynamics_model_template)
         @assert dynamics_model_template in [:default, :under_actuated, :attraction] "dynamics_model_template must be :default, :under_actuated, or :attraction"
         fixed_params[:dynamics_model_template] = dynamics_model_template
+    end
+    if !isnothing(gt_drift_dynamics_scale)
+        fixed_params[:gt_drift_dynamics_scale] = gt_drift_dynamics_scale
+    end
+    if !isnothing(gt_drift_sensor_scale)
+        fixed_params[:gt_drift_sensor_scale] = gt_drift_sensor_scale
     end
     #endregion
     
