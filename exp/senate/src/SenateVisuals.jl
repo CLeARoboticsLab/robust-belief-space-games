@@ -197,15 +197,79 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     on(slider.value) do val; current_time_step[] = val; end
     Label(time_slider_grid[3, 1], @lift(string(Int($current_time_step))))
 
-    p1_planned_belief_trajectory = @lift Dict(k => $p1_solution_history_dict[k][$current_time_step].beliefs for k in $exp_trial_pairs)
-    p2_planned_belief_trajectory = @lift Dict(k => $p2_solution_history_dict[k][$current_time_step].beliefs for k in $exp_trial_pairs)
-    p1_planned_controls = @lift Dict(k => $p1_solution_history_dict[k][$current_time_step].controls for k in $exp_trial_pairs)
-    p2_planned_controls = @lift Dict(k => $p2_solution_history_dict[k][$current_time_step].controls for k in $exp_trial_pairs)
+    p1_planned_belief_trajectory = @lift begin
+        result = Dict()
+        for k in $exp_trial_pairs
+            if haskey($p1_solution_history_dict, k)
+                result[k] = $p1_solution_history_dict[k][$current_time_step].beliefs
+            end
+        end
+        result
+    end
+    p2_planned_belief_trajectory = @lift begin
+        result = Dict()
+        for k in $exp_trial_pairs
+            if haskey($p2_solution_history_dict, k)
+                result[k] = $p2_solution_history_dict[k][$current_time_step].beliefs
+            end
+        end
+        result
+    end
+    p1_planned_controls = @lift begin
+        result = Dict()
+        for k in $exp_trial_pairs
+            if haskey($p1_solution_history_dict, k)
+                result[k] = $p1_solution_history_dict[k][$current_time_step].controls
+            end
+        end
+        result
+    end
+    p2_planned_controls = @lift begin
+        result = Dict()
+        for k in $exp_trial_pairs
+            if haskey($p2_solution_history_dict, k)
+                result[k] = $p2_solution_history_dict[k][$current_time_step].controls
+            end
+        end
+        result
+    end
     # Observables for planned trajectories at each receding horizon step `t` (dict keyed by trial)
-    p1_means_trajectory = @lift Dict(k => [means(b) for b in $p1_planned_belief_trajectory[k]] for k in $exp_trial_pairs)
-    p2_means_trajectory = @lift Dict(k => [means(b) for b in $p2_planned_belief_trajectory[k]] for k in $exp_trial_pairs)
-    p1_covariances_trajectory = @lift Dict(k => [covs(b) for b in $p1_planned_belief_trajectory[k]] for k in $exp_trial_pairs)
-    p2_covariances_trajectory = @lift Dict(k => [covs(b) for b in $p2_planned_belief_trajectory[k]] for k in $exp_trial_pairs)
+    p1_means_trajectory = @lift begin
+        result = Dict()
+        for k in $exp_trial_pairs
+            if haskey($p1_planned_belief_trajectory, k)
+                result[k] = [means(b) for b in $p1_planned_belief_trajectory[k]]
+            end
+        end
+        result
+    end
+    p2_means_trajectory = @lift begin
+        result = Dict()
+        for k in $exp_trial_pairs
+            if haskey($p2_planned_belief_trajectory, k)
+                result[k] = [means(b) for b in $p2_planned_belief_trajectory[k]]
+            end
+        end
+        result
+    end
+    p1_covariances_trajectory = @lift begin
+        result = Dict()
+        for k in $exp_trial_pairs
+            if haskey($p1_planned_belief_trajectory, k)
+                result[k] = [covs(b) for b in $p1_planned_belief_trajectory[k]]
+            end
+        end
+        result
+    end
+    p2_covariances_trajectory = @lift begin
+        result = Dict()
+        for k in $exp_trial_pairs
+            if haskey($p2_planned_belief_trajectory, k)
+                result[k] = [covs(b) for b in $p2_planned_belief_trajectory[k]]
+            end
+        end
+        result
+    end
     # Use first trial for planning horizon (they should all be the same)
     p1_planning_horizon = @lift isempty($p1_means_trajectory) ? 0 : minimum(length.(values($p1_means_trajectory)))
     p2_planning_horizon = @lift isempty($p2_means_trajectory) ? 0 : minimum(length.(values($p2_means_trajectory)))
@@ -775,6 +839,15 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     
     # Use on() callback instead of @lift to create plot elements only when trials change
     on(exp_trial_pairs) do pairs
+        for (exp_name, trial_id) in pairs
+            trial_key = (exp_name, trial_id)
+            for p1_obs in values(p1_ellipse_observables_dict[trial_key])
+                p1_obs[] = Point2f[]
+            end
+            for p2_obs in values(p2_ellipse_observables_dict[trial_key])
+                p2_obs[] = Point2f[]
+            end
+        end
         empty!(p1_ellipse_observables_dict)
         empty!(p2_ellipse_observables_dict)
         for (exp_name, trial_id) in pairs
@@ -979,6 +1052,10 @@ function add_multi_line_graph!(parent;
             obs_series[i] = Observable(Float64.(sc))
         end
     end
+    maxval = map(obs_series...) do series...
+        combined = vcat(series...)
+        isempty(combined) ? 0 : maximum(combined)
+    end
 
     # All series should share the same time grid; we use the shortest length
     # Make these reactive since obs_series are observables that may update
@@ -991,33 +1068,39 @@ function add_multi_line_graph!(parent;
         combined = vcat(series...)
         isempty(combined) ? 0 : maximum(combined)
     end
+    xt = timesteps === nothing ? nothing : Observable(vec(timesteps))
 
-    # X values (shared)
-    x_all = if timesteps === nothing
-        @lift(1:$minlen)
+for i in eachindex(obs_series)
+    local oi = obs_series[i]
+    
+    # Create a single observable that computes points directly
+    points_obs = if timesteps === nothing
+        @lift begin
+            oi_val = $oi
+            ml = $minlen
+            actual_len = min(ml, length(oi_val))
+            if actual_len > 0
+                Point2f.(1:actual_len, oi_val[1:actual_len])
+            else
+                Point2f[]
+            end
+        end
     else
-        xt = Observable(vec(timesteps))
-        @lift(xt[][1:$minlen])
+        @lift begin
+            oi_val = $oi
+            xt_val = $xt
+            ml = $minlen
+            actual_len = min(ml, length(oi_val), length(xt_val))
+            if actual_len > 0
+                Point2f.(xt_val[1:actual_len], oi_val[1:actual_len])
+            else
+                Point2f[]
+            end
+        end
     end
-
-    # Plot each series; capture local Observable in the loop for @lift closures
-    for i in eachindex(obs_series)
-        local oi = obs_series[i]
-        lines!(ax, x_all, @lift(oi[][1:$minlen]), label=labels[i])
-    end
-    axislegend(ax, position=:rb)
-    # Set initial axis limits
-    initial_maxval = maxval[]
-    initial_minlen = minlen[]
-    ylims!(ax, 0, max(1,initial_maxval * 1.1))
-    xlims!(ax, 0.5, initial_minlen + 3)
-    # Update axis limits reactively
-    on(maxval) do mv
-        ylims!(ax, 0, max(1, mv * 1.1))
-    end
-    on(minlen) do minlen_val
-        xlims!(ax, 0.5, minlen_val + 3)
-    end
+    
+    lines!(ax, points_obs, label=labels[i])
+end
     # # Keep y-limits comfy as we reveal more points
     # on(current_time_step) do _
     #     k_now = min(current_time_step[], minlen())
