@@ -32,7 +32,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
     end
     new_cost = calculate_costs(game, nominal_beliefs, nominal_controls)    
     old_cost = 1/ϵ_converge^2 * new_cost
-    regularizations = Regularizations(100.0, 10.0)
+    regularizations = Regularizations(10.0, 10.0)
     iterations = 0    
     improvement_iterations = 0
     intermediate_solutions = [(nominal_beliefs, nominal_controls)]

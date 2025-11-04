@@ -31,12 +31,16 @@ function load_solution(folder, filename, type = "mass_results")
     results = open(deserialize, path, "r")
     experiments = Dict{String, Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}}()
     for exp_data in results
-        params, fixed, trial_dict, exp_name = exp_data
+        params, fixed, trial_results, exp_name = exp_data
+        if isnothing(trial_results)
+            @warn "No results for experiment: $(exp_name). Skipping."
+            continue
+        end
         if filename == SubString(exp_name,1,length(filename))
             exp_name = SubString(exp_name,length(filename)+1,length(exp_name)) #Shorten to only parameters
         end
         experiments[exp_name] = Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}()
-        for (trial_id, trial_data) in trial_dict
+        for (trial_id, trial_data) in trial_results
             solutions, games, cost_params = trial_data # ,Dict {player_idx -> RBG.BeliefGame}, SenateParams
             experiments[exp_name][trial_id] = (solutions, games, cost_params)
         end

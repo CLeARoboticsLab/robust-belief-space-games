@@ -19,7 +19,7 @@ export non_terminal_cost_components, terminal_cost_components, ellipsoidal_cost,
 include("./sensor.jl")
 export base_sensor_model, drift_sensor_model
 include("./SenateParamUtils.jl")
-export _sync_params_to_configs_dims!, _sync_params_to_configs_other_configs!, DefaultPlayerConfig, DefaultSenateParams
+export _sync_params_to_configs_dims!, _sync_params_to_configs_other_configs!, DefaultPlayerConfig, DefaultSenateParams, DefaultNaturePlayerConfig
 include("./SenateExperiment.jl")
 export run_receding_horizon_trials, run_receding_horizon_trial, init_checks
 

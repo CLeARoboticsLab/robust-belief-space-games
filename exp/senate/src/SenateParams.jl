@@ -10,8 +10,8 @@ Base.@kwdef mutable struct PlayerConfig
     type::PlayerType = non_robust
     
     # Player game params
-    ellipsoid_centers::Vector{Vector{Int}} = [[0.0, 0.0]]
-    ellipsoid_radii::Vector{Vector{Int}} = [[1.0, 1.0]]
+    ellipsoid_centers::Vector{Vector{Float64}} = [[0.0, 0.0]]
+    ellipsoid_radii::Vector{Vector{Float64}} = [[1.0, 1.0]]
     ellipsoidal_cost_weight::Float64 = 0.1
     control_cost_weight::Float64 = 1.0
     terminal_cost_weight::Float64 = 1.0
@@ -87,10 +87,10 @@ Base.@kwdef mutable struct SenateParams
     planning_horizon::Int = 5
     horizon::Int = 10
     process_noise_mean::Vector{Float64} = zeros(6)
-    process_noise_covariance::Matrix{Float64} = 0.1 * I(6)
+    process_noise_covariance::Matrix{Float64} = 0.001 * I(6)
     process_noise_distribution::Union{Distribution, Nothing} = nothing
     sensor_noise_mean::Vector{Float64} = zeros(6)
-    sensor_noise_covariance::Matrix{Float64} = 0.1 * I(6)
+    sensor_noise_covariance::Matrix{Float64} = 0.001 * I(6)
     sensor_noise_distribution::Union{Distribution, Nothing} = nothing
 
     # --- Simulation Parameters ---

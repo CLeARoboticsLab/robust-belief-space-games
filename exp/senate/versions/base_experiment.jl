@@ -1,7 +1,7 @@
 using Senate
 using BlockArrays
 using Serialization
-
+using Infiltrator
 function run_experiment(params::SenateParams;override::Bool=false, experiment_name::String="experiment")
     solution_filename = "exp/senate/outputs/runs/$(experiment_name).dat"
     if experiment_name != "" && isfile(solution_filename)

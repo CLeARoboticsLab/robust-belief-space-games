@@ -33,14 +33,14 @@ function generate_range(param_spec)
     end
 end
 
-function build_player_configs(combo, fixed_params)
+function build_asymmetric_player_configs(combo, fixed_params)
     player_configs = Dict()
     
     p1_type = haskey(fixed_params, :p1_type) ? fixed_params[:p1_type] : non_robust
     # Player 1 config
     p1_config = DefaultPlayerConfig(player_idx=1, type=p1_type)
     for (key, value) in combo
-        if startswith(String(key), "p1_")
+        if startswith(String(key), "p1_") && !occursin("believes", String(key))
             field_name = Symbol(replace(String(key), "p1_" => ""))
             if hasproperty(p1_config, field_name)
                 setproperty!(p1_config, field_name, value)
@@ -64,7 +64,7 @@ function build_player_configs(combo, fixed_params)
     # Player 2 config
     p2_config = DefaultPlayerConfig(player_idx=2, type=p2_type)
     for (key, value) in combo
-        if startswith(String(key), "p2_")
+        if startswith(String(key), "p2_") && !occursin("believes", String(key))
             field_name = Symbol(replace(String(key), "p2_" => ""))
             if hasproperty(p2_config, field_name)
                 setproperty!(p2_config, field_name, value)
@@ -84,6 +84,12 @@ function build_player_configs(combo, fixed_params)
         end
     end
     player_configs[2] = p2_config
+
+    if haskey(fixed_params, :attraction_matrix)
+        p1_config.attraction_matrix = fixed_params[:attraction_matrix]
+        p2_config.attraction_matrix = fixed_params[:attraction_matrix]
+    end
+
     if haskey(fixed_params, :dynamics_model_template)
         if fixed_params[:dynamics_model_template] == :under_actuated
             p2_config.self_dynamics_model_template = under_actuated_dynamics
@@ -96,6 +102,79 @@ function build_player_configs(combo, fixed_params)
             p1_config.self_dynamics_model_template = attraction_dynamics_model
         end
     end
+
+    # --- Asymmetric Beliefs ---
+    # Player 1's beliefs
+    p1_belief_about_p2 = deepcopy(p2_config)
+    if haskey(combo, :p1_believes_p2_drift_sensor_scale)
+        p1_belief_about_p2.drift_sensor_scale = combo[:p1_believes_p2_drift_sensor_scale]
+    end
+    p1_belief_about_p2.type = non_robust
+
+    p1_belief_about_self = deepcopy(p1_config)
+    if haskey(combo, :p1_believes_self_drift_sensor_scale)
+        p1_belief_about_self.drift_sensor_scale = combo[:p1_believes_self_drift_sensor_scale]
+    end
+
+    p1_beliefs = Dict(
+        1 => p1_belief_about_self,
+        2 => p1_belief_about_p2
+    )
+    if p1_config.type == robust
+        nature_idx = max(keys(p1_beliefs)...) + 1
+        p1_beliefs[nature_idx] = DefaultNaturePlayerConfig(base_player_config=p1_config, player_idx=nature_idx)
+    end
+    p1_config.other_player_configs = p1_beliefs
+
+    # Player 2's beliefs
+    p2_belief_about_p1 = deepcopy(p1_config)
+    if haskey(combo, :p2_believes_p1_drift_sensor_scale)
+        p2_belief_about_p1.drift_sensor_scale = combo[:p2_believes_p1_drift_sensor_scale]
+    end
+    p2_belief_about_p1.type = non_robust
+
+    p2_beliefs = Dict(
+        1 => p2_belief_about_p1,
+        2 => deepcopy(p2_config)
+    )
+    if p2_config.type == robust
+        nature_idx = max(keys(p2_beliefs)...) + 1
+        p2_beliefs[nature_idx] = DefaultNaturePlayerConfig(base_player_config=p2_config, player_idx=nature_idx)
+    end
+    p2_config.other_player_configs = p2_beliefs
+
+    # --- Synchronize derived parameters ---
+    # This is critical because we manually constructed other_player_configs,
+    # bypassing the normal synchronization that happens in DefaultSenateParams.
+
+    # Determine the number of senators for this run
+    num_senators_val = get(combo, :num_senators, get(fixed_params, :num_senators, 3))
+
+    # Determine other dimensional parameters based on num_senators
+    state_dims = fill(2, num_senators_val)
+    control_dims = fill(2, num_senators_val)
+    belief_dims = [(2, 4) for _ in 1:num_senators_val]
+    sensor_dims = fill(2, num_senators_val)
+    num_activists_val = 2 # This is fixed at 2 players
+
+    # Create a list of all belief configs that need syncing
+    all_belief_configs = []
+    append!(all_belief_configs, values(p1_beliefs))
+    append!(all_belief_configs, values(p2_beliefs))
+
+    # Apply the derived parameters to every configuration object
+    for config in all_belief_configs
+        config.num_senators = num_senators_val
+        config.num_activists = num_activists_val
+        config.state_dims_per_activist = state_dims
+        config.control_dims_per_activist = control_dims
+        config.belief_dims_per_activist = belief_dims
+        config.sensor_dims_per_activist = sensor_dims
+        # We also need to populate the model functions themselves, which is done by _populate_configs!
+        # This function is not exported, so we call it via the module.
+        Senate._populate_configs!(config, force=true)
+    end
+
     return player_configs
 end
 
@@ -105,7 +184,7 @@ function build_senate_params(combo, fixed_params, player_configs)
     
     # Add experiment parameters
     for (key, value) in combo
-        if !startswith(String(key), "p1_") && !startswith(String(key), "p2_")
+        if !startswith(String(key), "p1_") && !startswith(String(key), "p2_") && !startswith(String(key), "p1_believes") && !startswith(String(key), "p2_believes")
             senate_kwargs[key] = value
         end
     end
@@ -114,7 +193,7 @@ function build_senate_params(combo, fixed_params, player_configs)
     for (key, value) in fixed_params
         if !startswith(String(key), "p1_") && !startswith(String(key), "p2_")
             # These are meta-parameters for the experiment script, not for SenateParams
-            if key in [:gt_drift_dynamics_scale, :gt_drift_sensor_scale, :dynamics_model_template]
+            if key in [:gt_drift_dynamics_scale, :gt_drift_sensor_scale, :dynamics_model_template, :attraction_matrix]
                 continue
             end
             senate_kwargs[key] = value
@@ -130,7 +209,9 @@ function build_senate_params(combo, fixed_params, player_configs)
         if !haskey(fixed_params, :control_dims_per_activist)
             senate_kwargs[:control_dims_per_activist] = fill(2, n_sens)
         end
-        senate_kwargs[:ground_truth_initial_states] = mortar([fill(0.0, 2) for _ in 1:n_sens])
+        if !haskey(fixed_params, :ground_truth_initial_states)
+            senate_kwargs[:ground_truth_initial_states] = mortar([fill(0.0, 2) for _ in 1:n_sens])
+        end
         senate_kwargs[:belief_dims_per_activist] = [(2, 4) for _ in 1:n_sens]
         senate_kwargs[:sensor_dims_per_activist] = fill(2, n_sens)
     end
@@ -168,9 +249,8 @@ end
 
 #All experiment parameters are optional and can be single values or (start, stop, step_function) tuples
 #Ellipsoid centers and radii are single values only (Vector{Vector{Real}})
-#TODO: Add bool for perceived dynamics model with drift / no drift & for sensor model with drift / no drift
-#Example: julia> using Revise; includet("exp/senate/versions/mass_experiment.jl"); run_mass_experiment(;p1_control_cost_weight = (1.0, 2.0, STEP_ADD(0.5)), experiment_name_prefix="control_cost_test")
-function run_mass_experiment(;
+#Example: julia> using Revise; includet("exp/senate/versions/assymetric_experiment.jl"); run_asymmetric_experiment(;p1_control_cost_weight = (1.0, 2.0, STEP_ADD(0.5)), experiment_name_prefix="control_cost_test")
+function run_asymmetric_experiment(;
     # Player 1 parameters
     p1_ellipsoid_centers = [[3, 1]],  # Single value only: Vector{Vector{Real}}
     p1_ellipsoid_radii = [[1.5, 1]],    # Single value only: Vector{Vector{Real}}
@@ -195,8 +275,15 @@ function run_mass_experiment(;
     p2_drift_dynamics_scale = nothing,
     p2_drift_sensor_scale = nothing,
     p2_type = nothing,
+    attraction_matrix = nothing,
+
+    # Asymmetric belief parameters
+    p1_believes_p2_drift_sensor_scale = nothing,
+    p2_believes_p1_drift_sensor_scale = nothing,
+
     gt_drift_dynamics_scale = nothing,
     gt_drift_sensor_scale = nothing,
+    ground_truth_initial_states = nothing,
     # Experiment parameters
     planning_horizon = nothing,
     horizon = nothing,
@@ -206,7 +293,7 @@ function run_mass_experiment(;
     
     # Control parameters
     override = false,
-    experiment_name_prefix = "mass_exp",
+    experiment_name_prefix = "asymmetric_exp",
     save_intermediate_results = true
 )
     
@@ -298,7 +385,18 @@ function run_mass_experiment(;
     if !isnothing(p2_type)
         fixed_params[:p2_type] = p2_type
     end
+    if !isnothing(attraction_matrix)
+        fixed_params[:attraction_matrix] = attraction_matrix
+    end
     
+    # Process asymmetric belief parameters
+    if !isnothing(p1_believes_p2_drift_sensor_scale)
+        param_variations[:p1_believes_p2_drift_sensor_scale] = generate_range(p1_believes_p2_drift_sensor_scale)
+    end
+    if !isnothing(p2_believes_p1_drift_sensor_scale)
+        param_variations[:p2_believes_p1_drift_sensor_scale] = generate_range(p2_believes_p1_drift_sensor_scale)
+    end
+
     # Process experiment parameters
     if !isnothing(planning_horizon)
         param_variations[:planning_horizon] = generate_range(planning_horizon)
@@ -333,6 +431,9 @@ function run_mass_experiment(;
     if !isnothing(gt_drift_sensor_scale)
         fixed_params[:gt_drift_sensor_scale] = gt_drift_sensor_scale
     end
+    if !isnothing(ground_truth_initial_states)
+        fixed_params[:ground_truth_initial_states] = ground_truth_initial_states
+    end
     #endregion
     
     # Generate all combinations
@@ -350,7 +451,7 @@ function run_mass_experiment(;
     
     #region Debug Run Info
     println("\n" * "="^60)
-    println("MASS EXPERIMENT RUN INFO")
+    println("ASYMMETRIC EXPERIMENT RUN INFO")
     println("="^60)
     println("Total number of experiments to run: $(length(combinations))")
     if !isempty(param_keys)
@@ -376,7 +477,7 @@ function run_mass_experiment(;
         println("Parameters: ", combo)
         
         # Build configs and params
-        player_configs = build_player_configs(combo, fixed_params)
+        player_configs = build_asymmetric_player_configs(combo, fixed_params)
         params = build_senate_params(combo, fixed_params, player_configs)
         
         # Generate experiment name
