@@ -1,6 +1,7 @@
 module SenateVisuals
 
 using GLMakie
+using Makie.Colors
 using LinearAlgebra
 using RobustBeliefGame
 using BlockArrays
@@ -24,9 +25,13 @@ end
 
 export visualize_receding_horizon_solution, load_solution
 
+# Helper function to convert color symbols to RGBA with 50% opacity
+function color_with_alpha(color, alpha=0.4)
+    c = color isa Symbol ? to_color(color) : color
+    return RGBA(c.r, c.g, c.b, alpha)
+end
+
 function load_solution(folder, filename, type = "mass_results")
-    
-    
     path = "exp/senate/outputs/$folder/$(filename)_$type.dat"
     results = open(deserialize, path, "r")
     experiments = Dict{String, Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}}()
@@ -48,7 +53,7 @@ function load_solution(folder, filename, type = "mass_results")
     visualize_receding_horizon_solution(experiments, filename)
 end
 
-function plot_ellipse!(ax, center, a, b; n=100, label="", color=:black)
+function plot_ellipse!(ax, center, a, b; n=100, label="", color=color_with_alpha(:black))
     t = range(0, 2*pi, length=n)
     x = center[1] .+ a .* cos.(t)
     y = center[2] .+ b .* sin.(t)
@@ -91,9 +96,9 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     for exp_name in keys(experiments)
         trial_selections = Dict{String, Observable{Bool}}()
         for trial_id in keys(experiments[exp_name])
-            trial_selections[trial_id] = Observable(false)
+            trial_selections[trial_id] = Observable(true) #TODO revert to false
         end
-        selection_state[exp_name] = (Observable(false), trial_selections)
+        selection_state[exp_name] = (Observable(true), trial_selections)
     end
 
     # Set first experiment/trial selected to true
@@ -120,7 +125,7 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     # #Toggle the first experiment on afterwards (trigger callback)
     selection_state[first(keys(experiments))][1][] = true
     selection_state[first(keys(experiments))][2][first(keys(experiments[first(keys(experiments))]))][] = true
-
+    
     solutions = @lift Dict(
         (exp_name, trial_id) => experiments[exp_name][trial_id][1]
         for (exp_name, trial_id) in $exp_trial_pairs
@@ -190,7 +195,7 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     show_p1_planned_trajectory = Observable(true)
     show_p2_planned_trajectory = Observable(true)
     show_executed_trajectory = Observable(true)
-    colors = [:blue, :red]
+    colors = [color_with_alpha(:blue), color_with_alpha(:red)]
 
     # --- Sliders ---
     time_slider_grid = controls_grid[1, 1] = GridLayout(tellwidth=false)
@@ -326,8 +331,11 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
 
     min_num_senators = @lift isempty($dims_dict) ? 0 : minimum(d.num_senators for d in values($dims_dict))
     min_num_activists = @lift isempty($dims_dict) ? 0 : minimum(d.num_activists for d in values($dims_dict))
-    point_colors = @lift vcat([fill(c, $min_num_senators) for c in colors]...)
-
+    point_colors = @lift begin
+        base_colors = vcat([fill(c, $min_num_senators) for c in colors]...)
+        num_trials = length($exp_trial_pairs)
+        vcat([base_colors for _ in 1:num_trials]...)
+    end
     #executed_trajectory holds the solved trajectory for each time_step for each senator, based on each activist (we only care about gt first state, which is repeated twice)
     # Use on() callback to manage plot elements per trial
     executed_trajectory_plots = Dict{Tuple{String, String}, Vector{Tuple{Any, Any, Observable{Vector{Point2f}}}}}()  # (scatter_plot, line_plot, trajectory_obs)
@@ -349,8 +357,8 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
             
             for senator_id in 1:min_num_senators[]
                 trajectory_obs = Observable(Point2f[])
-                scatter_plot = scatter!(ax, trajectory_obs, color=:green, markersize=8, visible=show_executed_trajectory)
-                line_plot = lines!(ax, trajectory_obs, color=:green, visible=show_executed_trajectory)
+                scatter_plot = scatter!(ax, trajectory_obs, color=color_with_alpha(:green), markersize=8, visible=show_executed_trajectory) #Temporarily disabled executed trajectory points
+                line_plot = lines!(ax, trajectory_obs, color=color_with_alpha(:green), visible=show_executed_trajectory)
                 push!(plot_list, (scatter_plot, line_plot, trajectory_obs))
             end
             
@@ -361,11 +369,22 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     # Update executed trajectory Observables when time step changes
     on(current_time_step) do t
         for (trial_key, plot_list) in executed_trajectory_plots
-            if haskey(p1_solution_history_dict[], trial_key)
+            if haskey(p1_sols[], trial_key) && haskey(p1_sols[][trial_key], :gt_state_history)
+                gt_history = p1_sols[][trial_key].gt_state_history
+                if t <= length(gt_history)
+                    for (senator_idx, (_, _, trajectory_obs)) in enumerate(plot_list)
+                        if senator_idx <= length(gt_history[t].blocks)
+                            senator_states = [Point2f(gt_history[time][Block(senator_idx)][1], gt_history[time][Block(senator_idx)][2]) for time in 1:t]
+                            trajectory_obs[] = senator_states
+                        end
+                    end
+                end
+            elseif haskey(p1_solution_history_dict[], trial_key)
+                # Fallback: use first activist's belief about this senator
                 solution_history = p1_solution_history_dict[][trial_key]
                 for (senator_idx, (_, _, trajectory_obs)) in enumerate(plot_list)
                     if senator_idx <= length(solution_history) && t <= length(solution_history)
-                        senator_states = [solution_history[time][1][1].beliefs[senator_idx].belief_mean for time in 1:t]
+                        senator_states = [solution_history[time][1].beliefs[senator_idx].belief_mean for time in 1:t]
                         gt_trajectory = [Point2f(state[1], state[2]) for state in senator_states]
                         trajectory_obs[] = gt_trajectory
                     end
@@ -695,59 +714,184 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     end
     
     # Create arrow color array matching the structure
-    arrow_colors = @lift vcat([fill(colors[activist_id], $min_num_senators) for activist_id in 1:$min_num_activists]...)
+    # Create arrow color array matching the structure (replicated for each trial)
+    arrow_colors = @lift begin
+        base_colors = vcat([fill(colors[activist_id], $min_num_senators) for activist_id in 1:$min_num_activists]...)
+        num_trials = length($exp_trial_pairs)
+        vcat([base_colors for _ in 1:num_trials]...)
+    end    
     
     # Create arrow plots ONCE with aggregated Observables
     arrows!(ax, all_p1_arrow_starts, all_p1_arrow_vectors, color=arrow_colors, visible=show_p1_activist_controls)
     arrows!(ax, all_p2_arrow_starts, all_p2_arrow_vectors, color=arrow_colors, visible=show_p2_activist_controls, linestyle=:dash)
 
-    # Draw arrows for nature's controls #TODO: Fix nature controls
-    # is_robust = @lift begin
-    #     if !isempty($p1_planned_controls)
-    #         first_controls = first(values($p1_planned_controls))
-    #         !isempty(first_controls) && !isempty(first_controls[1].blocks) && length(first_controls[1]) > sum($first_trial_dims.control_dims_per_activist)
-    #     else
-    #         false
-    #     end
-    # end
-    # for senator_id in 1:first_trial_dims_val.num_senators
-    #     local senator_id_local = senator_id
-    #     arrow_starts = @lift begin
-    #         starts = Point2f[]
-    #         for (k, means_traj) in $p1_means_trajectory
-    #             if !isempty(means_traj) && $plan_time_step <= length(means_traj) && senator_id_local <= length(means_traj[$plan_time_step].blocks)
-    #                 push!(starts, Point2f(means_traj[$plan_time_step][Block(senator_id_local)]))
-    #             end
-    #         end
-    #         starts
-    #     end
-    #     arrow_vectors = @lift begin
-    #         vectors = Point2f[]
-    #         if $is_robust
-    #             for (k, controls) in $p1_planned_controls
-    #                 if !isempty(controls) && $plan_time_step <= length(controls)
-    #                     control_vec = controls[$plan_time_step]
-    #                     last_block_idx = length(control_vec.blocks)
-    #                     nature_control_vec = control_vec[Block(last_block_idx)]
-    #                     if length(nature_control_vec) == sum($first_trial_dims.state_dims_per_activist)
-    #                         nature_control_block = BlockVector(nature_control_vec, $first_trial_dims.state_dims_per_activist)
-    #                         if senator_id_local <= length(nature_control_block.blocks)
-    #                             push!(vectors, Point2f(nature_control_block[Block(senator_id_local)]))
-    #                         end
-    #                     end
-    #                 end
-    #             end
-    #         end
-    #         vectors
-    #     end
-    #     arrows!(ax, arrow_starts, arrow_vectors, color=:green, visible=show_nature_controls)
-    # end
-
+    # Draw arrows for nature's controls - aggregate from all trials
+    all_nature_arrow_starts = @lift begin
+        starts = Point2f[]
+        for (exp_name, trial_id) in $exp_trial_pairs
+            trial_key = (exp_name, trial_id)
+            if !haskey($dims_dict, trial_key)
+                continue
+            end
+            trial_dims = $dims_dict[trial_key]
+            
+            # Check p1 controls for nature and add corresponding starts
+            if haskey($p1_planned_controls, trial_key) && haskey($p1_means_trajectory, trial_key)
+                p1_controls = $p1_planned_controls[trial_key]
+                p1_means_traj = $p1_means_trajectory[trial_key]
+                if !isempty(p1_controls) && $plan_time_step <= length(p1_controls) && 
+                   !isempty(p1_means_traj) && $plan_time_step <= length(p1_means_traj)
+                    control_vec = p1_controls[$plan_time_step]
+                    if !isempty(control_vec.blocks)
+                        total_control_dims = sum(trial_dims.control_dims_per_activist)
+                        if length(control_vec) > total_control_dims
+                            # Nature controls exist, add starts from p1's beliefs
+                            for senator_id in 1:trial_dims.num_senators
+                                # Get senator position from first activist's belief (indices 1, 2, 3 for senators 1, 2, 3)
+                                belief_idx = senator_id
+                                if belief_idx <= length(p1_means_traj[$plan_time_step].blocks)
+                                    push!(starts, Point2f(p1_means_traj[$plan_time_step][Block(belief_idx)]))
+                                else
+                                    push!(starts, Point2f(0, 0))
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            
+            # Check p2 controls for nature and add corresponding starts
+            if haskey($p2_planned_controls, trial_key) && haskey($p2_means_trajectory, trial_key)
+                p2_controls = $p2_planned_controls[trial_key]
+                p2_means_traj = $p2_means_trajectory[trial_key]
+                if !isempty(p2_controls) && $plan_time_step <= length(p2_controls) &&
+                   !isempty(p2_means_traj) && $plan_time_step <= length(p2_means_traj)
+                    control_vec = p2_controls[$plan_time_step]
+                    if !isempty(control_vec.blocks)
+                        total_control_dims = sum(trial_dims.control_dims_per_activist)
+                        if length(control_vec) > total_control_dims
+                            # Nature controls exist, add starts from p2's beliefs
+                            for senator_id in 1:trial_dims.num_senators
+                                # Get senator position from first activist's belief
+                                belief_idx = senator_id
+                                if belief_idx <= length(p2_means_traj[$plan_time_step].blocks)
+                                    push!(starts, Point2f(p2_means_traj[$plan_time_step][Block(belief_idx)]))
+                                else
+                                    push!(starts, Point2f(0, 0))
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        starts
+    end
+    
+    all_nature_arrow_vectors = @lift begin
+        vectors = Point2f[]
+        for (exp_name, trial_id) in $exp_trial_pairs
+            trial_key = (exp_name, trial_id)
+            if !haskey($dims_dict, trial_key)
+                continue
+            end
+            trial_dims = $dims_dict[trial_key]
+            
+            # Check p1 controls for nature
+            if haskey($p1_planned_controls, trial_key)
+                p1_controls = $p1_planned_controls[trial_key]
+                if !isempty(p1_controls) && $plan_time_step <= length(p1_controls)
+                    control_vec = p1_controls[$plan_time_step]
+                    if !isempty(control_vec.blocks)
+                        # Check if nature controls exist (last block should be nature if robust)
+                        total_control_dims = sum(trial_dims.control_dims_per_activist)
+                        if length(control_vec) > total_control_dims
+                            last_block_idx = length(control_vec.blocks)
+                            nature_control_vec = control_vec[Block(last_block_idx)]
+                            # Validate dimensions match state_dims_per_activist
+                            if length(nature_control_vec) == sum(trial_dims.state_dims_per_activist)
+                                nature_control_block = BlockVector(nature_control_vec, trial_dims.state_dims_per_activist)
+                                for senator_id in 1:trial_dims.num_senators
+                                    if senator_id <= length(nature_control_block.blocks)
+                                        push!(vectors, Point2f(nature_control_block[Block(senator_id)]))
+                                    else
+                                        push!(vectors, Point2f(0, 0))
+                                    end
+                                end
+                            else
+                                # Add zero vectors if dimensions don't match
+                                for _ in 1:trial_dims.num_senators
+                                    push!(vectors, Point2f(0, 0))
+                                end
+                            end
+                        else
+                            # No nature controls, skip (don't add vectors)
+                        end
+                    end
+                end
+            end
+            
+            # Check p2 controls for nature
+            if haskey($p2_planned_controls, trial_key)
+                p2_controls = $p2_planned_controls[trial_key]
+                if !isempty(p2_controls) && $plan_time_step <= length(p2_controls)
+                    control_vec = p2_controls[$plan_time_step]
+                    if !isempty(control_vec.blocks)
+                        # Check if nature controls exist (last block should be nature if robust)
+                        total_control_dims = sum(trial_dims.control_dims_per_activist)
+                        if length(control_vec) > total_control_dims
+                            last_block_idx = length(control_vec.blocks)
+                            nature_control_vec = control_vec[Block(last_block_idx)]
+                            # Validate dimensions match state_dims_per_activist
+                            if length(nature_control_vec) == sum(trial_dims.state_dims_per_activist)
+                                nature_control_block = BlockVector(nature_control_vec, trial_dims.state_dims_per_activist)
+                                for senator_id in 1:trial_dims.num_senators
+                                    if senator_id <= length(nature_control_block.blocks)
+                                        push!(vectors, Point2f(nature_control_block[Block(senator_id)]))
+                                    else
+                                        push!(vectors, Point2f(0, 0))
+                                    end
+                                end
+                            else
+                                # Add zero vectors if dimensions don't match
+                                for _ in 1:trial_dims.num_senators
+                                    push!(vectors, Point2f(0, 0))
+                                end
+                            end
+                        else
+                            # No nature controls, skip (don't add vectors)
+                        end
+                    end
+                end
+            end
+        end
+        vectors
+    end
+    # Filter out co-index pairs where vector is (0,0)
+    filtered_nature_arrows = @lift begin
+        filtered_starts = Point2f[]
+        filtered_vectors = Point2f[]
+        for (start, vec) in zip($all_nature_arrow_starts, $all_nature_arrow_vectors)
+            if vec != Point2f(0, 0)
+                push!(filtered_starts, start)
+                push!(filtered_vectors, vec)
+            end
+        end
+        (filtered_starts, filtered_vectors)
+    end
+    
+    filtered_nature_arrow_starts = @lift $filtered_nature_arrows[1]
+    filtered_nature_arrow_vectors = @lift $filtered_nature_arrows[2]
+    
+    arrows!(ax, filtered_nature_arrow_starts, filtered_nature_arrow_vectors, color=color_with_alpha(:green), visible=show_nature_controls)
     # Create observables and plots for covariance ellipses
     # Store as Dict{Tuple{String, String}, Vector{Observable{Vector{Point2f}}}}
     # Keyed by (exp_name, trial_id), each value is a vector of observables (one per activist/senator pair)
     p1_ellipse_observables_dict = Dict{Tuple{String, String}, Vector{Observable{Vector{Point2f}}}}()
     p2_ellipse_observables_dict = Dict{Tuple{String, String}, Vector{Observable{Vector{Point2f}}}}()
+    # Separate dictionaries to track plot elements for deletion
+    p1_ellipse_plots_dict = Dict{Tuple{String, String}, Vector{Any}}()
+    p2_ellipse_plots_dict = Dict{Tuple{String, String}, Vector{Any}}()
     
     # Function to update ellipses
     function update_ellipses(time_step, pairs)
@@ -759,16 +903,19 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
             if !haskey(p1_ellipse_observables_dict, key)
                 # println("  Creating P1 ellipse observables lazily for trial: $key")
                 p1_list = Observable{Vector{Point2f}}[]
+                p1_plots = Any[]
                 min_num_activists_val = min_num_activists[]
                 min_num_senators_val = min_num_senators[]
                 for activist_id in 1:min_num_activists_val
                     for senator_id in 1:min_num_senators_val
                         p1_obs = Observable(Point2f[])
-                        lines!(ax, p1_obs, color=colors[activist_id], visible=show_p1_planned_trajectory)
+                        p1_plot = lines!(ax, p1_obs, color=colors[activist_id], visible=show_p1_planned_trajectory)
                         push!(p1_list, p1_obs)
+                        push!(p1_plots, p1_plot)
                     end
                 end
                 p1_ellipse_observables_dict[key] = p1_list
+                p1_ellipse_plots_dict[key] = p1_plots
                 # println("    Created P1 ellipse list with $(length(p1_list)) entries")
             end
             
@@ -776,16 +923,19 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
             if !haskey(p2_ellipse_observables_dict, key)
                 # println("  Creating P2 ellipse observables lazily for trial: $key")
                 p2_list = Observable{Vector{Point2f}}[]
+                p2_plots = Any[]
                 min_num_activists_val = min_num_activists[]
                 min_num_senators_val = min_num_senators[]
                 for activist_id in 1:min_num_activists_val
                     for senator_id in 1:min_num_senators_val
                         p2_obs = Observable(Point2f[])
-                        lines!(ax, p2_obs, color=colors[activist_id], visible=show_p2_planned_trajectory, linestyle=:dash)
+                        p2_plot = lines!(ax, p2_obs, color=colors[activist_id], visible=show_p2_planned_trajectory, linestyle=:dash)
                         push!(p2_list, p2_obs)
+                        push!(p2_plots, p2_plot)
                     end
                 end
                 p2_ellipse_observables_dict[key] = p2_list
+                p2_ellipse_plots_dict[key] = p2_plots
                 # # println("    Created P2 ellipse list with $(length(p2_list)) entries")
             end
         end
@@ -843,41 +993,23 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     
     # Use on() callback instead of @lift to create plot elements only when trials change
     on(exp_trial_pairs) do pairs
-        for (exp_name, trial_id) in pairs
-            trial_key = (exp_name, trial_id)
-            for p1_obs in values(p1_ellipse_observables_dict[trial_key])
-                p1_obs[] = Point2f[]
+        # Delete ALL plot elements before clearing dictionaries
+        for plots in values(p1_ellipse_plots_dict)
+            for plot in plots
+                delete!(ax, plot)
             end
-            for p2_obs in values(p2_ellipse_observables_dict[trial_key])
-                p2_obs[] = Point2f[]
+        end
+        for plots in values(p2_ellipse_plots_dict)
+            for plot in plots
+                delete!(ax, plot)
             end
         end
         empty!(p1_ellipse_observables_dict)
         empty!(p2_ellipse_observables_dict)
-        for (exp_name, trial_id) in pairs
-            trial_key = (exp_name, trial_id)
-            p1_list = Observable{Vector{Point2f}}[]
-            p2_list = Observable{Vector{Point2f}}[]
-            
-            min_num_activists_val = min_num_activists[]
-            min_num_senators_val = min_num_senators[]
-            
-            for activist_id in 1:min_num_activists_val
-                for senator_id in 1:min_num_senators_val
-                    p1_obs = Observable(Point2f[])
-                    p2_obs = Observable(Point2f[])
-                    lines!(ax, p1_obs, color=colors[activist_id], visible=show_p1_planned_trajectory)
-                    lines!(ax, p2_obs, color=colors[activist_id], visible=show_p2_planned_trajectory, linestyle=:dash)
-                    push!(p1_list, p1_obs)
-                    push!(p2_list, p2_obs)
-                end
-            end
-            
-            p1_ellipse_observables_dict[trial_key] = p1_list
-            p2_ellipse_observables_dict[trial_key] = p2_list
-        end
+        empty!(p1_ellipse_plots_dict)
+        empty!(p2_ellipse_plots_dict)
         
-        # Manually trigger updates after populating dictionaries
+        # Let update_ellipses lazily recreate everything
         update_ellipses(plan_time_step[], pairs)
     end
     # Collect points from all selected trials into single observables
@@ -928,18 +1060,18 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     scatter!(ax, p1_points, color=point_colors, markersize=8, visible=show_p1_planned_trajectory)
     scatter!(ax, p2_points, color=point_colors, markersize=8, visible=show_p2_planned_trajectory)
     # Compute component costs for all shown trials, using lifted observables
-    p1_total_costs = @lift [c.total for (key, trial_costs) in $p1_costs_dict for c in trial_costs]
-    p1_terminal_costs = @lift [c.terminal for (key, trial_costs) in $p1_costs_dict for c in trial_costs]
-    p1_non_terminal_costs = @lift [c.non_terminal for (key, trial_costs) in $p1_costs_dict for c in trial_costs]
+    p1_total_costs = @lift [[c.total for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
+    p1_terminal_costs = @lift [[c.terminal for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
+    p1_non_terminal_costs = @lift [[c.non_terminal for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
 
-    p2_total_costs = @lift [c.total for (key, trial_costs) in $p2_costs_dict for c in trial_costs]
-    p2_terminal_costs = @lift [c.terminal for (key, trial_costs) in $p2_costs_dict for c in trial_costs]
-    p2_non_terminal_costs = @lift [c.non_terminal for (key, trial_costs) in $p2_costs_dict for c in trial_costs]
+    p2_total_costs = @lift [[c.total for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
+    p2_terminal_costs = @lift [[c.terminal for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
+    p2_non_terminal_costs = @lift [[c.non_terminal for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
 
     # Create graphs once during setup with reactive data
     add_multi_line_graph!(fig;
-        series=[p1_total_costs, p2_total_costs],
-        labels=["player 1","player 2"],
+        full_series=[p1_total_costs, p2_total_costs],
+        labels=["player 1","player 2"], # todo: fix labels
         current_time_step=current_time_step,
         title="Cost Over Time",
         ylabel="cost",
@@ -949,7 +1081,7 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     )
 
     add_multi_line_graph!(fig;
-        series=[p1_terminal_costs, p1_non_terminal_costs, p2_terminal_costs, p2_non_terminal_costs],
+        full_series=[p1_terminal_costs, p1_non_terminal_costs, p2_terminal_costs, p2_non_terminal_costs],
         labels=["p1 terminal", "p1 non-terminal", "p2 terminal", "p2 non-terminal"],
         current_time_step=current_time_step,
         title="Component Cost Over Time",
@@ -1022,7 +1154,7 @@ if your elements aren’t plain numbers.
 - Returns the created/used `Axis`.
 """
 function add_multi_line_graph!(parent;
-    series::Vector,
+    full_series::Vector,
     labels::Vector{<:AbstractString},
     current_time_step::Observable{Int}=Observable(typemax(Int)),
     title::AbstractString = "Series over time",
@@ -1032,13 +1164,24 @@ function add_multi_line_graph!(parent;
     scalarizer::Function = identity,
     loc::Tuple{Int,Int} = (1, 2)
 )
-    @assert length(series) == length(labels) "series and labels must have same length"
+    @assert length(full_series) == length(labels) "series and labels must have same length"
 
     # Create or use an axis
     ax = parent isa Figure ? Axis(parent[loc...], title=title, xlabel=xlabel, ylabel=ylabel) :
                              (parent isa Axis ? parent :
                               error("parent must be a Figure or an Axis"))
-
+    # Create a reactive series that rebuilds when trial count changes
+    # series = map(full_series[1]) do first_data
+    #     n = length(first_data)
+    #     [map(data -> trial_idx <= length(data) ? data[trial_idx] : Vector{Vector{Float64}}[], s) 
+    #      for trial_idx in 1:n 
+    #      for s in full_series]
+    # end
+    n = length(full_series[1][])  # Get current number of trials
+    series = [Observable(s[][trial_idx]) 
+            for trial_idx in 1:n 
+            for s in full_series]
+    #TODO: DYNAMICALLY UPDATE COST WITH THE REST OF THE GRAPH - unfinished code
     # Scalarize & sanitize each series, wrap in Observables for reactive updates
     obs_series = Vector{Observable{Vector{Float64}}}(undef, length(series))
     for i in eachindex(series)
@@ -1074,37 +1217,37 @@ function add_multi_line_graph!(parent;
     end
     xt = timesteps === nothing ? nothing : Observable(vec(timesteps))
 
-for i in eachindex(obs_series)
-    local oi = obs_series[i]
-    
-    # Create a single observable that computes points directly
-    points_obs = if timesteps === nothing
-        @lift begin
-            oi_val = $oi
-            ml = $minlen
-            actual_len = min(ml, length(oi_val))
-            if actual_len > 0
-                Point2f.(1:actual_len, oi_val[1:actual_len])
-            else
-                Point2f[]
+    for i in eachindex(obs_series)
+        local oi = obs_series[i]
+        
+        # Create a single observable that computes points directly
+        points_obs = if timesteps === nothing
+            @lift begin
+                oi_val = $oi
+                ml = $minlen
+                actual_len = min(ml, length(oi_val))
+                if actual_len > 0
+                    Point2f.(1:actual_len, oi_val[1:actual_len])
+                else
+                    Point2f[]
+                end
+            end
+        else
+            @lift begin
+                oi_val = $oi
+                xt_val = $xt
+                ml = $minlen
+                actual_len = min(ml, length(oi_val), length(xt_val))
+                if actual_len > 0
+                    Point2f.(xt_val[1:actual_len], oi_val[1:actual_len])
+                else
+                    Point2f[]
+                end
             end
         end
-    else
-        @lift begin
-            oi_val = $oi
-            xt_val = $xt
-            ml = $minlen
-            actual_len = min(ml, length(oi_val), length(xt_val))
-            if actual_len > 0
-                Point2f.(xt_val[1:actual_len], oi_val[1:actual_len])
-            else
-                Point2f[]
-            end
-        end
+        
+        lines!(ax, points_obs) #TODO: add back labels
     end
-    
-    lines!(ax, points_obs, label=labels[i])
-end
     # # Keep y-limits comfy as we reveal more points
     # on(current_time_step) do _
     #     k_now = min(current_time_step[], minlen())
