@@ -32,8 +32,24 @@ function color_with_alpha(color, alpha=0.4)
 end
 
 function load_solution(folder, filename, type = "mass_results")
-    path = "exp/senate/outputs/$folder/$(filename)_$type.dat"
-    results = open(deserialize, path, "r")
+    results = nothing
+    if filename isa Vector{String}
+       for file in filename
+            path = "exp/senate/outputs/$folder/$(file)_$type.dat"
+            if isnothing(results)
+                results = open(deserialize, path, "r")
+            else
+                new_results = open(deserialize, path, "r")
+                append!(results, new_results)
+            end
+        end
+        filename = filename[1]
+    elseif filename isa String
+        path = "exp/senate/outputs/$folder/$(filename)_$type.dat"
+        results = open(deserialize, path, "r")
+    else
+        error("filename must be a String or Array of Strings")
+    end
     experiments = Dict{String, Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}}()
     for exp_data in results
         params, fixed, trial_results, exp_name = exp_data
