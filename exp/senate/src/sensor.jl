@@ -8,3 +8,10 @@ function drift_sensor_model(x::BlockVector, ns::BlockVector; config::PlayerConfi
             config.sensor_drift_scale * ones(length(x)),
         config.sensor_dims_per_activist)
 end
+
+function covariance_drift_sensor_model(x::BlockVector, ns::BlockVector; config::PlayerConfig)
+    BlockVector(
+        x + (config.sensor_noise_scale + config.drift_sensor_scale) * ns,
+        config.sensor_dims_per_activist
+    )
+end

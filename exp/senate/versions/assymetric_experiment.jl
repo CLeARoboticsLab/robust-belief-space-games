@@ -103,6 +103,12 @@ function build_asymmetric_player_configs(combo, fixed_params)
         end
     end
 
+    # Set the base sensor model and re-populate
+    p1_config.self_sensor_model_template = covariance_drift_sensor_model
+    p2_config.self_sensor_model_template = covariance_drift_sensor_model
+    Senate._populate_configs!(p1_config, force=true)
+    Senate._populate_configs!(p2_config, force=true)
+
     # --- Asymmetric Beliefs ---
     # Player 1's beliefs
     p1_belief_about_p2 = deepcopy(p2_config)
@@ -130,6 +136,9 @@ function build_asymmetric_player_configs(combo, fixed_params)
     p2_belief_about_p1 = deepcopy(p1_config)
     if haskey(combo, :p2_believes_p1_drift_sensor_scale)
         p2_belief_about_p1.drift_sensor_scale = combo[:p2_believes_p1_drift_sensor_scale]
+    end
+    if haskey(fixed_params, :p2_believes_p1_sensor_model)
+        p2_belief_about_p1.self_sensor_model_template = fixed_params[:p2_believes_p1_sensor_model]
     end
     p2_belief_about_p1.type = non_robust
 
@@ -280,6 +289,7 @@ function run_asymmetric_experiment(;
     # Asymmetric belief parameters
     p1_believes_p2_drift_sensor_scale = nothing,
     p2_believes_p1_drift_sensor_scale = nothing,
+    p2_believes_p1_sensor_model = nothing,
 
     gt_drift_dynamics_scale = nothing,
     gt_drift_sensor_scale = nothing,
@@ -389,12 +399,11 @@ function run_asymmetric_experiment(;
         fixed_params[:attraction_matrix] = attraction_matrix
     end
     
-    # Process asymmetric belief parameters
-    if !isnothing(p1_believes_p2_drift_sensor_scale)
-        param_variations[:p1_believes_p2_drift_sensor_scale] = generate_range(p1_believes_p2_drift_sensor_scale)
-    end
     if !isnothing(p2_believes_p1_drift_sensor_scale)
         param_variations[:p2_believes_p1_drift_sensor_scale] = generate_range(p2_believes_p1_drift_sensor_scale)
+    end
+    if !isnothing(p2_believes_p1_sensor_model)
+        fixed_params[:p2_believes_p1_sensor_model] = p2_believes_p1_sensor_model
     end
 
     # Process experiment parameters
