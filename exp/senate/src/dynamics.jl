@@ -20,8 +20,8 @@ function base_dynamics(x::BlockVector, u::BlockVector, m::BlockVector; config::P
     BlockVector(mapreduce(vcat, enumerate(zip(x.blocks, m.blocks))) do (i, (x_i, m))
         senator = 1 + (i-1) % config.num_senators
         us = BlockVector(vcat([u[Block((j-1) * config.num_senators + senator)] for j in 1:config.num_activists]...), config.control_dims_per_senator[senator])
-        x_move = sum([us[1] for u in us.blocks])
-        y_move = sum([us[2] for u in us.blocks])
+        x_move = sum([u[1] for u in us.blocks])
+        y_move = sum([u[2] for u in us.blocks])
         
         x_i + [x_move; y_move] + m 
     end, length.(x.blocks))
@@ -32,8 +32,8 @@ function under_actuated_dynamics(x::BlockVector, u::BlockVector, m::BlockVector;
         senator = 1 + (i-1) % config.num_senators
         us = BlockVector(vcat([u[Block((j-1) * config.num_senators + senator)] for j in 1:config.num_activists]...), config.control_dims_per_senator[senator])
         
-        x_move = sum([us[1] for u in us.blocks[1:config.num_activists-1]])
-        y_move = sum([us[2] for u in us.blocks[2:config.num_activists]])
+        x_move = sum([u[1] for u in us.blocks[1:config.num_activists-1]])
+        y_move = sum([u[2] for u in us.blocks[2:config.num_activists]])
         
         x_i + [x_move; y_move] + m 
     end, length.(x.blocks))
@@ -82,14 +82,14 @@ function drift_dynamics_model_generator(undrifted_dynamics_model::Function)
     function(x::BlockVector, u::BlockVector, m::BlockVector; config::PlayerConfig)
         BlockVector(
             undrifted_dynamics_model(x, u, m; config=config) +
-                config.dynamics_drift_scale * ones(length(x)),
+                config.drift_dynamics_scale * ones(length(x)),
             length.(x.blocks))
     end
 end
 function drift_dynamics_model(x::BlockVector, u::BlockVector, m::BlockVector; config::PlayerConfig, undrifted_dynamics_model::Function = base_dynamics)
     BlockVector(
         undrifted_dynamics_model(x, u, m; config=config) +
-            config.dynamics_drift_scale * ones(length(x)),
+            config.drift_dynamics_scale * ones(length(x)),
         length.(x.blocks))
 end
 

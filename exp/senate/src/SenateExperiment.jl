@@ -147,7 +147,7 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
         merged_controls = BlockVector(vcat(
             [solution_history[idx][end].controls[1][control_indices[idx]] for idx in player_indices]...),
             vcat(collect(params.control_dims_per_activist for player_idx in player_indices)...))
-        
+        @infiltrate
         process_noise_vec = rand(params.process_noise_distribution)
         process_noise = BlockVector(process_noise_vec, length.(current_gt_state.blocks))
 

@@ -28,15 +28,18 @@ function generate_range(param_spec)
     elseif param_spec isa Float64 || param_spec isa Int
         # Single value
         return [param_spec]
+    elseif param_spec isa AbstractArray || param_spec isa AbstractVector
+        # Array/Vector of discrete values
+        return collect(param_spec)
     else
-        error("Invalid parameter specification: $param_spec")
+        error("Invalid parameter specification: $param_spec. Must be Float64/Int, (start, stop, step_func) tuple, or Array/Vector")
     end
 end
 
 function build_asymmetric_player_configs(combo, fixed_params)
     player_configs = Dict()
     
-    p1_type = haskey(fixed_params, :p1_type) ? fixed_params[:p1_type] : non_robust
+    p1_type = haskey(combo, :p1_type) ? combo[:p1_type] : (haskey(fixed_params, :p1_type) ? fixed_params[:p1_type] : non_robust)
     # Player 1 config
     p1_config = DefaultPlayerConfig(player_idx=1, type=p1_type)
     for (key, value) in combo
@@ -60,7 +63,7 @@ function build_asymmetric_player_configs(combo, fixed_params)
     end
     player_configs[1] = p1_config
     
-    p2_type = haskey(fixed_params, :p2_type) ? fixed_params[:p2_type] : robust
+    p2_type = haskey(combo, :p2_type) ? combo[:p2_type] : (haskey(fixed_params, :p2_type) ? fixed_params[:p2_type] : robust)
     # Player 2 config
     p2_config = DefaultPlayerConfig(player_idx=2, type=p2_type)
     for (key, value) in combo
@@ -90,15 +93,13 @@ function build_asymmetric_player_configs(combo, fixed_params)
         p2_config.attraction_matrix = fixed_params[:attraction_matrix]
     end
 
-    if haskey(fixed_params, :dynamics_model_template)
-        if fixed_params[:dynamics_model_template] == :under_actuated
+    dynamics_model = haskey(combo, :dynamics_model_template) ? combo[:dynamics_model_template] : get(fixed_params, :dynamics_model_template, nothing)
+    if !isnothing(dynamics_model)
+        if dynamics_model == :under_actuated
             p2_config.self_dynamics_model_template = under_actuated_dynamics
-        elseif fixed_params[:dynamics_model_template] == :attraction
-            p2_config.self_dynamics_model_template = attraction_dynamics_model
-        end
-        if fixed_params[:dynamics_model_template] == :under_actuated
             p1_config.self_dynamics_model_template = under_actuated_dynamics
-        elseif fixed_params[:dynamics_model_template] == :attraction
+        elseif dynamics_model == :attraction
+            p2_config.self_dynamics_model_template = attraction_dynamics_model
             p1_config.self_dynamics_model_template = attraction_dynamics_model
         end
     end
@@ -136,6 +137,14 @@ function build_asymmetric_player_configs(combo, fixed_params)
     p2_belief_about_p1 = deepcopy(p1_config)
     if haskey(combo, :p2_believes_p1_drift_sensor_scale)
         p2_belief_about_p1.drift_sensor_scale = combo[:p2_believes_p1_drift_sensor_scale]
+        # Automatically set sensor model based on drift value if not explicitly provided
+        if !haskey(fixed_params, :p2_believes_p1_sensor_model)
+            if combo[:p2_believes_p1_drift_sensor_scale] == 0.0
+                p2_belief_about_p1.self_sensor_model_template = base_sensor_model
+            else
+                p2_belief_about_p1.self_sensor_model_template = covariance_drift_sensor_model
+            end
+        end
     end
     if haskey(fixed_params, :p2_believes_p1_sensor_model)
         p2_belief_about_p1.self_sensor_model_template = fixed_params[:p2_believes_p1_sensor_model]
@@ -194,6 +203,9 @@ function build_senate_params(combo, fixed_params, player_configs)
     # Add experiment parameters
     for (key, value) in combo
         if !startswith(String(key), "p1_") && !startswith(String(key), "p2_") && !startswith(String(key), "p1_believes") && !startswith(String(key), "p2_believes")
+            if key in [:dynamics_model_template]
+                continue
+            end
             senate_kwargs[key] = value
         end
     end
@@ -201,7 +213,6 @@ function build_senate_params(combo, fixed_params, player_configs)
     # Add fixed parameters (excluding player-specific ones)
     for (key, value) in fixed_params
         if !startswith(String(key), "p1_") && !startswith(String(key), "p2_")
-            # These are meta-parameters for the experiment script, not for SenateParams
             if key in [:gt_drift_dynamics_scale, :gt_drift_sensor_scale, :dynamics_model_template, :attraction_matrix]
                 continue
             end
@@ -351,7 +362,11 @@ function run_asymmetric_experiment(;
         param_variations[:p1_drift_sensor_scale] = generate_range(p1_drift_sensor_scale)
     end
     if !isnothing(p1_type)
-        fixed_params[:p1_type] = p1_type
+        if p1_type isa AbstractArray || p1_type isa AbstractVector
+            param_variations[:p1_type] = collect(p1_type)
+        else
+            fixed_params[:p1_type] = p1_type
+        end
     end
     
     # Process Player 2 ellipsoid parameters (single values only)
@@ -393,7 +408,11 @@ function run_asymmetric_experiment(;
         param_variations[:p2_drift_sensor_scale] = generate_range(p2_drift_sensor_scale)
     end
     if !isnothing(p2_type)
-        fixed_params[:p2_type] = p2_type
+        if p2_type isa AbstractArray || p2_type isa AbstractVector
+            param_variations[:p2_type] = collect(p2_type)
+        else
+            fixed_params[:p2_type] = p2_type
+        end
     end
     if !isnothing(attraction_matrix)
         fixed_params[:attraction_matrix] = attraction_matrix
@@ -431,8 +450,14 @@ function run_asymmetric_experiment(;
     end
 
     if !isnothing(dynamics_model_template)
-        @assert dynamics_model_template in [:default, :under_actuated, :attraction] "dynamics_model_template must be :default, :under_actuated, or :attraction"
-        fixed_params[:dynamics_model_template] = dynamics_model_template
+        if dynamics_model_template isa AbstractArray || dynamics_model_template isa AbstractVector
+            values = collect(dynamics_model_template)
+            @assert all(v -> v in [:default, :under_actuated, :attraction], values) "dynamics_model_template must be :default, :under_actuated, or :attraction"
+            param_variations[:dynamics_model_template] = values
+        else
+            @assert dynamics_model_template in [:default, :under_actuated, :attraction] "dynamics_model_template must be :default, :under_actuated, or :attraction"
+            fixed_params[:dynamics_model_template] = dynamics_model_template
+        end
     end
     if !isnothing(gt_drift_dynamics_scale)
         fixed_params[:gt_drift_dynamics_scale] = gt_drift_dynamics_scale
@@ -441,7 +466,11 @@ function run_asymmetric_experiment(;
         fixed_params[:gt_drift_sensor_scale] = gt_drift_sensor_scale
     end
     if !isnothing(ground_truth_initial_states)
-        fixed_params[:ground_truth_initial_states] = ground_truth_initial_states
+        if ground_truth_initial_states isa AbstractArray || ground_truth_initial_states isa AbstractVector
+            param_variations[:ground_truth_initial_states] = collect(ground_truth_initial_states)
+        else
+            fixed_params[:ground_truth_initial_states] = ground_truth_initial_states
+        end
     end
     #endregion
     

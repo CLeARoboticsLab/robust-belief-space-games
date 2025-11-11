@@ -27,7 +27,7 @@ function control_cost(u::Vector, control_effort)
 end
 
 function base_non_terminal_cost_function_generator(config::PlayerConfig)
-    player_belief_indices = (config.player_idx-1) * config.num_activists + 1:config.player_idx * config.num_activists
+    player_belief_indices = (config.player_idx-1) * config.num_senators + 1:config.player_idx * config.num_senators
     player_control_indices = sum(config.control_dims_per_activist) * (config.player_idx-1) + 1:sum(config.control_dims_per_activist) * config.player_idx
     function(beliefs::Beliefs, u::BlockVector)
         preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config, nature=config.type == nature) for pos in means(beliefs).blocks[player_belief_indices])
@@ -37,8 +37,9 @@ function base_non_terminal_cost_function_generator(config::PlayerConfig)
 end
 
 function base_terminal_cost_function_generator(config::PlayerConfig)
+    player_belief_indices = (config.player_idx-1) * config.num_senators + 1:config.player_idx * config.num_senators
     function(beliefs::Beliefs)
-        preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config, nature=config.type == nature) for pos in means(beliefs).blocks)
+        preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config, nature=config.type == nature) for pos in means(beliefs).blocks[player_belief_indices])
         return (config.type == nature ? -1 : 1) * config.terminal_cost_weight * preference
     end
 end

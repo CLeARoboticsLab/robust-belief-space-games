@@ -158,16 +158,16 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
 
     # Initialize gradient helpers
     x_val = vec(nominal_beliefs[end])
-    terminal_cost_gradient_info = DiffResults.HessianResult(x_val)
+    terminal_cost_gradient_info = [DiffResults.HessianResult(x_val) for _ in 1:(n_players+is_robust)]
     for ii in 1:(n_players+is_robust)
         ForwardDiff.hessian!(
-            terminal_cost_gradient_info,
+            terminal_cost_gradient_info[ii],
             (x) -> game.costs[ii].terminal_cost(unvec(x, dims(nominal_beliefs[end]))),
             x_val)
-        V[ii] = DiffResults.value(terminal_cost_gradient_info)
-        V_b[ii] = DiffResults.gradient(terminal_cost_gradient_info)
+        V[ii] = DiffResults.value(terminal_cost_gradient_info[ii])
+        V_b[ii] = DiffResults.gradient(terminal_cost_gradient_info[ii])
         # lagrange_multipliers[end][ii] = DiffResults.gradient(terminal_cost_gradient_info)
-        V_bb[ii] = DiffResults.hessian(terminal_cost_gradient_info)
+        V_bb[ii] = DiffResults.hessian(terminal_cost_gradient_info[ii])
     end
 
     for t in game.horizon-1:-1:1

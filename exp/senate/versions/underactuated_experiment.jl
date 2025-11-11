@@ -23,7 +23,9 @@ function non_robust_underactuated_experiment(;override::Bool=false)
                 ],
                 self_dynamics_model_template=under_actuated_dynamics,
                 ),
+            
         ),
+        horizon=6
     )
     params.player_configs[1].other_player_configs[1].self_dynamics_model_template = base_dynamics # Player 1 believes player 2 does not have drift TODO: Add to mass experiment
     run_experiment(params;override=override, experiment_name="non_robust_underactuated_experiment")
@@ -51,6 +53,7 @@ function robust_underactuated_experiment(;override::Bool=false)
             self_dynamics_model_template=under_actuated_dynamics,
             ),
         ),
+        horizon=6
     )
     run_experiment(params;override=override, experiment_name="robust_underactuated_experiment")
 end
