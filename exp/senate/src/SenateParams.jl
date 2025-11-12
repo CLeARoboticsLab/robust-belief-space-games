@@ -16,6 +16,7 @@ Base.@kwdef mutable struct PlayerConfig
     control_cost_weight::Float64 = 1.0
     terminal_cost_weight::Float64 = 1.0
     nature_multiplier::Float64 = 5.0
+    covariance_weight::Float64 = 1.0
 
     # attraction params
     attraction_numerator::Float64 = 1.0

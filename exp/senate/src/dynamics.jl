@@ -23,7 +23,7 @@ function base_dynamics(x::BlockVector, u::BlockVector, m::BlockVector; config::P
         x_move = sum([u[1] for u in us.blocks])
         y_move = sum([u[2] for u in us.blocks])
         
-        x_i + [x_move; y_move] + m 
+        x_i + [x_move; y_move] + m # TODO incr to see diff in ekf 
     end, length.(x.blocks))
 end
 

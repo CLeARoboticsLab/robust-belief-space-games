@@ -35,7 +35,11 @@ function load_solution(folder, filename, type = "mass_results")
     results = nothing
     if filename isa Vector{String}
        for file in filename
-            path = "exp/senate/outputs/$folder/$(file)_$type.dat"
+            if type == "mass_results"
+                path = "exp/senate/outputs/$folder/$(file)_$type.dat"
+            else
+                path = "exp/senate/outputs/$folder/$(file).dat"
+            end
             if isnothing(results)
                 results = open(deserialize, path, "r")
             else
@@ -45,26 +49,76 @@ function load_solution(folder, filename, type = "mass_results")
         end
         filename = filename[1]
     elseif filename isa String
-        path = "exp/senate/outputs/$folder/$(filename)_$type.dat"
+        if type == "mass_results"
+            path = "exp/senate/outputs/$folder/$(filename)_$type.dat"
+        else
+            path = "exp/senate/outputs/$folder/$(filename).dat"
+        end
         results = open(deserialize, path, "r")
     else
         error("filename must be a String or Array of Strings")
     end
     experiments = Dict{String, Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}}()
-    for exp_data in results
-        params, fixed, trial_results, exp_name = exp_data
-        if isnothing(trial_results)
-            @warn "No results for experiment: $(exp_name). Skipping."
-            continue
-        end
-        if filename == SubString(exp_name,1,length(filename))
-            exp_name = SubString(exp_name,length(filename)+1,length(exp_name)) #Shorten to only parameters
-        end
+    
+    # Handle case where results itself is a Dict (direct from outputs/runs)
+    if results isa Dict{String, Any}
+        # This is a single experiment file from outputs/runs
+        # Use the filename as the experiment name
+        exp_name = filename != "" ? filename : "experiment"
         experiments[exp_name] = Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}()
-        for (trial_id, trial_data) in trial_results
-            solutions, games, cost_params = trial_data # ,Dict {player_idx -> RBG.BeliefGame}, SenateParams
-            experiments[exp_name][trial_id] = (solutions, games, cost_params)
+        for (trial_id, trial_data) in results
+            if trial_data isa Tuple && length(trial_data) == 3
+                solutions, games, cost_params = trial_data
+                experiments[exp_name][trial_id] = (solutions, games, cost_params)
+            else
+                @warn "Unexpected format for trial_data in $exp_name/$trial_id: $(typeof(trial_data)). Skipping."
+            end
         end
+    elseif results isa Vector
+        # This is the expected format - a Vector of experiment entries
+        for exp_data in results
+            # Handle both NamedTuple and Tuple formats
+            if exp_data isa NamedTuple
+                params = exp_data.params
+                fixed = exp_data.fixed
+                trial_results = exp_data.results
+                exp_name = exp_data.name
+            elseif exp_data isa Tuple && length(exp_data) == 4
+                params, fixed, trial_results, exp_name = exp_data
+            else
+                @warn "Unexpected format for exp_data: $(typeof(exp_data)). Skipping."
+                continue
+            end
+            
+            if isnothing(trial_results)
+                @warn "No results for experiment: $(exp_name). Skipping."
+                continue
+            end
+            
+            # Handle filename shortening if needed
+            if filename != "" && startswith(exp_name, filename)
+                exp_name = exp_name[length(filename)+1:end] # Shorten to only parameters
+            end
+            
+            # Handle case where trial_results might be a Dict (from outputs/runs format)
+            # or already in the expected format
+            if trial_results isa Dict{String, Any}
+                # This is the format from outputs/runs - need to extract the tuple from each trial
+                experiments[exp_name] = Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}()
+                for (trial_id, trial_data) in trial_results
+                    if trial_data isa Tuple && length(trial_data) == 3
+                        solutions, games, cost_params = trial_data
+                        experiments[exp_name][trial_id] = (solutions, games, cost_params)
+                    else
+                        @warn "Unexpected format for trial_data in $exp_name/$trial_id: $(typeof(trial_data)). Skipping."
+                    end
+                end
+            else
+                @warn "Unexpected format for trial_results in $exp_name: $(typeof(trial_results)). Skipping."
+            end
+        end
+    else
+        error("Unexpected format for results: $(typeof(results)). Expected Vector or Dict{String, Any}.")
     end
     visualize_receding_horizon_solution(experiments, filename)
 end
@@ -107,40 +161,148 @@ function visualize_receding_horizon_solution(experiments::Dict, filename::String
     display(screen, fig)
 end
 
+# Parse experiment name to extract parameters
+# Format: prefix_param1_value1_param2_value2_...
+# Example: asym_p2t_robust_p2nm_2.0_dmt_default_p2bpdss_0.0_h_7_p1t_non_robust_gtis_[0.75, 0.75, 1.75, 1.0, 1.0, 1.75]
+function parse_experiment_name(exp_name::String)
+    params = Dict{String, Any}()
+    parts = split(exp_name, "_")
+    
+    # Define known parameter keys to identify where the parameters start
+    known_keys = ["p1t", "p2t", "p1nm", "p2nm", "dmt", "p1bpdss", "p2bpdss", "gtis", "h"]
+    
+    key_indices = findall(part -> part in known_keys, parts)
+    
+    if isempty(key_indices)
+        @warn "Could not find any known parameter keys in experiment name: $exp_name"
+        return params
+    end
+    
+    for i in 1:length(key_indices)
+        start_idx = key_indices[i]
+        param_key = parts[start_idx]
+        
+        end_idx = (i < length(key_indices)) ? key_indices[i+1] - 1 : length(parts)
+        
+        value_parts = parts[start_idx+1 : end_idx]
+        
+        if isempty(value_parts)
+            @warn "No value found for key '$param_key' in experiment name: $exp_name"
+            continue
+        end
+        
+        value_str = join(value_parts, "_")
+        
+        # Array parsing
+        if startswith(value_str, "[")
+            params[param_key] = value_str
+            continue
+        end
+        
+        # Number parsing
+        try
+            if occursin(".", value_str)
+                params[param_key] = parse(Float64, value_str)
+            else
+                params[param_key] = parse(Int, value_str)
+            end
+            continue
+        catch
+            # Not a number, treat as a string
+        end
+        
+        # String value
+        params[param_key] = value_str
+    end
+    
+    return params
+end
+
 function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, dims, cost_params)
-    selection_state = Dict{String, Tuple{Observable{Bool}, Dict{String, Observable{Bool}}}}()    
+    # Parse all experiment names to extract parameters
+    exp_params = Dict{String, Dict{String, Any}}()
+    for exp_name in keys(experiments)
+        exp_params[exp_name] = parse_experiment_name(exp_name)
+    end
+    
+    # Extract unique parameter values for each parameter key
+    param_values = Dict{String, Set{Any}}()
+    for params in values(exp_params)
+        for (key, value) in params
+            if !haskey(param_values, key)
+                param_values[key] = Set{Any}()
+            end
+            push!(param_values[key], value)
+        end
+    end
+    
+    # Create parameter filter observables
+    param_filters = Dict{String, Dict{Any, Observable{Bool}}}()
+    for (param_key, values) in param_values
+        param_filters[param_key] = Dict{Any, Observable{Bool}}()
+        for value in values
+            param_filters[param_key][value] = Observable(true)  # Default to all selected
+        end
+    end
+    
+    # Create trial selection state (keep trial-level toggles)
+    trial_selection_state = Dict{String, Dict{String, Observable{Bool}}}()
     for exp_name in keys(experiments)
         trial_selections = Dict{String, Observable{Bool}}()
         for trial_id in keys(experiments[exp_name])
             trial_selections[trial_id] = Observable(true) #TODO revert to false
         end
-        selection_state[exp_name] = (Observable(true), trial_selections)
+        trial_selection_state[exp_name] = trial_selections
     end
-
-    # Set first experiment/trial selected to true
     
-    # Create lifted dictionaries that filter by selection booleans
-    # Create combined observables for each (exp_name, trial_id) pair
-    all_observables = Observable[]
-    for (exp_name, (exp_obs, trial_obs_dict)) in selection_state
-        push!(all_observables, exp_obs)
-        for trial_obs in values(trial_obs_dict)
-            push!(all_observables, trial_obs)
+    # Create combined observables for filtering
+    all_filter_observables = Observable[]
+    for param_dict in values(param_filters)
+        for obs in values(param_dict)
+            push!(all_filter_observables, obs)
         end
     end
-
-    # Then lift on all of them
-    exp_trial_pairs = lift(all_observables...) do _...
+    for trial_dict in values(trial_selection_state)
+        for obs in values(trial_dict)
+            push!(all_filter_observables, obs)
+        end
+    end
+    
+    # Filter experiments based on parameter selections
+    exp_trial_pairs = lift(all_filter_observables...) do _...
         [
             (exp_name, trial_id)
             for exp_name in keys(experiments)
             for trial_id in keys(experiments[exp_name])
-            if selection_state[exp_name][1][] && selection_state[exp_name][2][trial_id][]
+            if begin
+                # Check if experiment matches all parameter filters
+                params = exp_params[exp_name]
+                matches = true
+                for (param_key, value_filters) in param_filters
+                    if haskey(params, param_key)
+                        param_value = params[param_key]
+                        if haskey(value_filters, param_value)
+                            matches = matches && value_filters[param_value][]
+                        else
+                            matches = false  # Parameter value not in filters
+                            break
+                        end
+                    end
+                end
+                # Also check trial selection
+                matches && trial_selection_state[exp_name][trial_id][]
+            end
         ]
     end
-    # #Toggle the first experiment on afterwards (trigger callback)
-    selection_state[first(keys(experiments))][1][] = true
-    selection_state[first(keys(experiments))][2][first(keys(experiments[first(keys(experiments))]))][] = true
+    
+    # Set first experiment/trial selected to true
+    if !isempty(experiments)
+        first_exp = first(keys(experiments))
+        if haskey(trial_selection_state, first_exp) && !isempty(trial_selection_state[first_exp])
+            first_trial = first(keys(trial_selection_state[first_exp]))
+            trial_selection_state[first_exp][first_trial][] = true
+        end
+    end
     
     solutions = @lift Dict(
         (exp_name, trial_id) => experiments[exp_name][trial_id][1]
@@ -170,42 +332,112 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     
     # --- Selection Panel ---
     selection_panel = fig[2, 1] = GridLayout(tellwidth=false)
-    colsize!(fig.layout, 1, Relative(0.15))
+    colsize!(fig.layout, 1, Relative(0.35))  # Wider for two columns of controls
     
     # Add title
-    Label(selection_panel[1, 1:5], "Selection", fontsize=14, font=:bold, halign=:left)
+    Label(selection_panel[1, 1:4], "Parameter Filters", fontsize=14, font=:bold, halign=:left)
     
-    # Create nested toggles for experiments and trials
-    row_idx = 2  # Start after title
-    first_trial_placed = false
-    for (exp_name, (exp_obs, trial_obs_dict)) in selection_state
-        # Experiment-level toggle
-        exp_toggle = Toggle(selection_panel[row_idx, 1], active=exp_obs[])
-        on(exp_toggle.active) do active; exp_obs[] = active; end
-        Label(selection_panel[row_idx, 3], exp_name, fontsize=12)  # Col 2 provides spacing
-        row_idx += 1
+    # Ensure proper column separation and sizing
+    colgap!(selection_panel, 15)
+    rowgap!(selection_panel, 5)
+    # Set explicit column widths to prevent overlap
+    colsize!(selection_panel, 1, Auto())
+    colsize!(selection_panel, 2, Auto())
+    colsize!(selection_panel, 3, Auto())
+    colsize!(selection_panel, 4, Auto())
+    
+    # Parameter name mappings for display
+    param_display_names = Dict(
+        "p2t" => "P2 Type",
+        "p2nm" => "P2 Nature Mult",
+        "dmt" => "Dynamics Model",
+        "p2bpdss" => "P2 Belief Drift",
+        "gtis" => "Ground Truth",
+        "h" => "Horizon",
+        "p1t" => "P1 Type"
+    )
+    
+    # Create parameter filter controls
+    sorted_param_keys = sort(collect(keys(param_values)))
+    
+    # Filter for parameters with more than one value
+    filterable_params = filter(k -> length(param_values[k]) > 1, sorted_param_keys)
+    
+    if isempty(filterable_params)
+        Label(selection_panel[2, 1:4], "No parameters to filter.", halign=:left)
+    else
+        # Balance parameters across two columns
+        param_heights = Dict(k => 1 + length(param_values[k]) + 1 for k in filterable_params)
+        total_height = sum(values(param_heights))
+        target_col_height = total_height / 2
         
-        # Trial-level toggles (nested under experiment)
-        # Column layout: col 2 = indentation spacer, col 3 = toggle, col 4 = spacing, col 5 = label
-        for (trial_id, trial_obs) in trial_obs_dict
-            # Place spacer in column 2 for indentation
-            Label(selection_panel[row_idx, 2], "")  # Empty label as spacer
-            trial_toggle = Toggle(selection_panel[row_idx, 3], active=trial_obs[])
-            on(trial_toggle.active) do active; trial_obs[] = active; end
-            Label(selection_panel[row_idx, 5], trial_id, fontsize=10)  # Col 4 is spacing
-            # Set column widths for proper spacing after first trial row is complete
-            if !first_trial_placed
-                colsize!(selection_panel, 2, Fixed(20))  # Indentation spacer for trials (also spacing for experiments)
-                colsize!(selection_panel, 4, Fixed(10))   # Spacing between toggle and label
-                first_trial_placed = true
+        col1_params = String[]
+        col2_params = String[]
+        current_col1_height = 0
+        
+        for p_key in filterable_params
+            if current_col1_height < target_col_height || isempty(col2_params)
+                push!(col1_params, p_key)
+                current_col1_height += param_heights[p_key]
+            else
+                push!(col2_params, p_key)
             end
+        end
+        
+        # --- Render Column 1 ---
+        row_idx = 2
+        for param_key in col1_params
+            display_name = get(param_display_names, param_key, param_key)
+            Label(selection_panel[row_idx, 1:2], display_name, fontsize=12, font=:bold, halign=:left)
             row_idx += 1
+            
+            sorted_values = sort(collect(param_values[param_key]), lt=(a, b) -> string(a) < string(b))
+            
+            for value in sorted_values
+                value_str = string(value)
+                if length(value_str) > 15
+                    value_str = value_str[1:12] * "..."
+                end
+                
+                toggle = Toggle(selection_panel[row_idx, 1], active=param_filters[param_key][value][])
+                on(toggle.active) do active
+                    param_filters[param_key][value][] = active
+                end
+                Label(selection_panel[row_idx, 2], value_str, fontsize=10, halign=:left)
+                row_idx += 1
+            end
+            row_idx += 1  # Spacing
+        end
+        
+        # --- Render Column 2 ---
+        row_idx = 2
+        for param_key in col2_params
+            display_name = get(param_display_names, param_key, param_key)
+            Label(selection_panel[row_idx, 3:4], display_name, fontsize=12, font=:bold, halign=:left)
+            row_idx += 1
+            
+            sorted_values = sort(collect(param_values[param_key]), lt=(a, b) -> string(a) < string(b))
+            
+            for value in sorted_values
+                value_str = string(value)
+                if length(value_str) > 15
+                    value_str = value_str[1:12] * "..."
+                end
+                
+                toggle = Toggle(selection_panel[row_idx, 3], active=param_filters[param_key][value][])
+                on(toggle.active) do active
+                    param_filters[param_key][value][] = active
+                end
+                Label(selection_panel[row_idx, 4], value_str, fontsize=10, halign=:left)
+                row_idx += 1
+            end
+            row_idx += 1  # Spacing
         end
     end
     
     # --- Layout ---
     controls_grid = fig[2, 2] = GridLayout(tellwidth=false)
-    colsize!(fig.layout, 2, Relative(0.60))
+    colsize!(fig.layout, 2, Relative(0.40))
     current_time_step = Observable(1)
     plan_time_step = Observable(1)
     show_p1_planned_trajectory = Observable(true)
@@ -1125,8 +1357,9 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
 
     if !isempty(keys(experiments))
         first_exp = first(keys(experiments))
-        if haskey(selection_state, first_exp)
-            first_obs = selection_state[first_exp][1]
+        if haskey(trial_selection_state, first_exp) && !isempty(trial_selection_state[first_exp])
+            first_trial = first(keys(trial_selection_state[first_exp]))
+            first_obs = trial_selection_state[first_exp][first_trial]
             first_obs[] = first_obs[]  # Force trigger by setting to itself
         end
     end

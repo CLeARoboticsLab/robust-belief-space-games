@@ -104,6 +104,20 @@ function build_asymmetric_player_configs(combo, fixed_params)
         end
     end
 
+    # Set cost model templates
+    if haskey(fixed_params, :p1_non_terminal_cost_model_template)
+        p1_config.self_non_terminal_cost_model_template = fixed_params[:p1_non_terminal_cost_model_template]
+    end
+    if haskey(fixed_params, :p1_terminal_cost_model_template)
+        p1_config.self_terminal_cost_model_template = fixed_params[:p1_terminal_cost_model_template]
+    end
+    if haskey(fixed_params, :p2_non_terminal_cost_model_template)
+        p2_config.self_non_terminal_cost_model_template = fixed_params[:p2_non_terminal_cost_model_template]
+    end
+    if haskey(fixed_params, :p2_terminal_cost_model_template)
+        p2_config.self_terminal_cost_model_template = fixed_params[:p2_terminal_cost_model_template]
+    end
+
     # Set the base sensor model and re-populate
     p1_config.self_sensor_model_template = covariance_drift_sensor_model
     p2_config.self_sensor_model_template = covariance_drift_sensor_model
@@ -282,6 +296,8 @@ function run_asymmetric_experiment(;
     p1_drift_dynamics_scale = nothing,
     p1_drift_sensor_scale = nothing,
     p1_type = nothing,
+    p1_non_terminal_cost_model_template = nothing,
+    p1_terminal_cost_model_template = nothing,
     
     # Player 2 parameters
     p2_ellipsoid_centers = [[1, 3]],  # Single value only: Vector{Vector{Real}}
@@ -295,6 +311,8 @@ function run_asymmetric_experiment(;
     p2_drift_dynamics_scale = nothing,
     p2_drift_sensor_scale = nothing,
     p2_type = nothing,
+    p2_non_terminal_cost_model_template = nothing,
+    p2_terminal_cost_model_template = nothing,
     attraction_matrix = nothing,
 
     # Asymmetric belief parameters
@@ -368,6 +386,12 @@ function run_asymmetric_experiment(;
             fixed_params[:p1_type] = p1_type
         end
     end
+    if !isnothing(p1_non_terminal_cost_model_template)
+        fixed_params[:p1_non_terminal_cost_model_template] = p1_non_terminal_cost_model_template
+    end
+    if !isnothing(p1_terminal_cost_model_template)
+        fixed_params[:p1_terminal_cost_model_template] = p1_terminal_cost_model_template
+    end
     
     # Process Player 2 ellipsoid parameters (single values only)
     if !isnothing(p2_ellipsoid_centers)
@@ -413,6 +437,12 @@ function run_asymmetric_experiment(;
         else
             fixed_params[:p2_type] = p2_type
         end
+    end
+    if !isnothing(p2_non_terminal_cost_model_template)
+        fixed_params[:p2_non_terminal_cost_model_template] = p2_non_terminal_cost_model_template
+    end
+    if !isnothing(p2_terminal_cost_model_template)
+        fixed_params[:p2_terminal_cost_model_template] = p2_terminal_cost_model_template
     end
     if !isnothing(attraction_matrix)
         fixed_params[:attraction_matrix] = attraction_matrix

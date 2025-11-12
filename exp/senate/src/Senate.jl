@@ -15,7 +15,7 @@ export SenateParams, PlayerConfig, PlayerType, non_robust, robust, nature, groun
 include("./dynamics.jl")
 export base_dynamics, under_actuated_dynamics, attraction_dynamics_model, drift_dynamics_model, drift_dynamics_model_generator
 include("./cost.jl")
-export non_terminal_cost_components, terminal_cost_components, ellipsoidal_cost, control_cost, non_terminal_cost_function_generator, terminal_cost_function_generator
+export non_terminal_cost_components, terminal_cost_components, ellipsoidal_cost, control_cost, base_non_terminal_cost_function_generator, base_terminal_cost_function_generator, covariance_non_terminal_cost_function_generator, covariance_terminal_cost_function_generator
 include("./sensor.jl")
 export base_sensor_model, drift_sensor_model, covariance_drift_sensor_model
 include("./SenateParamUtils.jl")
