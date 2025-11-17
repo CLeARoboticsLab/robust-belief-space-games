@@ -43,7 +43,7 @@ function build_asymmetric_player_configs(combo, fixed_params)
     # Player 1 config
     p1_config = DefaultPlayerConfig(player_idx=1, type=p1_type)
     for (key, value) in combo
-        if startswith(String(key), "p1_") && !occursin("believes", String(key))
+        if startswith(String(key), "p1_") && !occursin("believes", String(key)) && !occursin("cost_model_template", String(key))
             field_name = Symbol(replace(String(key), "p1_" => ""))
             if hasproperty(p1_config, field_name)
                 setproperty!(p1_config, field_name, value)
@@ -54,7 +54,7 @@ function build_asymmetric_player_configs(combo, fixed_params)
     end
     # Apply fixed player 1 params
     for (key, value) in fixed_params
-        if startswith(String(key), "p1_")
+        if startswith(String(key), "p1_") && !occursin("cost_model_template", String(key))
             field_name = Symbol(replace(String(key), "p1_" => ""))
             if hasproperty(p1_config, field_name)
                 setproperty!(p1_config, field_name, value)
@@ -67,7 +67,7 @@ function build_asymmetric_player_configs(combo, fixed_params)
     # Player 2 config
     p2_config = DefaultPlayerConfig(player_idx=2, type=p2_type)
     for (key, value) in combo
-        if startswith(String(key), "p2_") && !occursin("believes", String(key))
+        if startswith(String(key), "p2_") && !occursin("believes", String(key)) && !occursin("cost_model_template", String(key))
             field_name = Symbol(replace(String(key), "p2_" => ""))
             if hasproperty(p2_config, field_name)
                 setproperty!(p2_config, field_name, value)
@@ -79,7 +79,7 @@ function build_asymmetric_player_configs(combo, fixed_params)
     
     # Apply fixed player 2 params
     for (key, value) in fixed_params
-        if startswith(String(key), "p2_")
+        if startswith(String(key), "p2_") && !occursin("cost_model_template", String(key))
             field_name = Symbol(replace(String(key), "p2_" => ""))
             if hasproperty(p2_config, field_name)
                 setproperty!(p2_config, field_name, value)
@@ -104,17 +104,25 @@ function build_asymmetric_player_configs(combo, fixed_params)
         end
     end
 
-    # Set cost model templates
-    if haskey(fixed_params, :p1_non_terminal_cost_model_template)
+    # Set cost model templates (check combo first for variations, then fixed_params)
+    if haskey(combo, :p1_non_terminal_cost_model_template)
+        p1_config.self_non_terminal_cost_model_template = combo[:p1_non_terminal_cost_model_template]
+    elseif haskey(fixed_params, :p1_non_terminal_cost_model_template)
         p1_config.self_non_terminal_cost_model_template = fixed_params[:p1_non_terminal_cost_model_template]
     end
-    if haskey(fixed_params, :p1_terminal_cost_model_template)
+    if haskey(combo, :p1_terminal_cost_model_template)
+        p1_config.self_terminal_cost_model_template = combo[:p1_terminal_cost_model_template]
+    elseif haskey(fixed_params, :p1_terminal_cost_model_template)
         p1_config.self_terminal_cost_model_template = fixed_params[:p1_terminal_cost_model_template]
     end
-    if haskey(fixed_params, :p2_non_terminal_cost_model_template)
+    if haskey(combo, :p2_non_terminal_cost_model_template)
+        p2_config.self_non_terminal_cost_model_template = combo[:p2_non_terminal_cost_model_template]
+    elseif haskey(fixed_params, :p2_non_terminal_cost_model_template)
         p2_config.self_non_terminal_cost_model_template = fixed_params[:p2_non_terminal_cost_model_template]
     end
-    if haskey(fixed_params, :p2_terminal_cost_model_template)
+    if haskey(combo, :p2_terminal_cost_model_template)
+        p2_config.self_terminal_cost_model_template = combo[:p2_terminal_cost_model_template]
+    elseif haskey(fixed_params, :p2_terminal_cost_model_template)
         p2_config.self_terminal_cost_model_template = fixed_params[:p2_terminal_cost_model_template]
     end
 
@@ -288,6 +296,8 @@ function run_asymmetric_experiment(;
     # Player 1 parameters
     p1_ellipsoid_centers = [[3, 1]],  # Single value only: Vector{Vector{Real}}
     p1_ellipsoid_radii = [[1.5, 1]],    # Single value only: Vector{Vector{Real}}
+    p1_obstacle_centers = [[1.7, 1.7]],  # Single value only: Vector{Vector{Real}}
+    p1_obstacle_weights = [1.0],  # Single value only: Vector{Float64}
     p1_ellipsoidal_cost_weight = nothing,
     p1_control_cost_weight = nothing,
     p1_terminal_cost_weight = nothing,
@@ -353,6 +363,17 @@ function run_asymmetric_experiment(;
         fixed_params[:p1_ellipsoid_radii] = p1_ellipsoid_radii
     end
     
+    if !isnothing(p1_obstacle_centers)
+        @assert p1_obstacle_centers isa Vector{<:Vector{<:Real}} "p1_obstacle_centers must be Vector{Vector{Real}}"
+        fixed_params[:p1_obstacle_centers] = p1_obstacle_centers
+    end
+    
+    if !isnothing(p1_obstacle_weights)
+        @assert p1_obstacle_weights isa Vector{<:Real} "p1_obstacle_weights must be Vector{Real}"
+        @assert all(x -> x >= 0, p1_obstacle_weights) "Obstacle weights must be non-negative"
+        fixed_params[:p1_obstacle_weights] = p1_obstacle_weights
+    end
+    
     # Process Player 1 range parameters
     if !isnothing(p1_ellipsoidal_cost_weight)
         param_variations[:p1_ellipsoidal_cost_weight] = generate_range(p1_ellipsoidal_cost_weight)
@@ -387,10 +408,18 @@ function run_asymmetric_experiment(;
         end
     end
     if !isnothing(p1_non_terminal_cost_model_template)
-        fixed_params[:p1_non_terminal_cost_model_template] = p1_non_terminal_cost_model_template
+        if p1_non_terminal_cost_model_template isa AbstractArray || p1_non_terminal_cost_model_template isa AbstractVector
+            param_variations[:p1_non_terminal_cost_model_template] = collect(p1_non_terminal_cost_model_template)
+        else
+            fixed_params[:p1_non_terminal_cost_model_template] = p1_non_terminal_cost_model_template
+        end
     end
     if !isnothing(p1_terminal_cost_model_template)
-        fixed_params[:p1_terminal_cost_model_template] = p1_terminal_cost_model_template
+        if p1_terminal_cost_model_template isa AbstractArray || p1_terminal_cost_model_template isa AbstractVector
+            param_variations[:p1_terminal_cost_model_template] = collect(p1_terminal_cost_model_template)
+        else
+            fixed_params[:p1_terminal_cost_model_template] = p1_terminal_cost_model_template
+        end
     end
     
     # Process Player 2 ellipsoid parameters (single values only)
@@ -439,10 +468,18 @@ function run_asymmetric_experiment(;
         end
     end
     if !isnothing(p2_non_terminal_cost_model_template)
-        fixed_params[:p2_non_terminal_cost_model_template] = p2_non_terminal_cost_model_template
+        if p2_non_terminal_cost_model_template isa AbstractArray || p2_non_terminal_cost_model_template isa AbstractVector
+            param_variations[:p2_non_terminal_cost_model_template] = collect(p2_non_terminal_cost_model_template)
+        else
+            fixed_params[:p2_non_terminal_cost_model_template] = p2_non_terminal_cost_model_template
+        end
     end
     if !isnothing(p2_terminal_cost_model_template)
-        fixed_params[:p2_terminal_cost_model_template] = p2_terminal_cost_model_template
+        if p2_terminal_cost_model_template isa AbstractArray || p2_terminal_cost_model_template isa AbstractVector
+            param_variations[:p2_terminal_cost_model_template] = collect(p2_terminal_cost_model_template)
+        else
+            fixed_params[:p2_terminal_cost_model_template] = p2_terminal_cost_model_template
+        end
     end
     if !isnothing(attraction_matrix)
         fixed_params[:attraction_matrix] = attraction_matrix

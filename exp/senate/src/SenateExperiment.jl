@@ -29,7 +29,15 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
     if isfile("exp/senate/outputs/$(params.name).dat") && !override
         println("Loading solution from exp/senate/outputs/$(params.name).dat")
         solutions = open(deserialize, "exp/senate/outputs/$(params.name).dat", "r")
-        return solutions
+        # Handle both old (3-tuple) and new (2-tuple) formats for backward compatibility
+        if solutions isa Tuple && length(solutions) == 3
+            solutions_dict, _, params_loaded = solutions
+            return solutions_dict, params_loaded
+        elseif solutions isa Tuple && length(solutions) == 2
+            return solutions
+        else
+            return solutions
+        end
     end
 
     gt_state_history = [copy(params.ground_truth_initial_states)]
@@ -43,7 +51,6 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
     current_gt_state = copy(params.ground_truth_initial_states)
     
     warm_starts = Dict{Int, Any}(idx => nothing for idx in player_indices)
-    representative_games = Dict{Int, Any}(idx => nothing for idx in player_indices)
     plan_cost_history = Dict(idx => Any[] for idx in player_indices)
 
     Random.seed!(params.random_seed)
@@ -111,10 +118,6 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
                 robust_players
             )
 
-            if t == 1
-                representative_games[player_idx] = game
-            end
-
             nominal_beliefs, nominal_controls, _, plan_cost = solve(game; debug=false, warm_start=warm_starts[player_idx])
 
             push!(solution_history[player_idx], (; beliefs=nominal_beliefs, controls=nominal_controls))
@@ -174,5 +177,5 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
             cost_history=plan_cost_history[idx]
         ) for idx in player_indices
     )
-    return solutions_dict, representative_games, params
+    return solutions_dict, params
 end

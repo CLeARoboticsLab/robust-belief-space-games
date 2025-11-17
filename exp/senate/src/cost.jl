@@ -71,3 +71,37 @@ function covariance_terminal_cost_function_generator(config::PlayerConfig)
         return (config.type == nature ? -1 : 1) * config.terminal_cost_weight * preference + cov_term
     end
 end
+
+function obstacle_non_terminal_cost_function_generator(config::PlayerConfig)
+    pretend_config = config.type == nature ? 2 : config.player_idx #TODO nature should act on non-robust player's belief indices
+    @assert (config.type == non_robust || config.type == nature) || config.player_idx == 2
+    player_belief_indices = (pretend_config-1) * config.num_senators + 1:pretend_config * config.num_senators
+    player_control_indices = sum(config.control_dims_per_activist) * (config.player_idx-1) + 1:sum(config.control_dims_per_activist) * config.player_idx
+    function(beliefs::Beliefs, u::BlockVector)
+        preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config, nature=config.type == nature) for pos in means(beliefs).blocks[player_belief_indices])
+        control = config.type == nature ? control_cost(u.blocks[end], config.control_cost_weight) : control_cost(u[player_control_indices], config.control_cost_weight)
+        cov_term = (config.type == nature ? -1 : 1) * config.covariance_weight * sum(tr(belief.belief_covariance) for belief in beliefs.beliefs[player_belief_indices])
+        obstacle_term =  sum(obstacle_cost(belief, config) for belief in beliefs.beliefs[player_belief_indices])
+        return preference + control + cov_term + obstacle_term
+    end
+end
+
+function obstacle_terminal_cost_function_generator(config::PlayerConfig)
+    pretend_config = config.type == nature ? 2 : config.player_idx #TODO nature should act on non-robust player's belief indices
+    @assert (config.type == non_robust || config.type == nature) || config.player_idx == 2
+    player_belief_indices = (pretend_config-1) * config.num_senators + 1:pretend_config * config.num_senators
+    function(beliefs::Beliefs)
+        preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config, nature=config.type == nature) for pos in means(beliefs).blocks[player_belief_indices])
+        cov_term = (config.type == nature ? -1 : 1) * config.covariance_weight * sum(tr(belief.belief_covariance) for belief in beliefs.beliefs[player_belief_indices])
+        obstacle_term = sum(obstacle_cost(belief, config) for belief in beliefs.beliefs[player_belief_indices])
+        return (config.type == nature ? -1 : 1) * config.terminal_cost_weight * preference + cov_term + obstacle_term
+    end
+end
+
+function obstacle_cost(belief::Belief, config::PlayerConfig)
+    mapreduce(+, zip(config.obstacle_centers, config.obstacle_sigmoid_scales, config.obstacle_sigmoid_offsets, config.obstacle_weights)) do (obstacle_center, sigmoid_scale, sigmoid_offset, obstacle_weight)
+        dist_from_obstacle_center = norm(belief.belief_mean - obstacle_center)
+        cov_adjusted_sigmoid_input = dist_from_obstacle_center - tr(belief.belief_covariance)
+        return obstacle_weight * 1/(1+exp(sigmoid_scale * (cov_adjusted_sigmoid_input - sigmoid_offset)))
+    end
+end

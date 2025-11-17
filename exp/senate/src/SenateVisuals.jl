@@ -68,8 +68,13 @@ function load_solution(folder, filename, type = "mass_results")
         experiments[exp_name] = Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}()
         for (trial_id, trial_data) in results
             if trial_data isa Tuple && length(trial_data) == 3
-                solutions, games, cost_params = trial_data
-                experiments[exp_name][trial_id] = (solutions, games, cost_params)
+                # Old format: (solutions, games, params) - skip games as they contain non-serializable closures
+                solutions, _, cost_params = trial_data
+                experiments[exp_name][trial_id] = (solutions, Dict(), cost_params)
+            elseif trial_data isa Tuple && length(trial_data) == 2
+                # New format: (solutions, params)
+                solutions, cost_params = trial_data
+                experiments[exp_name][trial_id] = (solutions, Dict(), cost_params)
             else
                 @warn "Unexpected format for trial_data in $exp_name/$trial_id: $(typeof(trial_data)). Skipping."
             end
@@ -107,8 +112,13 @@ function load_solution(folder, filename, type = "mass_results")
                 experiments[exp_name] = Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}()
                 for (trial_id, trial_data) in trial_results
                     if trial_data isa Tuple && length(trial_data) == 3
-                        solutions, games, cost_params = trial_data
-                        experiments[exp_name][trial_id] = (solutions, games, cost_params)
+                        # Old format: (solutions, games, params) - skip games as they contain non-serializable closures
+                        solutions, _, cost_params = trial_data
+                        experiments[exp_name][trial_id] = (solutions, Dict(), cost_params)
+                    elseif trial_data isa Tuple && length(trial_data) == 2
+                        # New format: (solutions, params)
+                        solutions, cost_params = trial_data
+                        experiments[exp_name][trial_id] = (solutions, Dict(), cost_params)
                     else
                         @warn "Unexpected format for trial_data in $exp_name/$trial_id: $(typeof(trial_data)). Skipping."
                     end

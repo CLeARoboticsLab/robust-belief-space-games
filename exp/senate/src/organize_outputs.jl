@@ -112,11 +112,50 @@ function combine_files(output_path, source_paths)
                 # Format: (params=Dict, fixed=Dict, results=Dict{String,Any}, name=String)
                 if data isa Dict{String, Any}
                     # This is a Dict from outputs/runs - convert to NamedTuple format
-                    # We don't have fixed params, so use empty dict
+                    # Handle old format with representative_games (3-tuple) or new format (2-tuple)
+                    cleaned_results = Dict{String, Any}()
+                    for (trial_id, trial_data) in data
+                        try
+                            if trial_data isa Tuple && length(trial_data) == 3
+                                # Old format: (solutions, games, params) - strip out games
+                                # Access games with _ to skip it, in case it contains non-deserializable closures
+                                solutions = trial_data[1]
+                                params = trial_data[3]
+                                cleaned_results[trial_id] = (solutions, params)
+                            elseif trial_data isa Tuple && length(trial_data) == 2
+                                # New format: (solutions, params)
+                                cleaned_results[trial_id] = trial_data
+                            else
+                                # Unknown format, keep as-is
+                                cleaned_results[trial_id] = trial_data
+                            end
+                        catch inner_e
+                            # If accessing tuple elements fails (e.g., due to closure deserialization issues),
+                            # try to extract what we can
+                            if trial_data isa Tuple && length(trial_data) >= 1
+                                println("Warning: Error accessing tuple elements in $trial_id, attempting to extract solutions only: $inner_e")
+                                try
+                                    solutions = trial_data[1]
+                                    # Try to get params if available
+                                    if length(trial_data) >= 3
+                                        params = trial_data[3]
+                                        cleaned_results[trial_id] = (solutions, params)
+                                    else
+                                        # Skip this trial if we can't get params
+                                        println("Skipping trial $trial_id: cannot extract required data")
+                                    end
+                                catch
+                                    println("Skipping trial $trial_id: cannot extract any data")
+                                end
+                            else
+                                println("Skipping trial $trial_id: unexpected format")
+                            end
+                        end
+                    end
                     result_entry = (
                         params=params_dict,
                         fixed=Dict{Symbol, Any}(),
-                        results=data,  # This is the Dict{String, Any} from run_receding_horizon_trials
+                        results=cleaned_results,
                         name=filename_without_ext
                     )
                     push!(combined_results, result_entry)
@@ -135,11 +174,17 @@ function combine_files(output_path, source_paths)
                 end
             end
         catch e
-            println("Error processing file $source_path: $e")
-            println("Stacktrace:")
-            for (exc, bt) in Base.catch_stack()
-                showerror(stdout, exc, bt)
-                println()
+            # Check if this is a deserialization error related to closures
+            if isa(e, UndefVarError) || (isa(e, ErrorException) && occursin("#", string(e)))
+                println("Error deserializing file $source_path (likely due to non-serializable closures in representative_games): $e")
+                println("Attempting to skip this file. Consider re-running the experiment to generate a new file without representative_games.")
+            else
+                println("Error processing file $source_path: $e")
+                println("Stacktrace:")
+                for (exc, bt) in Base.catch_stack()
+                    showerror(stdout, exc, bt)
+                    println()
+                end
             end
         end
     end
@@ -165,8 +210,21 @@ function abbrev_key(k::AbstractString)
     return abbrev_from_key(k)
 end
 
-function params_to_filename(file_params::FileParams, varying_keys::Vector{Symbol}=Symbol[])
-    parts = ["asym"]
+function extract_prefix(filename::String)
+    # Extract prefix from filename (asym, cov_asym, or obst_asym)
+    if startswith(filename, "cov_asym")
+        return "cov_asym"
+    elseif startswith(filename, "obst_asym")
+        return "obst_asym"
+    elseif startswith(filename, "asym")
+        return "asym"
+    else
+        return "asym"  # default fallback
+    end
+end
+
+function params_to_filename(file_params::FileParams, varying_keys::Vector{Symbol}=Symbol[], prefix::String="asym")
+    parts = [prefix]
     
     # Create a dictionary of parameters from the FileParams struct
     combo = Dict{Symbol, Any}()
@@ -232,104 +290,119 @@ function main()
 
     # Create directories
     mkpath(organized_dir)
-    mkpath(joinpath(organized_dir, "per_param"))
-    mkpath(joinpath(organized_dir, "robustness"))
-    mkpath(joinpath(organized_dir, "p2_wrong_tables"))
 
-    # List and parse files
-    all_files = []
+    # List and parse files, grouping by prefix
+    all_files_by_prefix = Dict{String, Vector{FileParams}}()
     for f in readdir(runs_dir)
         if endswith(f, ".dat")
             filepath = joinpath(runs_dir, f)
             try
-                push!(all_files, parse_filename(filepath))
+                prefix = extract_prefix(f)
+                if !haskey(all_files_by_prefix, prefix)
+                    all_files_by_prefix[prefix] = []
+                end
+                file_params = parse_filename(filepath)
+                push!(all_files_by_prefix[prefix], file_params)
             catch e
                 println("Skipping file due to parsing error: $f")
                 println(e)
             end
         end
     end
-    println("Parsed $(length(all_files)) files.")
+    
+    total_files = sum(length(files) for files in values(all_files_by_prefix))
+    println("Parsed $total_files files across $(length(all_files_by_prefix)) prefix(es).")
 
-    # Grouping 1: per_param
-    println("Grouping by individual parameters...")
-    per_param_dir = joinpath(organized_dir, "per_param")
-    param_symbols = [f for f in fieldnames(FileParams) if f != :original_path]
+    # Process each prefix separately
+    for (prefix, all_files) in all_files_by_prefix
+        println("\nProcessing prefix: $prefix")
+        
+        # Create prefix-specific directories
+        prefix_organized_dir = joinpath(organized_dir, prefix)
+        mkpath(joinpath(prefix_organized_dir, "per_param"))
+        mkpath(joinpath(prefix_organized_dir, "robustness"))
+        mkpath(joinpath(prefix_organized_dir, "p2_wrong_tables"))
 
-    for param_key in param_symbols
-        param_dir = joinpath(per_param_dir, String(param_key))
-        mkpath(param_dir)
+        # Grouping 1: per_param
+        println("  Grouping by individual parameters...")
+        per_param_dir = joinpath(prefix_organized_dir, "per_param")
+        param_symbols = [f for f in fieldnames(FileParams) if f != :original_path]
 
-        other_params = filter(p -> p != param_key && p != :original_path, fieldnames(FileParams))
+        for param_key in param_symbols
+            param_dir = joinpath(per_param_dir, String(param_key))
+            mkpath(param_dir)
 
-        groups = Dict()
-        for file_params in all_files
-            key = Tuple(getfield(file_params, p) for p in other_params)
-            if !haskey(groups, key)
-                groups[key] = []
+            other_params = filter(p -> p != param_key && p != :original_path, fieldnames(FileParams))
+
+            groups = Dict()
+            for file_params in all_files
+                key = Tuple(getfield(file_params, p) for p in other_params)
+                if !haskey(groups, key)
+                    groups[key] = []
+                end
+                push!(groups[key], file_params)
             end
-            push!(groups[key], file_params)
+
+            for (key, file_group) in groups
+                if isempty(file_group) continue end
+                filename = params_to_filename(file_group[1], [param_key], prefix)
+                output_path = joinpath(param_dir, filename)
+                
+                source_paths = [p.original_path for p in file_group]
+                combine_files(output_path, source_paths)
+            end
         end
 
-        for (key, file_group) in groups
+        # Grouping 2: robustness
+        println("  Grouping by robustness...")
+        robustness_dir = joinpath(prefix_organized_dir, "robustness")
+        robustness_varying_keys = [:p1t, :p2t]
+        robustness_constant_keys = filter(p -> !(p in robustness_varying_keys) && p != :original_path, fieldnames(FileParams))
+        
+        robustness_groups = Dict()
+        for file_params in all_files
+            key = Tuple(getfield(file_params, p) for p in robustness_constant_keys)
+            if !haskey(robustness_groups, key)
+                robustness_groups[key] = []
+            end
+            push!(robustness_groups[key], file_params)
+        end
+
+        for (key, file_group) in robustness_groups
             if isempty(file_group) continue end
-            filename = params_to_filename(file_group[1], [param_key])
-            output_path = joinpath(param_dir, filename)
+            filename = params_to_filename(file_group[1], robustness_varying_keys, prefix)
+            output_path = joinpath(robustness_dir, filename)
             
+            source_paths = [p.original_path for p in file_group]
+            combine_files(output_path, source_paths)
+        end
+
+        # Grouping 3: p2_wrong_tables
+        println("  Grouping for p2_wrong_tables...")
+        p2_wrong_tables_dir = joinpath(prefix_organized_dir, "p2_wrong_tables")
+        p2_tables_varying_keys = [:p1t, :p2t, :p2bpdss]
+        p2_tables_constant_keys = filter(p -> !(p in p2_tables_varying_keys) && p != :original_path, fieldnames(FileParams))
+
+        p2_tables_groups = Dict()
+        for file_params in all_files
+            key = Tuple(getfield(file_params, p) for p in p2_tables_constant_keys)
+            if !haskey(p2_tables_groups, key)
+                p2_tables_groups[key] = []
+            end
+            push!(p2_tables_groups[key], file_params)
+        end
+
+        for (key, file_group) in p2_tables_groups
+            if isempty(file_group) continue end
+            filename = params_to_filename(file_group[1], p2_tables_varying_keys, prefix)
+            output_path = joinpath(p2_wrong_tables_dir, filename)
+
             source_paths = [p.original_path for p in file_group]
             combine_files(output_path, source_paths)
         end
     end
 
-    # Grouping 2: robustness
-    println("Grouping by robustness...")
-    robustness_dir = joinpath(organized_dir, "robustness")
-    robustness_varying_keys = [:p1t, :p2t]
-    robustness_constant_keys = filter(p -> !(p in robustness_varying_keys) && p != :original_path, fieldnames(FileParams))
-    
-    robustness_groups = Dict()
-    for file_params in all_files
-        key = Tuple(getfield(file_params, p) for p in robustness_constant_keys)
-        if !haskey(robustness_groups, key)
-            robustness_groups[key] = []
-        end
-        push!(robustness_groups[key], file_params)
-    end
-
-    for (key, file_group) in robustness_groups
-        if isempty(file_group) continue end
-        filename = params_to_filename(file_group[1], robustness_varying_keys)
-        output_path = joinpath(robustness_dir, filename)
-        
-        source_paths = [p.original_path for p in file_group]
-        combine_files(output_path, source_paths)
-    end
-
-    # Grouping 3: p2_wrong_tables
-    println("Grouping for p2_wrong_tables...")
-    p2_wrong_tables_dir = joinpath(organized_dir, "p2_wrong_tables")
-    p2_tables_varying_keys = [:p1t, :p2t, :p2bpdss]
-    p2_tables_constant_keys = filter(p -> !(p in p2_tables_varying_keys) && p != :original_path, fieldnames(FileParams))
-
-    p2_tables_groups = Dict()
-    for file_params in all_files
-        key = Tuple(getfield(file_params, p) for p in p2_tables_constant_keys)
-        if !haskey(p2_tables_groups, key)
-            p2_tables_groups[key] = []
-        end
-        push!(p2_tables_groups[key], file_params)
-    end
-
-    for (key, file_group) in p2_tables_groups
-        if isempty(file_group) continue end
-        filename = params_to_filename(file_group[1], p2_tables_varying_keys)
-        output_path = joinpath(p2_wrong_tables_dir, filename)
-
-        source_paths = [p.original_path for p in file_group]
-        combine_files(output_path, source_paths)
-    end
-
-    println("Done.")
+    println("\nDone.")
 end
 
 main()
