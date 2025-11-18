@@ -22,7 +22,7 @@ if !haskey(Base.loaded_modules, senate_pkgid)
     Base.loaded_modules[senate_pkgid] = Senate
 end
 
-const PARAM_KEYS = ["p1t", "p2t", "p2nm", "dmt", "p2bpdss", "h", "gtis"]
+const PARAM_KEYS = ["p1t", "p2t", "p2nm", "dmt", "p2bpdss", "p1ow", "h", "gtis"]
 
 mutable struct FileParams
     p1t::String
@@ -30,11 +30,12 @@ mutable struct FileParams
     p2nm::Float64
     dmt::String
     p2bpdss::Float64
+    p1ow::Vector{Float64}
     h::Int
     gtis::Vector{Float64}
     original_path::String
 
-    FileParams() = new("", "", 0.0, "", 0.0, 0, [], "")
+    FileParams() = new("", "", 0.0, "", 0.0, [], 0, [], "")
 end
 
 function Base.show(io::IO, p::FileParams)
@@ -80,6 +81,24 @@ function parse_filename(filepath::String)
         gtis_str = gtis_match.captures[1]
         gtis_str = replace(gtis_str, "[" => "", "]" => "")
         params.gtis = [parse(Float64, s) for s in split(gtis_str, ", ")]
+    end
+    
+    # Parse p1ow (p1_obstacle_weights) - format is p1ow_[value] where value is a float
+    # Handle both p1ow_[0.1] and p1ow_[0.1]_next_param formats
+    p1ow_match = match(r"p1ow_(\[.*?\])", filename)
+    if p1ow_match !== nothing
+        p1ow_str = p1ow_match.captures[1]
+        p1ow_str = replace(p1ow_str, "[" => "", "]" => "")
+        # Handle comma-separated values (though typically just one value)
+        p1ow_str = replace(p1ow_str, ", " => ",")
+        if !isempty(p1ow_str)
+            params.p1ow = [parse(Float64, s) for s in split(p1ow_str, ",") if !isempty(s)]
+        else
+            params.p1ow = []
+        end
+    else
+        # If not found, set to empty vector
+        params.p1ow = []
     end
     
     return params
@@ -251,6 +270,7 @@ function params_to_filename(file_params::FileParams, varying_keys::Vector{Symbol
             :p2nm => "p2_nature_multiplier",
             :dmt => "dynamics_model_template",
             :p2bpdss => "p2_believes_p1_drift_sensor_scale",
+            :p1ow => "p1_obstacle_weights",
             :gtis => "ground_truth_initial_states"
         )
         
@@ -282,7 +302,7 @@ function params_to_filename(file_params::FileParams, varying_keys::Vector{Symbol
 end
 
 
-function main()
+function organize_outputs()
     # Define paths
     root_dir = joinpath(@__DIR__, "..")
     runs_dir = joinpath(root_dir, "outputs", "runs")
@@ -316,6 +336,7 @@ function main()
     # Process each prefix separately
     for (prefix, all_files) in all_files_by_prefix
         println("\nProcessing prefix: $prefix")
+        if prefix != "obst_asym" continue end
         
         # Create prefix-specific directories
         prefix_organized_dir = joinpath(organized_dir, prefix)
@@ -404,5 +425,3 @@ function main()
 
     println("\nDone.")
 end
-
-main()

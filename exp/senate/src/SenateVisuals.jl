@@ -179,7 +179,7 @@ function parse_experiment_name(exp_name::String)
     parts = split(exp_name, "_")
     
     # Define known parameter keys to identify where the parameters start
-    known_keys = ["p1t", "p2t", "p1nm", "p2nm", "dmt", "p1bpdss", "p2bpdss", "gtis", "h"]
+    known_keys = ["p1t", "p2t", "p1nm", "p2nm", "dmt", "p1bpdss", "p2bpdss", "p1ow", "gtis", "h"]
     
     key_indices = findall(part -> part in known_keys, parts)
     
@@ -203,9 +203,24 @@ function parse_experiment_name(exp_name::String)
         
         value_str = join(value_parts, "_")
         
-        # Array parsing
+        # Array parsing (for gtis, p1ow, etc.)
         if startswith(value_str, "[")
-            params[param_key] = value_str
+            # Try to parse as array of numbers
+            try
+                # Remove brackets and parse
+                array_str = replace(value_str, "[" => "", "]" => "")
+                # Handle both comma and space separators
+                array_str = replace(array_str, ", " => ",")
+                array_str = replace(array_str, " " => ",")
+                if !isempty(array_str)
+                    params[param_key] = [parse(Float64, s) for s in split(array_str, ",") if !isempty(s)]
+                else
+                    params[param_key] = []
+                end
+            catch
+                # If parsing fails, store as string
+                params[param_key] = value_str
+            end
             continue
         end
         
@@ -362,6 +377,7 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         "p2nm" => "P2 Nature Mult",
         "dmt" => "Dynamics Model",
         "p2bpdss" => "P2 Belief Drift",
+        "p1ow" => "P1 Obstacle Weight",
         "gtis" => "Ground Truth",
         "h" => "Horizon",
         "p1t" => "P1 Type"

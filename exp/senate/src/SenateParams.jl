@@ -17,7 +17,6 @@ Base.@kwdef mutable struct PlayerConfig
     terminal_cost_weight::Float64 = 1.0
     nature_multiplier::Float64 = 5.0
     covariance_weight::Float64 = 1.0
-    obstacle_weight::Float64 = 1.0
     obstacle_sigmoid_scales::Vector{Float64} = [1.0]
     obstacle_sigmoid_offsets::Vector{Float64} = [0.0]
     obstacle_centers::Vector{Vector{Float64}} = [[0.0, 0.0]]

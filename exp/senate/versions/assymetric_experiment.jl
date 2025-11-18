@@ -2,6 +2,7 @@ include("base_experiment.jl")
 using Senate
 using BlockArrays
 using Infiltrator
+using Base.Threads
 #Sample Step Functions
 const STEP_ADD = n -> (x -> x + n)
 const STEP_MULTIPLY = n -> (x -> n * x)
@@ -46,7 +47,12 @@ function build_asymmetric_player_configs(combo, fixed_params)
         if startswith(String(key), "p1_") && !occursin("believes", String(key)) && !occursin("cost_model_template", String(key))
             field_name = Symbol(replace(String(key), "p1_" => ""))
             if hasproperty(p1_config, field_name)
-                setproperty!(p1_config, field_name, value)
+                # Ensure obstacle_weights is always a Vector{Float64} to prevent serialization issues
+                if field_name == :obstacle_weights && value isa Vector
+                    setproperty!(p1_config, field_name, Vector{Float64}(value))
+                else
+                    setproperty!(p1_config, field_name, value)
+                end
             else
                 error("Player 1 config has no property named $field_name")
             end
@@ -57,7 +63,12 @@ function build_asymmetric_player_configs(combo, fixed_params)
         if startswith(String(key), "p1_") && !occursin("cost_model_template", String(key))
             field_name = Symbol(replace(String(key), "p1_" => ""))
             if hasproperty(p1_config, field_name)
-                setproperty!(p1_config, field_name, value)
+                # Ensure obstacle_weights is always a Vector{Float64} to prevent serialization issues
+                if field_name == :obstacle_weights && value isa Vector
+                    setproperty!(p1_config, field_name, Vector{Float64}(value))
+                else
+                    setproperty!(p1_config, field_name, value)
+                end
             end
         end
     end
@@ -183,10 +194,15 @@ function build_asymmetric_player_configs(combo, fixed_params)
     end
     p2_config.other_player_configs = p2_beliefs
 
-    # --- Synchronize derived parameters ---
-    # This is critical because we manually constructed other_player_configs,
-    # bypassing the normal synchronization that happens in DefaultSenateParams.
-
+    # --- Clear circular references from belief configs ---
+    # The deepcopy operations above copied other_player_configs, creating circular references.
+    # We need to clear them from all belief configs to prevent serialization issues.
+    for belief_config in values(p1_beliefs)
+        belief_config.other_player_configs = Dict{Int, Senate.PlayerConfig}()
+    end
+    for belief_config in values(p2_beliefs)
+        belief_config.other_player_configs = Dict{Int, Senate.PlayerConfig}()
+    end
     # Determine the number of senators for this run
     num_senators_val = get(combo, :num_senators, get(fixed_params, :num_senators, 3))
 
@@ -297,7 +313,7 @@ function run_asymmetric_experiment(;
     p1_ellipsoid_centers = [[3, 1]],  # Single value only: Vector{Vector{Real}}
     p1_ellipsoid_radii = [[1.5, 1]],    # Single value only: Vector{Vector{Real}}
     p1_obstacle_centers = [[1.7, 1.7]],  # Single value only: Vector{Vector{Real}}
-    p1_obstacle_weights = [1.0],  # Single value only: Vector{Float64}
+    p1_obstacle_weights = [1.0],  # Can vary: Vector{Float64} (single value) or (start, stop, step_func) tuple or Vector{Float64} (multiple values)
     p1_ellipsoidal_cost_weight = nothing,
     p1_control_cost_weight = nothing,
     p1_terminal_cost_weight = nothing,
@@ -343,7 +359,8 @@ function run_asymmetric_experiment(;
     # Control parameters
     override = false,
     experiment_name_prefix = "asymmetric_exp",
-    save_intermediate_results = true
+    save_intermediate_results = true,
+    num_threads = nothing  # Number of threads to use (nothing = use all available, 1 = sequential)
 )
     
     # Collect all parameter variations
@@ -369,9 +386,27 @@ function run_asymmetric_experiment(;
     end
     
     if !isnothing(p1_obstacle_weights)
-        @assert p1_obstacle_weights isa Vector{<:Real} "p1_obstacle_weights must be Vector{Real}"
-        @assert all(x -> x >= 0, p1_obstacle_weights) "Obstacle weights must be non-negative"
-        fixed_params[:p1_obstacle_weights] = p1_obstacle_weights
+        if p1_obstacle_weights isa Tuple && length(p1_obstacle_weights) == 3
+            # Range specification: (start, stop, step_func)
+            # Generate range and wrap each value in a vector since obstacle_weights expects Vector{Float64}
+            weight_range = generate_range(p1_obstacle_weights)
+            @assert all(x -> x >= 0, weight_range) "Obstacle weights must be non-negative"
+            # Ensure each variation is a proper Vector{Float64} to prevent serialization issues
+            param_variations[:p1_obstacle_weights] = [Vector{Float64}([w]) for w in weight_range]
+        elseif p1_obstacle_weights isa Vector{<:Real}
+            @assert all(x -> x >= 0, p1_obstacle_weights) "Obstacle weights must be non-negative"
+            if length(p1_obstacle_weights) == 1
+                # Single value: fixed parameter - ensure it's Vector{Float64}
+                fixed_params[:p1_obstacle_weights] = Vector{Float64}(p1_obstacle_weights)
+            else
+                # Multiple values: variations (each value becomes [value])
+                # Note: If you want multiple obstacles with different weights, use a single vector as fixed parameter
+                # Ensure each variation is a proper Vector{Float64} to prevent serialization issues
+                param_variations[:p1_obstacle_weights] = [Vector{Float64}([w]) for w in p1_obstacle_weights]
+            end
+        else
+            error("p1_obstacle_weights must be Vector{Real} or (start, stop, step_func) tuple")
+        end
     end
     
     # Process Player 1 range parameters
@@ -574,59 +609,168 @@ function run_asymmetric_experiment(;
     println("="^60 * "\n")
     #endregion
     
-    # Run experiments for each combination
-    all_results = []
-    
-    for (idx, combo) in enumerate(combinations)
-        println("\n=== Running experiment $idx/$(length(combinations)) ===")
-        println("Parameters: ", combo)
-        
-        # Build configs and params
-        player_configs = build_asymmetric_player_configs(combo, fixed_params)
-        params = build_senate_params(combo, fixed_params, player_configs)
-        
-        # Generate experiment name
-        abbrev_from_key(k::AbstractString) = join(first.(split(k, "_")))
-
-        function abbrev_key(k::AbstractString)
-            for prefix in ("p1", "p2")
-                if startswith(k, prefix)
-                    rest = k[length(prefix)+2:end]
-                    return prefix * abbrev_from_key(rest)
+    # Clear old files with the same prefix if override is true
+    if override
+        runs_dir = "exp/senate/outputs/runs"
+        if isdir(runs_dir)
+            files_to_delete = []
+            for file in readdir(runs_dir)
+                if startswith(file, experiment_name_prefix) && endswith(file, ".dat")
+                    filepath = joinpath(runs_dir, file)
+                    push!(files_to_delete, filepath)
                 end
             end
-            return abbrev_from_key(k)
+            if !isempty(files_to_delete)
+                println("Clearing $(length(files_to_delete)) old file(s) with prefix '$experiment_name_prefix'...")
+                for filepath in files_to_delete
+                    rm(filepath)
+                    println("  Deleted: $(basename(filepath))")
+                end
+            end
         end
-
-        exp_name = experiment_name_prefix
+    end
+    
+    # Helper function to generate experiment name
+    function abbrev_from_key(k::AbstractString)
+        join(first.(split(k, "_")))
+    end
+    
+    function abbrev_key(k::AbstractString)
+        for prefix in ("p1", "p2")
+            if startswith(k, prefix)
+                rest = k[length(prefix)+2:end]
+                return prefix * abbrev_from_key(rest)
+            end
+        end
+        return abbrev_from_key(k)
+    end
+    
+    function generate_exp_name(combo, prefix)
+        exp_name = prefix
         for (key, value) in combo
             kstr = String(key)   
             abbr = abbrev_key(kstr)
             exp_name *= "_$(abbr)_$(value)"
         end
-        
-        # Run experiment
-        results = run_experiment(
-            params;
-            override=override,
-            experiment_name=exp_name
-        )
-        
-        # Store results with metadata
-        push!(all_results, (
-            params=combo,
-            fixed=fixed_params,
-            results=results,
-            name=exp_name
-        ))
-
-        # Save intermediate cumulative results if needed
-        if save_intermediate_results
-            mass_filename = "exp/senate/outputs/merged/$(experiment_name_prefix)_mass_results.dat"
-            println("Saving all results to $mass_filename")
-
-            open(mass_filename, "w") do f
-                serialize(f, all_results)
+        return exp_name
+    end
+    
+    all_results = []
+    
+    # Multi-threading or sequential mode
+    available_threads = Threads.nthreads()
+    if num_threads === nothing
+        use_threads = available_threads
+    else
+        use_threads = min(num_threads, available_threads)
+    end
+    
+    if use_threads > 1
+        println("Using $(use_threads) thread(s) for parallel execution (available: $available_threads)")
+    else
+        println("Running experiments sequentially (1 thread)")
+    end
+    
+    results_lock = ReentrantLock()
+    print_lock = ReentrantLock()
+    
+    # Run experiments (parallel if use_threads > 1)
+    if use_threads > 1
+        # Multi-threaded execution
+        @threads for idx in 1:length(combinations)
+            combo = combinations[idx]
+            
+            # Thread-safe printing
+            lock(print_lock) do
+                println("\n=== Running experiment $idx/$(length(combinations)) (Thread $(threadid())) ===")
+                println("Parameters: ", combo)
+            end
+            
+            try
+                # Build configs and params
+                player_configs = build_asymmetric_player_configs(combo, fixed_params)
+                params = build_senate_params(combo, fixed_params, player_configs)
+                
+                # Generate experiment name
+                exp_name = generate_exp_name(combo, experiment_name_prefix)
+                
+                # Run experiment
+                results = run_experiment(
+                    params;
+                    override=override,
+                    experiment_name=exp_name
+                )
+                
+                # Thread-safe result collection
+                result_entry = (
+                    params=combo,
+                    fixed=fixed_params,
+                    results=results,
+                    name=exp_name
+                )
+                
+                lock(results_lock) do
+                    push!(all_results, result_entry)
+                end
+                
+                lock(print_lock) do
+                    println("✓ Completed experiment $idx/$(length(combinations)): $exp_name")
+                end
+                
+                # Note: Intermediate saves disabled during parallel execution for thread safety
+                # Results will be saved once at the end
+                
+            catch e
+                lock(print_lock) do
+                    println("✗ Error in experiment $idx/$(length(combinations)): $e")
+                    showerror(stdout, e, catch_backtrace())
+                end
+            end
+        end
+    else
+        # Sequential execution
+        for (idx, combo) in enumerate(combinations)
+            println("\n=== Running experiment $idx/$(length(combinations)) ===")
+            println("Parameters: ", combo)
+            
+            try
+                # Build configs and params
+                player_configs = build_asymmetric_player_configs(combo, fixed_params)
+                params = build_senate_params(combo, fixed_params, player_configs)
+                
+                # Generate experiment name
+                exp_name = generate_exp_name(combo, experiment_name_prefix)
+                
+                # Run experiment
+                results = run_experiment(
+                    params;
+                    override=override,
+                    experiment_name=exp_name
+                )
+                
+                # Store results with metadata
+                push!(all_results, (
+                    params=combo,
+                    fixed=fixed_params,
+                    results=results,
+                    name=exp_name
+                ))
+                
+                println("✓ Completed experiment $idx/$(length(combinations)): $exp_name")
+                
+                # Save intermediate cumulative results if needed
+                if save_intermediate_results
+                    mass_filename = "exp/senate/outputs/merged/$(experiment_name_prefix)_mass_results.dat"
+                    println("Saving all results to $mass_filename")
+                    
+                    open(mass_filename, "w") do f
+                        serialize(f, all_results)
+                    end
+                end
+                
+            catch e
+                println("✗ Error in experiment $idx/$(length(combinations)): $e")
+                showerror(stdout, e, catch_backtrace())
             end
         end
     end

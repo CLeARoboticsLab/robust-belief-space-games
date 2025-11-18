@@ -101,7 +101,7 @@ end
 function obstacle_cost(belief::Belief, config::PlayerConfig)
     mapreduce(+, zip(config.obstacle_centers, config.obstacle_sigmoid_scales, config.obstacle_sigmoid_offsets, config.obstacle_weights)) do (obstacle_center, sigmoid_scale, sigmoid_offset, obstacle_weight)
         dist_from_obstacle_center = norm(belief.belief_mean - obstacle_center)
-        cov_adjusted_sigmoid_input = dist_from_obstacle_center - tr(belief.belief_covariance)
+        cov_adjusted_sigmoid_input = dist_from_obstacle_center - tr(belief.belief_covariance) #math.max(0,distance - sqrt(covariance))
         return obstacle_weight * 1/(1+exp(sigmoid_scale * (cov_adjusted_sigmoid_input - sigmoid_offset)))
     end
 end

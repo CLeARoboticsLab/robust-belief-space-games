@@ -89,28 +89,27 @@ function run_all_obstacle_cost_drift_experiments(override=false)
         # mortar([[0.75, 0.75], [2.0, 0.5], [1.25, 2.5]]),
     ]
 
-    # nature_multiplier_values = [0.01, 0.5, 1]
-    nature_multiplier_values = [0.075, 0.5]
+    nature_multiplier_values = [0.01]
 
-    # p2_belief_drift = [0.0, 0.1, 0.5, 1, 10]
-    p2_belief_drift = [0.0,0.1, 0.5, 1, 10]
+    p2_belief_drift = [0.0, 10]
 
     dynamics_types = [:default, :under_actuated]
     
     run_asymmetric_experiment(
         p1_type=[non_robust],
-        p2_type=[ non_robust, robust],
+        p2_type=[non_robust, robust],
         p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
         p1_obstacle_centers = [[1.7, 1.7]],
-        p1_obstacle_weights = [5.0],
+        p1_obstacle_weights = [2.0],
+        p1_ellipsoidal_cost_weight = 0.5,
         dynamics_model_template=dynamics_types,
         p2_believes_p1_drift_sensor_scale=p2_belief_drift,
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=7,
         experiment_name_prefix="obst_asym",
-        override=override
+        override=override,
     )
 
     println("\n\n" * "="^60)
