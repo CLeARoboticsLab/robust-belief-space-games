@@ -166,7 +166,7 @@ end
 function visualize_receding_horizon_solution(experiments::Dict, filename::String = "Test")
     screen = GLMakie.Screen()
     fig = Figure()
-    ax = Axis(fig[1, 1:2], title="$filename graph", xlabel="Opinion Dimension 1", ylabel="Opinion Dimension 2", aspect=DataAspect())
+    ax = Axis(fig[1, 2], title="$filename graph", xlabel="Opinion Dimension 1", ylabel="Opinion Dimension 2", aspect=DataAspect())
     create_individual_solution_plot(fig, ax, experiments)
     display(screen, fig)
 end
@@ -266,8 +266,9 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     for (param_key, values) in param_values
         param_filters[param_key] = Dict{Any, Observable{Bool}}()
         for value in values
-            param_filters[param_key][value] = Observable(true)  # Default to all selected
+            param_filters[param_key][value] = Observable(false)#Observable(true)  # Default to all selected
         end
+        param_filters[param_key][first(values)] = Observable(true)  # Ensure at least one value exists
     end
     
     # Create trial selection state (keep trial-level toggles)
@@ -356,14 +357,15 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     p2_costs_dict = @lift Dict(k => $p2_sols[k].cost_history for k in keys($p2_sols))
     
     # --- Selection Panel ---
-    selection_panel = fig[2, 1] = GridLayout(tellwidth=false)
-    colsize!(fig.layout, 1, Relative(0.35))  # Wider for two columns of controls
+    # Span the entire left column from top to bottom
+    selection_panel = fig[1:2, 1] = GridLayout(tellwidth=false)
+    colsize!(fig.layout, 1, Relative(0.10))  # 1:3:1 ratio - left column
     
     # Add title
     Label(selection_panel[1, 1:4], "Parameter Filters", fontsize=14, font=:bold, halign=:left)
     
     # Ensure proper column separation and sizing
-    colgap!(selection_panel, 15)
+    colgap!(selection_panel, 20)  # Reduced gap to fit more content
     rowgap!(selection_panel, 5)
     # Set explicit column widths to prevent overlap
     colsize!(selection_panel, 1, Auto())
@@ -421,15 +423,13 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
             
             for value in sorted_values
                 value_str = string(value)
-                if length(value_str) > 15
-                    value_str = value_str[1:12] * "..."
-                end
+                # Allow longer text but wrap if needed - remove truncation
                 
                 toggle = Toggle(selection_panel[row_idx, 1], active=param_filters[param_key][value][])
                 on(toggle.active) do active
                     param_filters[param_key][value][] = active
                 end
-                Label(selection_panel[row_idx, 2], value_str, fontsize=10, halign=:left)
+                Label(selection_panel[row_idx, 2], value_str, fontsize=9, halign=:left, word_wrap=true)
                 row_idx += 1
             end
             row_idx += 1  # Spacing
@@ -446,15 +446,13 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
             
             for value in sorted_values
                 value_str = string(value)
-                if length(value_str) > 15
-                    value_str = value_str[1:12] * "..."
-                end
+                # Allow longer text but wrap if needed - remove truncation
                 
                 toggle = Toggle(selection_panel[row_idx, 3], active=param_filters[param_key][value][])
                 on(toggle.active) do active
                     param_filters[param_key][value][] = active
                 end
-                Label(selection_panel[row_idx, 4], value_str, fontsize=10, halign=:left)
+                Label(selection_panel[row_idx, 4], value_str, fontsize=9, halign=:left, word_wrap=true)
                 row_idx += 1
             end
             row_idx += 1  # Spacing
@@ -463,7 +461,7 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     
     # --- Layout ---
     controls_grid = fig[2, 2] = GridLayout(tellwidth=false)
-    colsize!(fig.layout, 2, Relative(0.40))
+    colsize!(fig.layout, 2, Relative(0.70))  # 1:3:1 ratio - main graph area (most important)
     current_time_step = Observable(1)
     plan_time_step = Observable(1)
     show_p1_planned_trajectory = Observable(true)
@@ -614,6 +612,33 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     # Use on() callback to manage plot elements per trial
     executed_trajectory_plots = Dict{Tuple{String, String}, Vector{Tuple{Any, Any, Observable{Vector{Point2f}}}}}()  # (scatter_plot, line_plot, trajectory_obs)
     
+    # Helper function to update executed trajectory data
+    function update_executed_trajectories()
+        for (trial_key, plot_list) in executed_trajectory_plots
+            if haskey(p1_sols[], trial_key) && haskey(p1_sols[][trial_key], :gt_state_history)
+                gt_history = p1_sols[][trial_key].gt_state_history
+                if !isempty(gt_history)
+                    for (senator_idx, (_, _, trajectory_obs)) in enumerate(plot_list)
+                        if senator_idx <= length(gt_history[1].blocks)
+                            senator_states = [Point2f(gt_history[time][Block(senator_idx)][1], gt_history[time][Block(senator_idx)][2]) for time in 1:length(gt_history)]
+                            trajectory_obs[] = senator_states
+                        end
+                    end
+                end
+            elseif haskey(p1_solution_history_dict[], trial_key)
+                # Fallback: use first activist's belief about this senator
+                solution_history = p1_solution_history_dict[][trial_key]
+                for (senator_idx, (_, _, trajectory_obs)) in enumerate(plot_list)
+                    if senator_idx <= length(solution_history) && !isempty(solution_history)
+                        senator_states = [solution_history[time][1].beliefs[senator_idx].belief_mean for time in 1:length(solution_history)]
+                        gt_trajectory = [Point2f(state[1], state[2]) for state in senator_states]
+                        trajectory_obs[] = gt_trajectory
+                    end
+                end
+            end
+        end
+    end
+    
     on(exp_trial_pairs) do pairs
         # Clear all previous executed trajectory plots
         for plot_list in values(executed_trajectory_plots)
@@ -638,33 +663,18 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
             
             executed_trajectory_plots[trial_key] = plot_list
         end
+        
+        # Update trajectory data after creating plots
+        update_executed_trajectories()
     end
     
-    # Update executed trajectory Observables when time step changes
-    on(current_time_step) do t
-        for (trial_key, plot_list) in executed_trajectory_plots
-            if haskey(p1_sols[], trial_key) && haskey(p1_sols[][trial_key], :gt_state_history)
-                gt_history = p1_sols[][trial_key].gt_state_history
-                if t <= length(gt_history)
-                    for (senator_idx, (_, _, trajectory_obs)) in enumerate(plot_list)
-                        if senator_idx <= length(gt_history[t].blocks)
-                            senator_states = [Point2f(gt_history[time][Block(senator_idx)][1], gt_history[time][Block(senator_idx)][2]) for time in 1:t]
-                            trajectory_obs[] = senator_states
-                        end
-                    end
-                end
-            elseif haskey(p1_solution_history_dict[], trial_key)
-                # Fallback: use first activist's belief about this senator
-                solution_history = p1_solution_history_dict[][trial_key]
-                for (senator_idx, (_, _, trajectory_obs)) in enumerate(plot_list)
-                    if senator_idx <= length(solution_history) && t <= length(solution_history)
-                        senator_states = [solution_history[time][1].beliefs[senator_idx].belief_mean for time in 1:t]
-                        gt_trajectory = [Point2f(state[1], state[2]) for state in senator_states]
-                        trajectory_obs[] = gt_trajectory
-                    end
-                end
-            end
-        end
+    # Update executed trajectory Observables when solution data changes
+    on(p1_sols) do _
+        update_executed_trajectories()
+    end
+    
+    on(p1_solution_history_dict) do _
+        update_executed_trajectories()
     end
     # Plot full planned trajectories as lines - use on() callback to manage plot elements per trial
     # Store as Dict{trial_key => Dict{(activist_id, senator_id) => (plot_handle, trajectory_obs)}}
@@ -1364,7 +1374,7 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         scalarizer = to_scalar_cost,            # no-op for numbers; handy for cost structs
         loc=(2,3)                               # put it in column 3, row 2 (side graph)
     )
-    colsize!(fig.layout, 3, Relative(0.25))
+    colsize!(fig.layout, 3, Relative(0.20))  # 1:3:1 ratio - right column
 
 
 
@@ -1391,6 +1401,15 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     end
     #test scatter
     #axislegend(ax)
+    
+    # ===== TEMPORARY DEBUG CIRCLE =====
+    # Draw a circle at (1.7, 1.7) for debugging obstacle cost visualization
+    # This matches the obstacle center used in drift_experiment_runner.jl
+    debug_obstacle_center = [1.7, 1.7]
+    debug_circle_radius = 0.1  # Small radius for visibility
+    plot_ellipse!(ax, debug_obstacle_center, debug_circle_radius, debug_circle_radius, 
+                  label="Debug Obstacle", color=color_with_alpha(:orange, 0.8))
+    # ===== END TEMPORARY DEBUG CIRCLE =====
 end
 
 # ---- Optional: convert complex "cost" objects to scalars ----
