@@ -235,6 +235,8 @@ function extract_prefix(filename::String)
         return "cov_asym"
     elseif startswith(filename, "obst_asym")
         return "obst_asym"
+    elseif startswith(filename, "obst_v2_asym")
+        return "obst_v2_asym"
     elseif startswith(filename, "asym")
         return "asym"
     else
@@ -302,7 +304,7 @@ function params_to_filename(file_params::FileParams, varying_keys::Vector{Symbol
 end
 
 
-function organize_outputs()
+function organize_outputs(target_prefix::String="")
     # Define paths
     root_dir = joinpath(@__DIR__, "..")
     runs_dir = joinpath(root_dir, "outputs", "runs")
@@ -336,7 +338,7 @@ function organize_outputs()
     # Process each prefix separately
     for (prefix, all_files) in all_files_by_prefix
         println("\nProcessing prefix: $prefix")
-        if prefix != "obst_asym" continue end
+        if target_prefix != "" && prefix != target_prefix continue end
         
         # Create prefix-specific directories
         prefix_organized_dir = joinpath(organized_dir, prefix)

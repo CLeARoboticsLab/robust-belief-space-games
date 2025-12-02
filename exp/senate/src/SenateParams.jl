@@ -21,6 +21,7 @@ Base.@kwdef mutable struct PlayerConfig
     obstacle_sigmoid_offsets::Vector{Float64} = [0.0]
     obstacle_centers::Vector{Vector{Float64}} = [[0.0, 0.0]]
     obstacle_weights::Vector{Float64} = [1.0]
+    obstacle_cost_function::Function = obstacle_cost
 
     # attraction params
     attraction_numerator::Float64 = 1.0
@@ -35,6 +36,9 @@ Base.@kwdef mutable struct PlayerConfig
 
     # sensor params
     sensor_noise_scale::Float64 = 0.1
+    
+    # dynamics params
+    dt::Float64 = 1.0
     
     # These can be populated by the synchronize function
     self_dynamics_model::Union{Function, Nothing} = nothing
@@ -91,6 +95,7 @@ Base.@kwdef mutable struct SenateParams
     # ... Receding Horizon params ...
     planning_horizon::Int = 5
     horizon::Int = 10
+    dt::Float64 = 1.0
     process_noise_mean::Vector{Float64} = zeros(6)
     process_noise_covariance::Matrix{Float64} = 0.001 * I(6)
     process_noise_distribution::Union{Distribution, Nothing} = nothing

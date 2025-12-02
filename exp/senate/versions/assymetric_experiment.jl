@@ -46,7 +46,11 @@ function build_asymmetric_player_configs(combo, fixed_params)
     for (key, value) in combo
         if startswith(String(key), "p1_") && !occursin("believes", String(key)) && !occursin("cost_model_template", String(key))
             field_name = Symbol(replace(String(key), "p1_" => ""))
-            if hasproperty(p1_config, field_name)
+            # Special handling for sigmoid_scale -> obstacle_sigmoid_scales mapping
+            if field_name == :sigmoid_scale
+                @assert value isa Vector "p1_sigmoid_scale must be a Vector"
+                p1_config.obstacle_sigmoid_scales = Vector{Float64}(value)
+            elseif hasproperty(p1_config, field_name)
                 # Ensure obstacle_weights is always a Vector{Float64} to prevent serialization issues
                 if field_name == :obstacle_weights && value isa Vector
                     setproperty!(p1_config, field_name, Vector{Float64}(value))
@@ -62,7 +66,11 @@ function build_asymmetric_player_configs(combo, fixed_params)
     for (key, value) in fixed_params
         if startswith(String(key), "p1_") && !occursin("cost_model_template", String(key))
             field_name = Symbol(replace(String(key), "p1_" => ""))
-            if hasproperty(p1_config, field_name)
+            # Special handling for sigmoid_scale -> obstacle_sigmoid_scales mapping
+            if field_name == :sigmoid_scale
+                @assert value isa Vector "p1_sigmoid_scale must be a Vector"
+                p1_config.obstacle_sigmoid_scales = Vector{Float64}(value)
+            elseif hasproperty(p1_config, field_name)
                 # Ensure obstacle_weights is always a Vector{Float64} to prevent serialization issues
                 if field_name == :obstacle_weights && value isa Vector
                     setproperty!(p1_config, field_name, Vector{Float64}(value))
@@ -80,7 +88,11 @@ function build_asymmetric_player_configs(combo, fixed_params)
     for (key, value) in combo
         if startswith(String(key), "p2_") && !occursin("believes", String(key)) && !occursin("cost_model_template", String(key))
             field_name = Symbol(replace(String(key), "p2_" => ""))
-            if hasproperty(p2_config, field_name)
+            # Special handling for sigmoid_scale -> obstacle_sigmoid_scales mapping
+            if field_name == :sigmoid_scale
+                @assert value isa Vector "p2_sigmoid_scale must be a Vector"
+                p2_config.obstacle_sigmoid_scales = Vector{Float64}(value)
+            elseif hasproperty(p2_config, field_name)
                 setproperty!(p2_config, field_name, value)
             else
                 error("Player 2 config has no property named $field_name")
@@ -92,7 +104,11 @@ function build_asymmetric_player_configs(combo, fixed_params)
     for (key, value) in fixed_params
         if startswith(String(key), "p2_") && !occursin("cost_model_template", String(key))
             field_name = Symbol(replace(String(key), "p2_" => ""))
-            if hasproperty(p2_config, field_name)
+            # Special handling for sigmoid_scale -> obstacle_sigmoid_scales mapping
+            if field_name == :sigmoid_scale
+                @assert value isa Vector "p2_sigmoid_scale must be a Vector"
+                p2_config.obstacle_sigmoid_scales = Vector{Float64}(value)
+            elseif hasproperty(p2_config, field_name)
                 setproperty!(p2_config, field_name, value)
             end
         end
@@ -126,6 +142,11 @@ function build_asymmetric_player_configs(combo, fixed_params)
     elseif haskey(fixed_params, :p1_terminal_cost_model_template)
         p1_config.self_terminal_cost_model_template = fixed_params[:p1_terminal_cost_model_template]
     end
+    if haskey(combo, :p1_obstacle_cost_function)
+        p1_config.obstacle_cost_function = combo[:p1_obstacle_cost_function]
+    elseif haskey(fixed_params, :p1_obstacle_cost_function)
+        p1_config.obstacle_cost_function = fixed_params[:p1_obstacle_cost_function]
+    end
     if haskey(combo, :p2_non_terminal_cost_model_template)
         p2_config.self_non_terminal_cost_model_template = combo[:p2_non_terminal_cost_model_template]
     elseif haskey(fixed_params, :p2_non_terminal_cost_model_template)
@@ -135,6 +156,11 @@ function build_asymmetric_player_configs(combo, fixed_params)
         p2_config.self_terminal_cost_model_template = combo[:p2_terminal_cost_model_template]
     elseif haskey(fixed_params, :p2_terminal_cost_model_template)
         p2_config.self_terminal_cost_model_template = fixed_params[:p2_terminal_cost_model_template]
+    end
+    if haskey(combo, :p2_obstacle_cost_function)
+        p2_config.obstacle_cost_function = combo[:p2_obstacle_cost_function]
+    elseif haskey(fixed_params, :p2_obstacle_cost_function)
+        p2_config.obstacle_cost_function = fixed_params[:p2_obstacle_cost_function]
     end
 
     # Set the base sensor model and re-populate
@@ -324,6 +350,8 @@ function run_asymmetric_experiment(;
     p1_type = nothing,
     p1_non_terminal_cost_model_template = nothing,
     p1_terminal_cost_model_template = nothing,
+    p1_obstacle_cost_function = nothing,
+    p1_sigmoid_scale = nothing,
     
     # Player 2 parameters
     p2_ellipsoid_centers = [[1, 3]],  # Single value only: Vector{Vector{Real}}
@@ -339,6 +367,8 @@ function run_asymmetric_experiment(;
     p2_type = nothing,
     p2_non_terminal_cost_model_template = nothing,
     p2_terminal_cost_model_template = nothing,
+    p2_obstacle_cost_function = nothing,
+    p2_sigmoid_scale = nothing,
     attraction_matrix = nothing,
 
     # Asymmetric belief parameters
@@ -352,6 +382,7 @@ function run_asymmetric_experiment(;
     # Experiment parameters
     planning_horizon = nothing,
     horizon = nothing,
+    dt = nothing,
     trials = nothing,  # Single int only
     random_seed = nothing,  # Single int only
     num_senators = nothing,
@@ -456,6 +487,35 @@ function run_asymmetric_experiment(;
             fixed_params[:p1_terminal_cost_model_template] = p1_terminal_cost_model_template
         end
     end
+    if !isnothing(p1_obstacle_cost_function)
+        if p1_obstacle_cost_function isa AbstractArray || p1_obstacle_cost_function isa AbstractVector
+            param_variations[:p1_obstacle_cost_function] = collect(p1_obstacle_cost_function)
+        else
+            fixed_params[:p1_obstacle_cost_function] = p1_obstacle_cost_function
+        end
+    end
+    if !isnothing(p1_sigmoid_scale)
+        if p1_sigmoid_scale isa Tuple && length(p1_sigmoid_scale) == 3
+            # Range specification: (start, stop, step_func)
+            # Generate range and wrap each value in a vector since obstacle_sigmoid_scales expects Vector{Float64}
+            scale_range = generate_range(p1_sigmoid_scale)
+            @assert all(x -> x >= 0, scale_range) "Sigmoid scales must be non-negative"
+            # Ensure each variation is a proper Vector{Float64} to prevent serialization issues
+            param_variations[:p1_sigmoid_scale] = [Vector{Float64}([s]) for s in scale_range]
+        elseif p1_sigmoid_scale isa Vector{<:Real}
+            @assert all(x -> x >= 0, p1_sigmoid_scale) "Sigmoid scales must be non-negative"
+            if length(p1_sigmoid_scale) == 1
+                # Single value: fixed parameter - ensure it's Vector{Float64}
+                fixed_params[:p1_sigmoid_scale] = Vector{Float64}(p1_sigmoid_scale)
+            else
+                # Multiple values: variations (each value becomes [value])
+                # Ensure each variation is a proper Vector{Float64} to prevent serialization issues
+                param_variations[:p1_sigmoid_scale] = [Vector{Float64}([s]) for s in p1_sigmoid_scale]
+            end
+        else
+            error("p1_sigmoid_scale must be Vector{Real} or (start, stop, step_func) tuple")
+        end
+    end
     
     # Process Player 2 ellipsoid parameters (single values only)
     if !isnothing(p2_ellipsoid_centers)
@@ -516,6 +576,35 @@ function run_asymmetric_experiment(;
             fixed_params[:p2_terminal_cost_model_template] = p2_terminal_cost_model_template
         end
     end
+    if !isnothing(p2_obstacle_cost_function)
+        if p2_obstacle_cost_function isa AbstractArray || p2_obstacle_cost_function isa AbstractVector
+            param_variations[:p2_obstacle_cost_function] = collect(p2_obstacle_cost_function)
+        else
+            fixed_params[:p2_obstacle_cost_function] = p2_obstacle_cost_function
+        end
+    end
+    if !isnothing(p2_sigmoid_scale)
+        if p2_sigmoid_scale isa Tuple && length(p2_sigmoid_scale) == 3
+            # Range specification: (start, stop, step_func)
+            # Generate range and wrap each value in a vector since obstacle_sigmoid_scales expects Vector{Float64}
+            scale_range = generate_range(p2_sigmoid_scale)
+            @assert all(x -> x >= 0, scale_range) "Sigmoid scales must be non-negative"
+            # Ensure each variation is a proper Vector{Float64} to prevent serialization issues
+            param_variations[:p2_sigmoid_scale] = [Vector{Float64}([s]) for s in scale_range]
+        elseif p2_sigmoid_scale isa Vector{<:Real}
+            @assert all(x -> x >= 0, p2_sigmoid_scale) "Sigmoid scales must be non-negative"
+            if length(p2_sigmoid_scale) == 1
+                # Single value: fixed parameter - ensure it's Vector{Float64}
+                fixed_params[:p2_sigmoid_scale] = Vector{Float64}(p2_sigmoid_scale)
+            else
+                # Multiple values: variations (each value becomes [value])
+                # Ensure each variation is a proper Vector{Float64} to prevent serialization issues
+                param_variations[:p2_sigmoid_scale] = [Vector{Float64}([s]) for s in p2_sigmoid_scale]
+            end
+        else
+            error("p2_sigmoid_scale must be Vector{Real} or (start, stop, step_func) tuple")
+        end
+    end
     if !isnothing(attraction_matrix)
         fixed_params[:attraction_matrix] = attraction_matrix
     end
@@ -572,6 +661,30 @@ function run_asymmetric_experiment(;
             param_variations[:ground_truth_initial_states] = collect(ground_truth_initial_states)
         else
             fixed_params[:ground_truth_initial_states] = ground_truth_initial_states
+        end
+    end
+    if !isnothing(dt)
+        if dt isa Tuple && length(dt) == 3
+            # Range specification: (start, stop, step_func)
+            param_variations[:dt] = generate_range(dt)
+            @assert all(x -> x > 0, param_variations[:dt]) "dt must be positive"
+        elseif dt isa AbstractArray || dt isa AbstractVector
+            # Array/Vector of values
+            dt_values = collect(dt)
+            @assert all(x -> x > 0, dt_values) "dt must be positive"
+            if length(dt_values) == 1
+                # Single value: fixed parameter
+                fixed_params[:dt] = dt_values[1]
+            else
+                # Multiple values: variations
+                param_variations[:dt] = dt_values
+            end
+        elseif dt isa Real
+            # Single value: fixed parameter
+            @assert dt > 0 "dt must be positive"
+            fixed_params[:dt] = dt
+        else
+            error("dt must be Real, Vector{Real}, or (start, stop, step_func) tuple")
         end
     end
     #endregion

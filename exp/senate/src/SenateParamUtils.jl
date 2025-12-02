@@ -26,6 +26,7 @@ function _sync_config_to_params_game_constants!(params::SenateParams, configs::V
         player_config.belief_dims_per_activist = params.belief_dims_per_activist
         player_config.sensor_dims_per_activist = params.sensor_dims_per_activist
         player_config.control_dims_per_senator = params.control_dims_per_senator # self-believed...
+        player_config.dt = params.dt
     end
     return params
 end
