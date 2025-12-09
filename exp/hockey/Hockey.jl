@@ -253,6 +253,20 @@ function f(xs::BlockVector, us::BlockVector, ms::BlockVector, player_idx::Union{
         length.(xs.blocks)
     )
 end
+
+function rh_f(xs::BlockVector, us::BlockVector, ms::BlockVector, player_idx::Union{Int,Nothing}=nothing)
+    dt2 = 0.5 * dt^2
+    valid_us = us
+
+    BlockVector(
+        mapreduce(vcat, zip(xs.blocks, valid_us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
+            [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
+            [dt2 0; 0 dt2; dt 0; 0 dt] * uᵢ +
+            M_static(xᵢ) * mᵢ
+        end,
+        length.(xs.blocks)
+    )
+end
 #region: Sensor Models
 function N_state_based(x)
     dist = dot(x[1:2] - goal_center + [0, 3], x[1:2] - goal_center + [0, 3])
@@ -528,7 +542,7 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
     
     # --- Shared Parameters ---
     dims = (; n=2, num_players=2, control_blocks_per_player=1, player_state_dims=length.(gt_initial_state.blocks), num_beliefs_per_player=[2, 2],
-        states=length.(gt_initial_state.blocks), controls=[control_dim for _ in 1:2], total_controls_dim=[control_dim for _ in 1:2], belief=[state_dim for _ in 1:4], sensor=[state_dim for _ in 1:4])
+        states=length.(gt_initial_state.blocks), controls=[control_dim for _ in 1:2], total_controls_dim=[control_dim for _ in 1:2], belief=[state_dim for _ in 1:4], sensor=[state_dim for _ in 1:4], nature_controls_dim=8)
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
     # --- Run Scenarios ---
     for trial in 1:trials
@@ -542,8 +556,11 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
                 solutions["$(int)_$(type_str)_$trial"] = run_receding_horizon_scenario(
                     gt_initial_state, initial_beliefs, costs, robust, dims,
                     horizon, planning_horizon, random_seed,
-                    (f, gt_initial_state, [noise, noise]), # environment
-                    (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations), # ekf_update
+                    (rh_f, gt_initial_state, [noise, noise]), # environment
+                    (current_beliefs, u, environments, observations) -> begin
+                        dummy_game = BeliefGame(environments, costs[1], current_beliefs, 5, dims, gt_initial_state, Int[])
+                        ekf_update_with_observations(current_beliefs, u, dummy_game, observations)
+                    end, # ekf_update
                     trial,
                     "$(int)_$(type_str)_$trial"
                 )
@@ -606,7 +623,7 @@ function run_receding_horizon_scenario(
                 min(planning_horizon, horizon - t + 1),
                 dims,
                 current_gt_state,
-                robust[ii])
+                robust[ii] ? [2] : Int[])
             # nominal_beliefs, nominal_controls, _, _, _, cond = solve(game; debug=true, warm_start=warm_starts[ii], save_intermediate_solutions=true)
             nominal_beliefs, nominal_controls, kkt_error_norms = solve(game; debug=true, warm_start=warm_starts[ii], save_intermediate_solutions=false)
             
@@ -643,7 +660,7 @@ function run_receding_horizon_scenario(
                     zero_control = BlockVector(zeros(sum(dims.controls)), dims.controls)
                 end
                 last_belief = shifted_beliefs[end]
-                g, W = ekf_update(last_belief, zero_control, environments[ii].dynamics, environments[ii].sensor_models; is_robust=robust[ii])
+                g, W = ekf_update(last_belief, zero_control, game)
                 extended_belief = unvec(g, game.dims.belief)
 
                 warm_start_beliefs = vcat(shifted_beliefs, [extended_belief])

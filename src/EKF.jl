@@ -33,7 +33,7 @@ function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, game::Bel
     N = ForwardDiff.jacobian(N_fn, zero_noise)
 
     Σ = BlockDiagonal([b.belief_covariance for b in beliefs])
-    Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits=5))
+    Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
 
     S = H * Γ * H' + N * N'
     K = dual_round.((Γ * H') / S, digits=5)
@@ -46,7 +46,7 @@ function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, game::Bel
 
     for i in 1:length(beliefs)
         dim_i = player_belief_dims[i]
-        cov_range = current_idx:(current_idx+dim_i-1)
+        cov_range = current_idx:(current_idx + dim_i - 1)
 
         mean_i = expected_dynamics.blocks[i]
         if !(player_idx in game.robust_players) && length(game.robust_players) > 0
@@ -66,7 +66,7 @@ function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, game::Bel
     return g, W
 end
 
-function my_matrix_sqrt(A; max_iterations=10)
+function my_matrix_sqrt(A; max_iterations = 10)
     n = size(A, 1)
     old_norm = norm(A)
     normA = A / (old_norm + 1e-9)
@@ -75,9 +75,9 @@ function my_matrix_sqrt(A; max_iterations=10)
     T = zeros(size(normA))
 
     for i in 1:max_iterations
-        T = 0.5(3 * I(n) - Z * Y)
-        Y = Y * T
-        Z = T * Z
+        T = 0.5(3*I(n) - Z*Y)
+        Y = Y*T
+        Z = T*Z
     end
     return Y * sqrt(old_norm)
 end
@@ -132,12 +132,12 @@ function ekf_update_with_observations_per_player(beliefs::Beliefs, control::Bloc
     N = ForwardDiff.jacobian(N_fn, zero_noise)
 
     Σ = BlockDiagonal([b.belief_covariance for b in beliefs.beliefs])
-    Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits=5))
+    Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
 
     S = H * Γ * H' + N * N'
     Q, R = qr(S)
     K_transpose = R \ (Q' * (H * Γ))
-    K = dual_round.(K_transpose', digits=5)
+    K = dual_round.(K_transpose', digits = 5)
 
     temp = BlockArray(Symmetric(dual_round.(Γ - K * H * Γ, digits=5)), dims(beliefs), dims(beliefs))
     mean_update = expected_dynamics + K * (observations - sensor_model(expected_dynamics, zero_noise))

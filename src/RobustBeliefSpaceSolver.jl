@@ -70,7 +70,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
             push!(kkt_error_history, norm.(new_kkt_error_norms))
         end
         #region - Print Statements (commented)
-        println("\titer: $iterations, error: ", candidate_kkt_error)
+        # println("\titer: $iterations, error: ", candidate_kkt_error)
 
         # @printf("[s %3d / %3d]ff: cur=%10.4f new=%10.4f, reg=%10.4f, α=%10.3f\n", iterations, improvement_iterations, mean(feed_forward_norms_history[cur_ff_norm]), mean(feed_forward_norms), regularizations.control_reg, α)
         # println("\tOld costs: ", join([@sprintf("%.3f", c) for c in old_cost], ", "))
@@ -80,7 +80,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         #endregion
         # println("step_accepted: $step_accepted")
         if step_accepted
-            println("new kkt error norms: ", candidate_kkt_error)
+            # println("new kkt error norms: ", candidate_kkt_error)
             nominal_beliefs, nominal_controls = candidate_beliefs, candidate_controls
             kkt_error_norms = candidate_kkt_error
 
