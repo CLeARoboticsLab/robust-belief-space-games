@@ -105,6 +105,8 @@ function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Bel
     
     # return max(0, 10 - sq_dist) + attacker_pos_uncertainty - defender_pos_uncertainty
     # return max(0, 10 - sq_dist)
+    # k = 1.0 # Softness parameter
+    # return -0.1 * (log(exp(k * sq_dist) + exp(k * 5.0)) / k)
     return -0.1 * sq_dist
 end
 
@@ -295,9 +297,9 @@ function attacker_non_terminal_cost_components(belief_over_attacker::Belief, bel
     attacker_covariance = tr(belief_over_attacker.belief_covariance)
     bounds = box_bounds(belief_over_attacker)
     if explicit_covariance
-        return (; steal_prob, shot_prob = -2 * shot_prob, control_effort, bounds, attacker_covariance)
+        return (; steal_prob, shot_prob = -1 * shot_prob, control_effort = 2 * control_effort, bounds, attacker_covariance)
     else
-        return (; steal_prob, shot_prob = -2 * shot_prob, control_effort, bounds)
+        return (; steal_prob, shot_prob = -1 * shot_prob, control_effort = 2 * control_effort, bounds)
     end
 end
 
@@ -308,40 +310,40 @@ function defender_non_terminal_cost_components(belief_over_attacker::Belief, bel
     bounds = box_bounds(belief_over_defender)
     defender_covariance = tr(belief_over_defender.belief_covariance)
     if explicit_covariance
-        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds, defender_covariance)
+        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 2 * control_effort, bounds, defender_covariance)
     else
-        return (; steal_prob=-1 * steal_prob, shot_prob, control_effort=5 * control_effort, bounds)
+        return (; steal_prob=-1 * steal_prob, shot_prob, control_effort = 2 * control_effort, bounds)
     end
 end
 
 function nature_non_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector; explicit_covariance=false, control_effort_weight=3)
     defender_components = defender_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance)
-    defender_cost_val = defender_components.steal_prob + defender_components.shot_prob + defender_components.bounds
+    defender_cost_val = defender_components.steal_prob + defender_components.shot_prob
     if hasproperty(defender_components, :defender_covariance)
         defender_cost_val += defender_components.defender_covariance
     end
 
-    control_effort = control_effort_weight * dot(us[Block(3)], us[Block(3)])
-    bounds = box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
-    return (; defender_components = -sum(defender_components), control_effort, bounds)
+    control_effort = 1000 * dot(us[Block(3)], us[Block(3)])
+    bounds = 10 * (box_bounds(belief_over_attacker) + box_bounds(belief_over_defender))
+    return (; defender_components = -1 * defender_cost_val, control_effort, bounds)
 end
 
 function attacker_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
-    shot_prob = -5 * shot_probability(belief_over_attacker, belief_over_defender)
+    shot_prob = -1 * shot_probability(belief_over_attacker, belief_over_defender)
     bounds = box_bounds(belief_over_attacker)
     return (; shot_prob, bounds)
 end
 
 function defender_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
-    shot_prob = 5 * shot_probability(belief_over_attacker, belief_over_defender)
+    shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
     bounds = box_bounds(belief_over_defender)
     return (; shot_prob, bounds)
 end
 
 function nature_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief)
     defender_components = defender_terminal_cost_components(belief_over_attacker, belief_over_defender)
-    bounds = box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
-    return (; defender_components = -sum(defender_components), bounds)
+    defender_cost_val = defender_components.shot_prob
+    return (; defender_components = -1 * defender_cost_val + 10 * defender_components.bounds)
 end
 
 #region: Component sum wrappers
@@ -434,7 +436,7 @@ function belief_main(sol_number=2, override_solution=false)
             (bs) -> defender_terminal_cost(bs.beliefs[1], bs.beliefs[2]),
         )
         nature_cost = BeliefCost(
-            (bs, us) -> nature_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us; control_effort_weight=10),
+            (bs, us) -> nature_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us),
             (bs) -> nature_terminal_cost(bs.beliefs[1], bs.beliefs[2]),
         )
         dims = (; n=2,
@@ -474,7 +476,7 @@ function belief_main(sol_number=2, override_solution=false)
         @save solution_filename robust_sol non_robust_sol goal_position
     end
     # plot_feed_forward_norms(robust_sol[4])
-    # visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
+    visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
 end
 
 function safe_eigen(A) #Why not just override eigen. Isn't this strictly better. - Henry
