@@ -52,6 +52,7 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
     
     warm_starts = Dict{Int, Any}(idx => nothing for idx in player_indices)
     plan_cost_history = Dict(idx => Any[] for idx in player_indices)
+    incurred_cost_history = Dict(idx => Float64[] for idx in player_indices)
 
     Random.seed!(params.random_seed)
 
@@ -158,6 +159,20 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
         current_gt_state = params.ground_truth_dynamics_model(current_gt_state, merged_controls, process_noise)
         push!(gt_state_history, current_gt_state)
 
+        # Compute incurred cost for each player on actual executed state
+        deterministic_beliefs = Beliefs([
+            Belief(block, zeros(length(block), length(block)))
+            for block in current_gt_state.blocks
+        ])
+        for player_idx in player_indices
+            config = params.player_configs[player_idx]
+            if config.type == nature
+                continue
+            end
+            non_terminal_cost = config.self_non_terminal_cost_model(deterministic_beliefs, merged_controls)
+            push!(incurred_cost_history[player_idx], non_terminal_cost)
+        end
+
         observations = [
             params.ground_truth_sensor_models[idx](current_gt_state, BlockVector(rand(params.sensor_noise_distribution), length.(current_gt_state.blocks))) 
             for idx in player_indices
@@ -168,13 +183,28 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
         current_beliefs = ekf_update_with_observations(current_beliefs, merged_controls, EKF_game, observations)
     end
 
+    # Add terminal cost at the end
+    final_deterministic_beliefs = Beliefs([
+        Belief(block, zeros(length(block), length(block)))
+        for block in current_gt_state.blocks
+    ])
+    for player_idx in player_indices
+        config = params.player_configs[player_idx]
+        if config.type == nature
+            continue
+        end
+        terminal_cost = config.self_terminal_cost_model(final_deterministic_beliefs)
+        push!(incurred_cost_history[player_idx], terminal_cost)
+    end
+
     # --- Package Results ---
     solutions_dict = Dict(
         idx => (
             gt_state_history=gt_state_history,
             observation_history=observation_history,
             solution_history=solution_history[idx],
-            cost_history=plan_cost_history[idx]
+            cost_history=plan_cost_history[idx],
+            incurred_cost_history=incurred_cost_history[idx]
         ) for idx in player_indices
     )
     return solutions_dict, params

@@ -1352,10 +1352,20 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     p2_terminal_costs = @lift [[c.terminal for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
     p2_non_terminal_costs = @lift [[c.non_terminal for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
 
+    # Incurred costs (safe fallback for older data without incurred_cost_history)
+    p1_incurred_costs = @lift [
+        haskey(sol, :incurred_cost_history) ? sol.incurred_cost_history : Float64[]
+        for sol in values($p1_sols)
+    ]
+    p2_incurred_costs = @lift [
+        haskey(sol, :incurred_cost_history) ? sol.incurred_cost_history : Float64[]
+        for sol in values($p2_sols)
+    ]
+
     # Create graphs once during setup with reactive data
     add_multi_line_graph!(fig;
-        full_series=[p1_total_costs, p2_total_costs],
-        labels=["player 1","player 2"], # todo: fix labels
+        full_series=[p1_total_costs, p2_total_costs, p1_incurred_costs, p2_incurred_costs],
+        labels=["p1 planned", "p2 planned", "p1 incurred", "p2 incurred"],
         current_time_step=current_time_step,
         title="Cost Over Time",
         ylabel="cost",
