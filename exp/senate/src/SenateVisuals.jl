@@ -35,7 +35,7 @@ function load_solution(folder, filename, type = "mass_results")
     results = nothing
     if filename isa Vector{String}
        for file in filename
-            if type == "mass_results"
+            if type != ""
                 path = "exp/senate/outputs/$folder/$(file)_$type.dat"
             else
                 path = "exp/senate/outputs/$folder/$(file).dat"
@@ -49,7 +49,7 @@ function load_solution(folder, filename, type = "mass_results")
         end
         filename = filename[1]
     elseif filename isa String
-        if type == "mass_results"
+        if type != ""
             path = "exp/senate/outputs/$folder/$(filename)_$type.dat"
         else
             path = "exp/senate/outputs/$folder/$(filename).dat"
@@ -1359,9 +1359,9 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         current_time_step=current_time_step,
         title="Cost Over Time",
         ylabel="cost",
-        # timesteps = 0:4,                     # optional custom x-axis
-        scalarizer = to_scalar_cost,            # no-op for numbers; handy for cost structs
-        loc=(1,3)                               # put it in column 3, row 1 (side graph)
+        scalarizer = to_scalar_cost,
+        loc=(1,3),
+        selection_observable=exp_trial_pairs
     )
 
     add_multi_line_graph!(fig;
@@ -1370,9 +1370,9 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         current_time_step=current_time_step,
         title="Component Cost Over Time",
         ylabel="cost",
-        # timesteps = 0:4,                     # optional custom x-axis
-        scalarizer = to_scalar_cost,            # no-op for numbers; handy for cost structs
-        loc=(2,3)                               # put it in column 3, row 2 (side graph)
+        scalarizer = to_scalar_cost,
+        loc=(2,3),
+        selection_observable=exp_trial_pairs
     )
     colsize!(fig.layout, 3, Relative(0.20))  # 1:3:1 ratio - right column
 
@@ -1399,9 +1399,35 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
             first_obs[] = first_obs[]  # Force trigger by setting to itself
         end
     end
-    #test scatter
-    #axislegend(ax)
-    
+    # Legend for center graph - reactive to visibility toggles
+    center_legend = Ref{Any}(nothing)
+    function rebuild_center_legend!()
+        if center_legend[] !== nothing
+            delete!(center_legend[])
+        end
+        elements = []
+        labels = String[]
+        if show_p1_planned_trajectory[]
+            push!(elements, LineElement(color=colors[1])); push!(labels, "P1 Act1")
+            push!(elements, LineElement(color=colors[2])); push!(labels, "P1 Act2")
+        end
+        if show_p2_planned_trajectory[]
+            push!(elements, LineElement(color=colors[1], linestyle=:dash)); push!(labels, "P2 Act1")
+            push!(elements, LineElement(color=colors[2], linestyle=:dash)); push!(labels, "P2 Act2")
+        end
+        if show_executed_trajectory[]
+            push!(elements, LineElement(color=color_with_alpha(:green))); push!(labels, "Executed")
+        end
+        if !isempty(elements)
+            center_legend[] = axislegend(ax, elements, labels,
+                                         position=:lt, labelsize=9, padding=(4,4,4,4), rowgap=1)
+        end
+    end
+    rebuild_center_legend!()
+    on(show_p1_planned_trajectory) do _; rebuild_center_legend!(); end
+    on(show_p2_planned_trajectory) do _; rebuild_center_legend!(); end
+    on(show_executed_trajectory) do _; rebuild_center_legend!(); end
+
     # ===== TEMPORARY DEBUG CIRCLE =====
     # Draw a circle at (1.7, 1.7) for debugging obstacle cost visualization
     # This matches the obstacle center used in drift_experiment_runner.jl
@@ -1456,7 +1482,8 @@ function add_multi_line_graph!(parent;
     ylabel::AbstractString = "value",
     timesteps::Union{Nothing,AbstractVector}=nothing,
     scalarizer::Function = identity,
-    loc::Tuple{Int,Int} = (1, 2)
+    loc::Tuple{Int,Int} = (1, 2),
+    selection_observable::Union{Nothing,Observable}=nothing
 )
     @assert length(full_series) == length(labels) "series and labels must have same length"
 
@@ -1464,97 +1491,85 @@ function add_multi_line_graph!(parent;
     ax = parent isa Figure ? Axis(parent[loc...], title=title, xlabel=xlabel, ylabel=ylabel) :
                              (parent isa Axis ? parent :
                               error("parent must be a Figure or an Axis"))
-    # Create a reactive series that rebuilds when trial count changes
-    # series = map(full_series[1]) do first_data
-    #     n = length(first_data)
-    #     [map(data -> trial_idx <= length(data) ? data[trial_idx] : Vector{Vector{Float64}}[], s) 
-    #      for trial_idx in 1:n 
-    #      for s in full_series]
-    # end
-    n = length(full_series[1][])  # Get current number of trials
-    series = [Observable(s[][trial_idx]) 
-            for trial_idx in 1:n 
-            for s in full_series]
-    #TODO: DYNAMICALLY UPDATE COST WITH THE REST OF THE GRAPH - unfinished code
-    # Scalarize & sanitize each series, wrap in Observables for reactive updates
-    obs_series = Vector{Observable{Vector{Float64}}}(undef, length(series))
-    for i in eachindex(series)
-        if series[i] isa Observable
-            # If already an observable, create a reactive chain that scalarizes the values
-            obs_series[i] = @lift begin
-                sc = scalarizer.($(series[i]))
-                sc = collect(skipmissing(sc))
-                Float64.(sc)
-            end
-        else
-            # Regular vector, convert to observable
-            sc = scalarizer.(series[i])
-            sc = collect(skipmissing(sc))
-            obs_series[i] = Observable(Float64.(sc))
-        end
-    end
-    maxval = map(obs_series...) do series...
-        combined = vcat(series...)
-        isempty(combined) ? 0 : maximum(combined)
-    end
 
-    # All series should share the same time grid; we use the shortest length
-    # Make these reactive since obs_series are observables that may update
-    minlen = map(obs_series...) do series...
-        lengths = length.(series)
-        isempty(lengths) ? 0 : minimum(lengths)
-    end
-    
-    maxval = map(obs_series...) do series...
-        combined = vcat(series...)
-        isempty(combined) ? 0 : maximum(combined)
-    end
     xt = timesteps === nothing ? nothing : Observable(vec(timesteps))
 
-    for i in eachindex(obs_series)
-        local oi = obs_series[i]
-        
-        # Create a single observable that computes points directly
-        points_obs = if timesteps === nothing
-            @lift begin
-                oi_val = $oi
-                ml = $minlen
-                actual_len = min(ml, length(oi_val))
-                if actual_len > 0
-                    Point2f.(1:actual_len, oi_val[1:actual_len])
-                else
-                    Point2f[]
+    # Fixed color palette for series types (consistent across trials)
+    series_colors = [:blue, :red, :green, :orange, :purple, :cyan, :magenta, :yellow]
+
+    # Store line plot handles for deletion/recreation
+    line_plots = Any[]
+
+    # Create legend entries once (one per series type, not per trial)
+    legend_entries = [LineElement(color=series_colors[mod1(i, length(series_colors))]) for i in 1:length(labels)]
+    axislegend(ax, legend_entries, labels,
+               position=:rt, labelsize=9, padding=(4,4,4,4), rowgap=1)
+
+    function rebuild_lines!()
+        # Delete existing line plots
+        for plot in line_plots
+            delete!(ax, plot)
+        end
+        empty!(line_plots)
+
+        n = length(full_series[1][])  # Current number of trials
+        if n == 0
+            return
+        end
+
+        # Build series with color assignment: same series type = same color across trials
+        # Structure: for each trial, iterate through series types
+        for trial_idx in 1:n
+            for (series_type_idx, s) in enumerate(full_series)
+                series_obs = Observable(s[][trial_idx])
+
+                # Scalarize
+                obs_series = @lift begin
+                    sc = scalarizer.($series_obs)
+                    sc = collect(skipmissing(sc))
+                    Float64.(sc)
                 end
-            end
-        else
-            @lift begin
-                oi_val = $oi
-                xt_val = $xt
-                ml = $minlen
-                actual_len = min(ml, length(oi_val), length(xt_val))
-                if actual_len > 0
-                    Point2f.(xt_val[1:actual_len], oi_val[1:actual_len])
+
+                points_obs = if timesteps === nothing
+                    @lift begin
+                        oi_val = $obs_series
+                        if length(oi_val) > 0
+                            Point2f.(1:length(oi_val), oi_val)
+                        else
+                            Point2f[]
+                        end
+                    end
                 else
-                    Point2f[]
+                    @lift begin
+                        oi_val = $obs_series
+                        xt_val = $xt
+                        actual_len = min(length(oi_val), length(xt_val))
+                        if actual_len > 0
+                            Point2f.(xt_val[1:actual_len], oi_val[1:actual_len])
+                        else
+                            Point2f[]
+                        end
+                    end
                 end
+
+                # Color based on series type, not trial
+                color = series_colors[mod1(series_type_idx, length(series_colors))]
+                plot = lines!(ax, points_obs, color=color)
+                push!(line_plots, plot)
             end
         end
-        
-        lines!(ax, points_obs) #TODO: add back labels
     end
-    # # Keep y-limits comfy as we reveal more points
-    # on(current_time_step) do _
-    #     k_now = min(current_time_step[], minlen())
-    #     ys = Float64[]
-    #     for oi in obs_series
-    #         append!(ys, oi[][1:k_now])
-    #     end
-    #     if !isempty(ys)
-    #         ymin, ymax = extrema(ys)
-    #         pad = max(1e-9, 0.05 * (ymax - ymin + 1e-12))
-    #         ax.ylimits = (ymin - pad, ymax + pad)
-    #     end
-    # end
+
+    # Initial build
+    rebuild_lines!()
+
+    # Rebuild when selection changes
+    if selection_observable !== nothing
+        on(selection_observable) do _
+            rebuild_lines!()
+        end
+    end
+
     return ax
 end
 end
