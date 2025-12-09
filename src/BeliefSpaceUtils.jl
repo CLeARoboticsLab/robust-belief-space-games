@@ -57,7 +57,7 @@ function dims(beliefs::Beliefs)
 end
 
 function total_size(belief::Belief)
-    return belief.belief_dim + belief.belief_dim ^ 2
+    return belief.belief_dim + belief.belief_dim^2
 end
 
 function total_size(beliefs::Beliefs)
@@ -73,13 +73,13 @@ function unvec(vec_beliefs::Vector, dims::Vector{Int})
     current_idx = 1
     for i in eachindex(dims)
         dim = dims[i]
-        belief_size = dim + dim*dim
-        
+        belief_size = dim + dim * dim
+
         belief_end_idx = current_idx + belief_size - 1
         vec_belief = vec_beliefs[current_idx:belief_end_idx]
-        
+
         beliefs[i] = unvec(vec_belief, dim)
-        
+
         current_idx = belief_end_idx + 1
     end
     return Beliefs(beliefs)
@@ -93,12 +93,12 @@ function Base.:-(b1::Belief, b2::Belief)
     return vec(b1) - vec(b2)
 end
 
-struct BeliefCost{N, T}
+struct BeliefCost{N,T}
     non_terminal_cost::N
     terminal_cost::T
 end
 
-struct BeliefEnvironment{D, S}
+struct BeliefEnvironment{D,S}
     dynamics::D
     gt_states::BlockVector
     sensor_models::S
@@ -115,7 +115,7 @@ struct BeliefGame
 end
 function calculate_non_terminal_costs(game::BeliefGame, beliefs::Vector{Beliefs}, controls::Vector{BlockVector})
     return map(game.costs) do cost
-        mapreduce(+, 1:game.horizon - 1, init=0.0) do t
+        mapreduce(+, 1:game.horizon-1, init=0.0) do t
             cost.non_terminal_cost(beliefs[t], controls[t])
         end
     end
@@ -162,11 +162,11 @@ function rollout_strategy(game::BeliefGame, strategy::Vector)
             open(DEBUG_FILE, "a") do f
                 println(f, "[rollout_strategy]")
                 println(f, "beliefs[$i]:")
-                display_matrix = IOContext(f, :limit=>false)
+                display_matrix = IOContext(f, :limit => false)
                 show(display_matrix, "text/plain", beliefs[i])
                 println(f)
                 println(f, "controls[$i]:")
-                display_matrix = IOContext(f, :limit=>false)
+                display_matrix = IOContext(f, :limit => false)
                 show(display_matrix, "text/plain", controls[i])
                 println(f)
             end
@@ -174,6 +174,6 @@ function rollout_strategy(game::BeliefGame, strategy::Vector)
         g, W = ekf_update(beliefs[i], controls[i], game)
         beliefs[i+1] = unvec(g, dims(beliefs[i]))
     end
-    
+
     return beliefs, controls
 end
