@@ -9,7 +9,7 @@ using Makie
 using Makie.GeometryBasics
 using Symbolics
 # using CairoMakie
-# using GLMakie
+using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -19,7 +19,7 @@ using Statistics
 include("../KKTErrorTracker.jl")
 using .KKTErrorTracker
 
-# include("./HockeyVisuals.jl")
+include("./HockeyVisuals.jl")
 
 export hockey_game, receding_horizon_main, attacker_cost, defender_cost, attacker_non_terminal_cost, defender_non_terminal_cost, nature_non_terminal_cost, attacker_terminal_cost, defender_terminal_cost, nature_terminal_cost, player_cost_components
 
@@ -324,9 +324,9 @@ function defender_non_terminal_cost_components(belief_over_attacker::Belief, bel
     bounds = box_bounds(belief_over_defender)
     defender_covariance = tr(belief_over_defender.belief_covariance)
     if explicit_covariance
-        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 2 * control_effort, bounds, defender_covariance)
+        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds, defender_covariance)
     else
-        return (; steal_prob=-1 * steal_prob, shot_prob, control_effort = 2 * control_effort, bounds)
+        return (; steal_prob=-1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds)
     end
 end
 
@@ -513,11 +513,11 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
         @load "exp/hockey/outputs/rh_$file_id.jld2" solutions goal_position
-        # visualize_receding_horizon_solution(
-        #     solutions, 
-        #     goal_position;
-        #     dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
-        # )
+        visualize_receding_horizon_solution(
+            solutions, 
+            goal_position;
+            dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
+        )
         return
     end
 
