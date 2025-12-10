@@ -3,3 +3,6 @@
 **.png
 **.jld2
 **.csv
+.vscode
+exp/senate/LocalPreferences.toml
+exp/senate/Manifest.toml
