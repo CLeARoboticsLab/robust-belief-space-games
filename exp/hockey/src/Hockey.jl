@@ -1,6 +1,6 @@
 module Hockey
 
-using GLMakie
+# using GLMakie
 using BlockArrays
 using LinearAlgebra
 using Distributions
@@ -19,7 +19,7 @@ include("HockeyExperiment.jl")
 # Senate includes `SenateVisuals.jl` in `Senate.jl`? 
 # Checking Senate.jl list_dir: `Senate.jl` was small.
 # Creating a separate `HockeyVisuals.jl` file in src is good practice.
-include("HockeyVisuals.jl")
+# include("HockeyVisuals.jl")
 
 export 
     # Dynamics
