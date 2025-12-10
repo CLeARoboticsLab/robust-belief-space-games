@@ -229,7 +229,16 @@ function visualize_receding_horizon_solution(solutions::Dict, goal_position; dim
 end
 
 function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_position, dims)
-    gt_state_history, observations, solution_history, cond_history, lq_sol_history = sol_data
+    # Handle both NamedTuple (new) and potentially Tuple (old/other)
+    if sol_data isa NamedTuple
+        gt_state_history = sol_data.gt_state_history
+        observations = sol_data.observation_history # correct name
+        solution_history = sol_data.solution_history
+        lq_sol_history = [] # Not present in new
+    else
+        # Fallback for old format if needed
+        gt_state_history, observations, solution_history, cond_history, lq_sol_history = sol_data
+    end
     
     # --- Bottom Row: Controls ---
     control_grid = fig[2, 1] = GridLayout(tellheight=false)
@@ -259,10 +268,41 @@ function create_individual_solution_plot(fig, ax, sol_name, sol_data, goal_posit
     plan_timestep = Observable(1)
     show_lq_sol = Observable(false)
 
-    belief_history = [sols[1][1][1] for sols in solution_history]
+    # Convert solution_history to a time-indexed format if it's a Dict (New)
+    # Dict: idx => [step1, step2, ...]
+    # We want: [step1_all_players, step2_all_players, ...]
+    # step_i_all_players = [step_i_p1, step_i_p2]
+    
+    formatted_solution_history = if solution_history isa Dict
+         len = length(solution_history[1])
+         map(1:len) do t
+             [solution_history[i][t] for i in 1:length(solution_history)]
+         end
+    else
+         solution_history # Assume old format
+    end
 
-    non_robust_plan = @lift(solution_history[$current_timestep][1])
-    robust_plan = @lift(solution_history[$current_timestep][2])
+    # Belief history for visualization (just first player's belief at each step, first belief in that?)
+    # New: formatted_solution_history[t][1].beliefs[1]
+    belief_history = [sols[1].beliefs[1] for sols in formatted_solution_history]
+
+    non_robust_plan = @lift begin
+         if $current_timestep <= length(formatted_solution_history)
+             formatted_solution_history[$current_timestep][1].beliefs # Attacker's plan
+         else
+             []
+         end
+    end
+    # Robust plan usually mapped to defender? Or checking if p2 is robust?
+    # Hockey visualizer assumed p2 result was robust?
+    # Let's assume P2 is the robust one we want to visualize if robust
+    robust_plan = @lift begin
+         if $current_timestep <= length(formatted_solution_history)
+             formatted_solution_history[$current_timestep][2].beliefs # Defender's plan
+         else
+             []
+         end
+    end
 
     # --- Static trajectory plotting ---
     attacker_gt_x = [s[Block(1)][1] for s in gt_state_history]

@@ -390,6 +390,7 @@ function run_asymmetric_experiment(;
     # Control parameters
     override = false,
     experiment_name_prefix = "asymmetric_exp",
+    save_file_prefix="exp/senate",
     save_intermediate_results = true,
     num_threads = nothing  # Number of threads to use (nothing = use all available, 1 = sequential)
 )
@@ -811,7 +812,8 @@ function run_asymmetric_experiment(;
                 results = run_experiment(
                     params;
                     override=override,
-                    experiment_name=exp_name
+                    experiment_name=exp_name,
+                    save_file_prefix=save_file_prefix
                 )
                 
                 # Thread-safe result collection
@@ -858,7 +860,8 @@ function run_asymmetric_experiment(;
                 results = run_experiment(
                     params;
                     override=override,
-                    experiment_name=exp_name
+                    experiment_name=exp_name,
+                    save_file_prefix=save_file_prefix
                 )
                 
                 # Store results with metadata
@@ -873,7 +876,7 @@ function run_asymmetric_experiment(;
                 
                 # Save intermediate cumulative results if needed
                 if save_intermediate_results
-                    mass_filename = "exp/senate/outputs/merged/$(experiment_name_prefix)_mass_results.dat"
+                    mass_filename = "$(save_file_prefix)/outputs/merged/$(experiment_name_prefix)_mass_results.dat"
                     println("Saving all results to $mass_filename")
                     
                     open(mass_filename, "w") do f
@@ -891,7 +894,7 @@ function run_asymmetric_experiment(;
     println("\n=== Completed all $(length(combinations)) experiments ===")
 
     # Save all results to a single file
-    mass_filename = "exp/senate/outputs/merged/$(experiment_name_prefix)_mass_results.dat"
+    mass_filename = "$(save_file_prefix)/outputs/merged/$(experiment_name_prefix)_mass_results.dat"
     println("Saving all results to $mass_filename")
 
     open(mass_filename, "w") do f

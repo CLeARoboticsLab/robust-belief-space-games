@@ -324,9 +324,9 @@ function defender_non_terminal_cost_components(belief_over_attacker::Belief, bel
     bounds = box_bounds(belief_over_defender)
     defender_covariance = tr(belief_over_defender.belief_covariance)
     if explicit_covariance
-        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds, defender_covariance)
+        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 2 * control_effort, bounds, defender_covariance)
     else
-        return (; steal_prob=-1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds)
+        return (; steal_prob=-1 * steal_prob, shot_prob, control_effort = 2 * control_effort, bounds)
     end
 end
 

@@ -118,6 +118,7 @@ function run_all_obstacle_cost_drift_experiments(override=false;)
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
         experiment_name_prefix="obst_v2_asym",
+        save_file_prefix=".",
         override=override,
         dt=dt_values,
     )

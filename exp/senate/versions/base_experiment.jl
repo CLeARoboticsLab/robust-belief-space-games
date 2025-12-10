@@ -2,8 +2,8 @@ using Senate
 using BlockArrays
 using Serialization
 using Infiltrator
-function run_experiment(params::SenateParams;override::Bool=false, experiment_name::String="experiment")
-    solution_filename = "exp/senate/outputs/runs/$(experiment_name).dat"
+function run_experiment(params::SenateParams;override::Bool=false, experiment_name::String="experiment", save_file_prefix::String="exp/senate")
+    solution_filename = "$(save_file_prefix)/outputs/runs/$(experiment_name).dat"
     if experiment_name != "" && isfile(solution_filename)
         println("Solution already exists at $solution_filename. Override is $override.")
         if !override
