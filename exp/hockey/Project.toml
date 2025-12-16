@@ -2,6 +2,12 @@ name = "Hockey"
 uuid = "12345678-1234-1234-1234-123456789013"
 version = "0.1.0"
 
+[compat]
+BlockArrays = "0.16.43"
+GLMakie = "0.9.11"
+Revise = "3.12.2"
+julia = "1.6"
+
 [deps]
 BlockArrays = "8e7c35d0-a365-5155-bbbb-fb81a777f24e"
 Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
@@ -18,8 +24,5 @@ RobustBeliefGame = "3cbb2406-ead4-4f13-9702-1186ecfc710e"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 TrajectoryGamesBase = "ac1ac542-73eb-4349-ae1b-660ab3609574"
 
-[compat]
-BlockArrays = "0.16.43"
-GLMakie = "0.9.11"
-Revise = "3.12.2"
-julia = "1.6"
+[extras]
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"

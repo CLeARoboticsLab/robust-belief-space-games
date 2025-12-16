@@ -104,3 +104,25 @@ function dims(params::HockeyParams)
         sensor=[4, 4] # Sensor output dim
     )
 end
+
+function params_to_name(params::HockeyParams)
+    # Construct a descriptive name
+    # e.g. "hockey_robust_def_cc0.1" or "hockey_baseline"
+    
+    parts = String[]
+    push!(parts, "hockey")
+    
+    # Check player types
+    p1_type = params.player_configs[1].type
+    p2_type = params.player_configs[2].type
+    
+    if p2_type == robust
+        push!(parts, "robust_def")
+        clean_weight = replace(string(params.player_configs[2].control_cost_weight), "." => "p")
+        push!(parts, "cc_$(clean_weight)")
+    else
+        push!(parts, "baseline")
+    end
+    
+    return join(parts, "_")
+end

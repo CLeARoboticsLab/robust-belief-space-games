@@ -39,7 +39,7 @@ export plot_feed_forward_norms
 
 
 DEBUG = false
-DEBUG_FILE = "./exp/senate/outputs/belief_diagnostics.txt"
+DEBUG_FILE = "./outputs/belief_diagnostics.txt"
 
 ϵ = 1e-7
 clip_norm = 100

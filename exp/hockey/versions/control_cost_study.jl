@@ -4,58 +4,43 @@ using LinearAlgebra
 using Distributions
 using Hockey
 
-function setup_workers(num_procs)
-    # Add processes if needed
-    current_procs = nprocs()
-    if current_procs < num_procs
-        addprocs(num_procs - current_procs; exeflags="--project=$(Base.active_project())")
-    end
+# Include the runner module
+include("../src/ExperimentRunner.jl")
+using .ExperimentRunner
 
-    # Ensure code is loaded on all workers (idempotent-ish)
-    @everywhere eval(quote
-        using Hockey
-        using BlockArrays
-        using LinearAlgebra
-        using Distributions
+"""
+    generate_params(weight)
 
-        function run_single_trial(weight)
-            println("\n=== Running with Defender Control Cost Weight: $weight on process $(myid()) ===")
-            
-            # Configure Params
-            params = HockeyParams(name="hockey_cc_$(weight)")
-            
-            # Defender (Player 2) - Robust
-            params.player_configs[2].control_cost_weight = weight
-            params.player_configs[2].type = robust
-            
-            # Attacker (Player 1) - Non-Robust
-            params.player_configs[1].type = non_robust
-            
-            # Run Trials
-            println("Running trials for weight $weight...")
-            results = run_receding_horizon_trials(params; override=true)
-            
-            println("Finished trials for weight $weight.")
-            return results
-        end
-    end)
+Creates a HockeyParams object with the specified defender control cost weight.
+"""
+function generate_params(weight)
+    # Configure Params
+    params = HockeyParams(name="hockey_cc_$(weight)")
+    
+    # Defender (Player 2) - Robust
+    params.player_configs[2].control_cost_weight = weight
+    params.player_configs[2].type = robust
+    
+    # Attacker (Player 1) - Non-Robust
+    params.player_configs[1].type = non_robust
+    
+    return params
 end
 
 """
     run_control_cost_study(; weights=[0.01, 0.1, 0.5, 1.0], cores=4)
 
-Runs the receding horizon experiment sweep over defender control cost weights in parallel.
-`cores` specifies the total number of processes (master + workers) to use.
+Runs the receding horizon experiment sweep over defender control cost weights using the ExperimentRunner.
 """
-function run_control_cost_study(; weights=[0.01, 0.1, 0.5, 1.0], cores=4)
-    println("Setting up $cores processes...")
-    cores = min(cores, length(weights))
-    setup_workers(cores)
-    println("Starting parallel execution with $(nprocs()) processes...")
+function run_control_cost_study(; weights=[0.01, 0.02, 0.04, 0.06, 0.08, 0.1, 0.2, 0.4, 0.6, 0.8, 1.0], cores=4)
+    println("Preparing study for weights: $weights")
     
-    # Use pmap to distribute tasks
-    results = pmap(run_single_trial, weights)
+    # Generate parameters for all trials
+    params_list = [generate_params(w) for w in weights]
     
-    println("All trials completed.")
+    # Run batch
+    results = run_experiment_batch(params_list; cores=cores)
+    
+    println("Study completed.")
     return results
 end

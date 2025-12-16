@@ -20,12 +20,15 @@ end
 
 function run_receding_horizon_trial(params::HockeyParams; override::Bool=false, trial_number::Int=1)
     # --- Check for existing results ---
-    # Construct a unique filename/identifier derived from params if possible, 
-    # but for now we follow the simple pattern or just rely on the caller to save?
-    # SenateExperiment saves/loads inside the loop. 
-    # Here `params.name` could be used.
+    # Construct a unique filename/identifier derived from params
+    base_name = params_to_name(params)
+    output_dir = "outputs" 
+    # Ensure output directory exists (relative to CWD)
+    if !isdir(output_dir)
+        mkpath(output_dir)
+    end
     
-    output_path = "exp/hockey/outputs/$(params.name)_trial_$(trial_number).jld2"
+    output_path = joinpath(output_dir, "$(base_name)_trial_$(trial_number).jld2")
     
     if isfile(output_path) && !override
         println("Loading solution from $output_path")
@@ -94,20 +97,6 @@ function run_receding_horizon_trial(params::HockeyParams; override::Bool=false, 
     else
          [attacker_cost_fn, defender_cost_fn]
     end
-
-    # Environment setup
-    # Using `basic_dynamics` (renamed from rh_f) and default sensors
-    # Assuming "low" noise for now as per `Hockey.jl` default in some places, 
-    # but params has distribution.
-    # The sensor models `h_noise` take `I_mag`.
-    # Let's align with `Hockey.jl` Receding Horizon scenario which iterates types.
-    # But here we run one trial for the given params.
-    
-    # To keep it simple, we use the `h_low_noise` equivalent or what's in params?
-    # params has `sensor_noise_distribution`.
-    # `h_noise` generates the *mean* (identity) + dependence on noise vector `n`?
-    # NO, `h_noise` maps state + noise to observation.
-    # `h_low_noise` uses `I_mag=0.1`.
     
     h_func = h_low_noise # Defaulting to low noise for the refactor baseline
     
@@ -302,8 +291,9 @@ function run_receding_horizon_trial(params::HockeyParams; override::Bool=false, 
     end
     
     # --- Save Results ---
+    # --- Save Results ---
     @save output_path gt_state_history observation_history solution_history
-    println("Saved results to $output_path")
+    println("Saved results to $(abspath(output_path))")
     
     return (; gt_state_history, observation_history, solution_history)
 end
