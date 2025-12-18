@@ -15,7 +15,7 @@ Creates a HockeyParams object with the specified defender control cost weight.
 """
 function generate_params(weight)
     # Configure Params
-    params = HockeyParams(name="hockey_cc_$(weight)")
+    params = HockeyParams(name="hockey_cc_$(weight)_test")
     
     # Defender (Player 2) - Robust
     params.player_configs[2].control_cost_weight = weight
@@ -23,6 +23,7 @@ function generate_params(weight)
     
     # Attacker (Player 1) - Non-Robust
     params.player_configs[1].type = non_robust
+    params.player_configs[1].control_cost_weight = 5.0
     
     return params
 end

@@ -13,8 +13,15 @@ Base.@kwdef mutable struct PlayerConfig
     
     # Costs
     control_cost_weight::Float64 = 0.05
-    ellipsoidal_cost_weight::Float64 = 0.1 # Default from Senate, might not be used
-    terminal_cost_weight::Float64 = 1.0
+    terminal_cost_weight::Float64 = 2.0
+    
+    boundary_cost_weight::Float64 = 10.0
+    steal_dist_weight::Float64 = 0.1
+    shot_uncertainty_weight::Float64 = 20.0
+    
+    # Nature properites (relevant if player is robust)
+    nature_control_cost_weight::Float64 = 300.0
+    nature_bounds_cost_weight::Float64 = 10.0
     
     # Dynamics (if needed specific per player)
     
@@ -37,8 +44,8 @@ Base.@kwdef mutable struct HockeyParams
     
     # Game Params
     player_configs::Dict{Int, PlayerConfig} = Dict(
-        1 => PlayerConfig(player_idx=1, type=non_robust), # Attacker
-        2 => PlayerConfig(player_idx=2, type=robust)      # Defender
+        1 => PlayerConfig(player_idx=1, type=non_robust, control_cost_weight=2.0), # Attacker
+        2 => PlayerConfig(player_idx=2, type=robust, control_cost_weight=0.5)      # Defender
     )
     
     # Hockey Specific

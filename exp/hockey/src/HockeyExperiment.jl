@@ -77,19 +77,19 @@ function run_receding_horizon_trial(params::HockeyParams; override::Bool=false, 
     
     # Costs
     attacker_cost_fn = BeliefCost(
-        (bs, us) -> attacker_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us; explicit_covariance=false),
-        (bs) -> attacker_terminal_cost(bs.beliefs[1], bs.beliefs[2])
+        (bs, us) -> attacker_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us, params; explicit_covariance=false),
+        (bs) -> attacker_terminal_cost(bs.beliefs[1], bs.beliefs[2], params)
     )
     
-    # Pass control_cost_weight to defender cost
+    # Pass params to defender cost
     defender_cost_fn = BeliefCost(
-        (bs, us) -> defender_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=false, control_cost_weight=defender_config.control_cost_weight),
-        (bs) -> defender_terminal_cost(bs.beliefs[3], bs.beliefs[4])
+        (bs, us) -> defender_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us, params; explicit_covariance=false),
+        (bs) -> defender_terminal_cost(bs.beliefs[3], bs.beliefs[4], params)
     )
     
     nature_cost_fn = BeliefCost(
-        (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us; explicit_covariance=false),
-        (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4])
+        (bs, us) -> nature_non_terminal_cost(bs.beliefs[3], bs.beliefs[4], us, params; explicit_covariance=false),
+        (bs) -> nature_terminal_cost(bs.beliefs[3], bs.beliefs[4], params)
     )
     
     costs = if defender_config.type == robust
