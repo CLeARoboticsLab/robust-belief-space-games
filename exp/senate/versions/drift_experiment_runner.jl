@@ -230,29 +230,31 @@ function run_obstacle_blocking(override=false;)
 end
 
 # V1: Fast weight sweep at a single, deeper-in-corridor obstacle location.
-# Purpose: quickly see how 0 vs 16 vs 128 changes behavior without confounding position.
+# Purpose: quickly see how obstacle weight changes behavior.
+# Model mismatch: GT has drift, P2 underestimates it (thinks P1 has no drift)
 function run_obstacle_blocking_v1_weight_sweep(override=false;)
     senator_ground_truths = [
-        # pick one representative GT to reduce runtime
         mortar([[0.75, 0.75], [2.0, 0.5], [1.0, 1.75]]),
     ]
 
     nature_multiplier_values = [0.5]
-    p2_belief_drift = [50.0]
     dynamics_types = [:default]
     dt_values = [0.75]
 
-    # moved deeper into corridor vs ~[1.25..1.5, ~1.0]
+    # Ground truth drift values (reality is drifty)
+    gt_drift_values = [5.0, 10.0]
+    # P2 underestimates P1's drift (thinks it's 0)
+    p2_belief_drift = [0.0]
+
     obstacle_centers = [
         mortar([[[1.78, 1.00]]]),
     ]
 
-    # requested larger weights (ordering preserved)
-    obstacle_weights = [8.0, 4.0]
+    obstacle_weights = [4.0, 8.0]
 
     run_asymmetric_experiment(
         p1_type=[non_robust],
-        p2_type=[non_robust, robust],  # keep a small baseline comparison
+        p2_type=[non_robust, robust],
         p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
         p1_obstacle_centers=obstacle_centers,
@@ -260,6 +262,7 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p1_ellipsoidal_cost_weight=0.5,
         p1_obstacle_cost_function=obstacle_cost,
         dynamics_model_template=dynamics_types,
+        gt_drift_sensor_scale=gt_drift_values,
         p2_believes_p1_drift_sensor_scale=p2_belief_drift,
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
@@ -276,29 +279,34 @@ end
 
 
 # V2: Fast position sweep (3 positions) at a fixed high weight.
-# Purpose: find where “further into trajectory” blocks best, without sweeping weights.
+# Purpose: find where "further into trajectory" blocks best.
+# Model mismatch: GT has drift, P2 underestimates it (thinks P1 has no drift)
 function run_obstacle_blocking_v2_position_sweep(override=false;)
     senator_ground_truths = [
         mortar([[0.75, 0.75], [2.0, 0.5], [1.0, 1.75]]),
     ]
 
     nature_multiplier_values = [0.5]
-    p2_belief_drift = [50.0]
     dynamics_types = [:default]
     dt_values = [0.75]
 
-    # three deeper-in-corridor placements (tighter than your earlier spread)
+    # Ground truth drift values (reality is drifty)
+    gt_drift_values = [5.0, 10.0]
+    # P2 underestimates P1's drift (thinks it's 0)
+    p2_belief_drift = [0.0]
+
+    # three deeper-in-corridor placements
     obstacle_centers = [
         mortar([[[1.70, 0.95]]]),
         mortar([[[1.82, 1.00]]]),
         mortar([[[1.92, 1.05]]]),
     ]
 
-    obstacle_weights = [8.0, 4.0]  # fixed high weight for speed
+    obstacle_weights = [6.0]
 
     run_asymmetric_experiment(
         p1_type=[non_robust],
-        p2_type=[non_robust, robust],  # fastest: one p2 type
+        p2_type=[non_robust, robust],
         p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
         p1_obstacle_centers=obstacle_centers,
@@ -306,6 +314,7 @@ function run_obstacle_blocking_v2_position_sweep(override=false;)
         p1_ellipsoidal_cost_weight=0.5,
         p1_obstacle_cost_function=obstacle_cost,
         dynamics_model_template=dynamics_types,
+        gt_drift_sensor_scale=gt_drift_values,
         p2_believes_p1_drift_sensor_scale=p2_belief_drift,
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
@@ -321,20 +330,24 @@ function run_obstacle_blocking_v2_position_sweep(override=false;)
 end
 
 
-# V3: Single “wall/cluster” obstacle configuration deeper in the corridor.
-# Purpose: emulate your multi-center orange cluster, but shifted right and run as one config.
+# V3: Single "wall/cluster" obstacle configuration deeper in the corridor.
+# Purpose: multi-center diagonal wall blocking the main corridor.
+# Model mismatch: GT has drift, P2 underestimates it (thinks P1 has no drift)
 function run_obstacle_blocking_v3_cluster_wall(override=false;)
     senator_ground_truths = [
         mortar([[0.75, 0.75], [2.0, 0.5], [1.0, 1.75]]),
     ]
 
     nature_multiplier_values = [0.5]
-    p2_belief_drift = [50.0]
     dynamics_types = [:default]
     dt_values = [0.75]
 
-    # One run: multiple centers forming a diagonal “wall” in the main corridor, shifted right.
-    # Adjust these 4 points if you want the barrier steeper/flatter.
+    # Ground truth drift values (reality is drifty)
+    gt_drift_values = [5.0, 10.0]
+    # P2 underestimates P1's drift (thinks it's 0)
+    p2_belief_drift = [0.0]
+
+    # Multiple centers forming a diagonal "wall" in the main corridor
     obstacle_centers = [
         mortar([[[1.72, 0.92],
                  [1.80, 0.98],
@@ -342,7 +355,7 @@ function run_obstacle_blocking_v3_cluster_wall(override=false;)
                  [1.96, 1.10]]]),
     ]
 
-    obstacle_weights = [8.0, 4.0]  # heavy and fast (no sweep)
+    obstacle_weights = [6.0]
 
     run_asymmetric_experiment(
         p1_type=[non_robust],
@@ -354,6 +367,7 @@ function run_obstacle_blocking_v3_cluster_wall(override=false;)
         p1_ellipsoidal_cost_weight=0.5,
         p1_obstacle_cost_function=obstacle_cost,
         dynamics_model_template=dynamics_types,
+        gt_drift_sensor_scale=gt_drift_values,
         p2_believes_p1_drift_sensor_scale=p2_belief_drift,
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,

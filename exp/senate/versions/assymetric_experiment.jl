@@ -167,15 +167,17 @@ function build_asymmetric_player_configs(combo, fixed_params)
     # --- Asymmetric Beliefs ---
     # Player 1's beliefs
     p1_belief_about_p2 = deepcopy(p2_config)
-    if haskey(combo, :p1_believes_p2_drift_sensor_scale)
-        p1_belief_about_p2.drift_sensor_scale = combo[:p1_believes_p2_drift_sensor_scale]
-    end
+    # TODO: p1_believes_p2_drift_sensor_scale not yet implemented (needs parsing + sensor model template setting)
+    # if haskey(combo, :p1_believes_p2_drift_sensor_scale)
+    #     p1_belief_about_p2.drift_sensor_scale = combo[:p1_believes_p2_drift_sensor_scale]
+    # end
     p1_belief_about_p2.type = non_robust
 
     p1_belief_about_self = deepcopy(p1_config)
-    if haskey(combo, :p1_believes_self_drift_sensor_scale)
-        p1_belief_about_self.drift_sensor_scale = combo[:p1_believes_self_drift_sensor_scale]
-    end
+    # TODO: p1_believes_self_drift_sensor_scale not yet implemented
+    # if haskey(combo, :p1_believes_self_drift_sensor_scale)
+    #     p1_belief_about_self.drift_sensor_scale = combo[:p1_believes_self_drift_sensor_scale]
+    # end
 
     p1_beliefs = Dict(
         1 => p1_belief_about_self,
@@ -367,7 +369,7 @@ function run_asymmetric_experiment(;
     attraction_matrix = nothing,
 
     # Asymmetric belief parameters
-    p1_believes_p2_drift_sensor_scale = nothing,
+    # p1_believes_p2_drift_sensor_scale = nothing,  # TODO: not yet implemented
     p2_believes_p1_drift_sensor_scale = nothing,
     p2_believes_p1_sensor_model = nothing,
 
