@@ -52,7 +52,7 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
     
     warm_starts = Dict{Int, Any}(idx => nothing for idx in player_indices)
     plan_cost_history = Dict(idx => Any[] for idx in player_indices)
-    incurred_cost_history = Dict(idx => Float64[] for idx in player_indices)
+    incurred_cost_history = Dict(idx => Any[] for idx in player_indices)
 
     Random.seed!(params.random_seed)
 
@@ -162,15 +162,18 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
         # Compute incurred cost for each player on actual executed state
         deterministic_beliefs = Beliefs([
             Belief(block, zeros(length(block), length(block)))
-            for block in current_gt_state.blocks
+            for _ in player_indices for block in current_gt_state.blocks
         ])
         for player_idx in player_indices
             config = params.player_configs[player_idx]
             if config.type == nature
                 continue
             end
-            non_terminal_cost = config.self_non_terminal_cost_model(deterministic_beliefs, merged_controls)
-            push!(incurred_cost_history[player_idx], non_terminal_cost)
+            non_terminal_cost_deterministic = config.self_non_terminal_cost_model(deterministic_beliefs, merged_controls)
+            non_terminal_cost = config.self_non_terminal_cost_model(current_beliefs, merged_controls)
+            sample_terminal_cost_deterministic = config.self_terminal_cost_model(deterministic_beliefs)
+            sample_terminal_cost = config.self_terminal_cost_model(current_beliefs)
+            push!(incurred_cost_history[player_idx], (non_terminal_cost, non_terminal_cost_deterministic, sample_terminal_cost, sample_terminal_cost_deterministic))
         end
 
         observations = [
@@ -186,15 +189,16 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
     # Add terminal cost at the end
     final_deterministic_beliefs = Beliefs([
         Belief(block, zeros(length(block), length(block)))
-        for block in current_gt_state.blocks
+        for _ in player_indices for block in current_gt_state.blocks
     ])
     for player_idx in player_indices
         config = params.player_configs[player_idx]
         if config.type == nature
             continue
         end
-        terminal_cost = config.self_terminal_cost_model(final_deterministic_beliefs)
-        push!(incurred_cost_history[player_idx], terminal_cost)
+        terminal_cost_deterministic = config.self_terminal_cost_model(final_deterministic_beliefs)
+        terminal_cost = config.self_terminal_cost_model(current_beliefs)
+        push!(incurred_cost_history[player_idx], (terminal_cost, terminal_cost_deterministic, terminal_cost, terminal_cost_deterministic))
     end
 
     # --- Package Results ---

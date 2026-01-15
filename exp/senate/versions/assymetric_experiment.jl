@@ -3,11 +3,6 @@ using Senate
 using BlockArrays
 using Infiltrator
 using Base.Threads
-#Sample Step Functions
-const STEP_ADD = n -> (x -> x + n)
-const STEP_MULTIPLY = n -> (x -> n * x)
-const STEP_MULTIPLY_CEIL = n -> (x -> ceil(Int, n * x))
-const STEP_POWER = n -> (x -> x^n)
 
 function generate_range(param_spec)
     if param_spec isa Tuple && length(param_spec) == 3
@@ -412,8 +407,11 @@ function run_asymmetric_experiment(;
     end
     
     if !isnothing(p1_obstacle_centers)
-        @assert p1_obstacle_centers isa Vector{<:Vector{<:Real}} "p1_obstacle_centers must be Vector{Vector{Real}}"
-        fixed_params[:p1_obstacle_centers] = p1_obstacle_centers
+        if p1_obstacle_centers isa Vector{<:Vector{<:Real}} || p1_obstacle_centers isa Array{<:Vector{<:Real}}
+            fixed_params[:p1_obstacle_centers] = p1_obstacle_centers
+        else
+            param_variations[:p1_obstacle_centers] = collect(p1_obstacle_centers)
+        end
     end
     
     if !isnothing(p1_obstacle_weights)
