@@ -264,7 +264,7 @@ function build_senate_params(combo, fixed_params, player_configs)
     # Add experiment parameters
     for (key, value) in combo
         if !startswith(String(key), "p1_") && !startswith(String(key), "p2_") && !startswith(String(key), "p1_believes") && !startswith(String(key), "p2_believes")
-            if key in [:dynamics_model_template]
+            if key in [:dynamics_model_template, :gt_drift_sensor_scale, :gt_drift_dynamics_scale]
                 continue
             end
             senate_kwargs[key] = value
@@ -312,13 +312,18 @@ function build_senate_params(combo, fixed_params, player_configs)
         end
         senate_kwargs[:ground_truth_dynamics_configs] = gt_dynamics_configs
     end
-    if haskey(fixed_params, :gt_drift_sensor_scale)
+    # Check combo first (for variations), then fixed_params
+    gt_sensor_drift_val = haskey(combo, :gt_drift_sensor_scale) ? combo[:gt_drift_sensor_scale] : get(fixed_params, :gt_drift_sensor_scale, nothing)
+    if !isnothing(gt_sensor_drift_val)
         gt_sensor_configs = Dict(
             1 => DefaultPlayerConfig(player_idx=1, type=ground_truth_config),
             2 => DefaultPlayerConfig(player_idx=2, type=ground_truth_config),
         )
         for (_, config) in gt_sensor_configs
-            config.drift_sensor_scale = fixed_params[:gt_drift_sensor_scale]
+            config.drift_sensor_scale = gt_sensor_drift_val
+            # Must set sensor model template to one that uses drift_sensor_scale
+            config.self_sensor_model_template = covariance_drift_sensor_model
+            Senate._populate_configs!(config, force=true)
         end
         senate_kwargs[:ground_truth_sensor_configs] = gt_sensor_configs
     end
@@ -654,7 +659,16 @@ function run_asymmetric_experiment(;
         fixed_params[:gt_drift_dynamics_scale] = gt_drift_dynamics_scale
     end
     if !isnothing(gt_drift_sensor_scale)
-        fixed_params[:gt_drift_sensor_scale] = gt_drift_sensor_scale
+        if gt_drift_sensor_scale isa AbstractArray || gt_drift_sensor_scale isa AbstractVector
+            values = collect(gt_drift_sensor_scale)
+            if length(values) == 1
+                fixed_params[:gt_drift_sensor_scale] = values[1]
+            else
+                param_variations[:gt_drift_sensor_scale] = values
+            end
+        else
+            fixed_params[:gt_drift_sensor_scale] = gt_drift_sensor_scale
+        end
     end
     if !isnothing(ground_truth_initial_states)
         if ground_truth_initial_states isa AbstractArray || ground_truth_initial_states isa AbstractVector
