@@ -1345,28 +1345,63 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     scatter!(ax, p1_points, color=point_colors, markersize=8, visible=show_p1_planned_trajectory)
     scatter!(ax, p2_points, color=point_colors, markersize=8, visible=show_p2_planned_trajectory)
     # Compute component costs for all shown trials, using lifted observables
-    p1_total_costs = @lift [[c.total for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
-    p1_terminal_costs = @lift [[c.terminal for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
-    p1_non_terminal_costs = @lift [[c.non_terminal for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
+    # Note: c.total, c.terminal, c.non_terminal are vectors [p1_cost, p2_cost, nature_cost?]
+    # We extract index [1] for P1's costs, index [2] for P2's costs
+    p1_total_costs = @lift [[c.total[1] for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
+    p1_terminal_costs = @lift [[c.terminal[1] for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
+    p1_non_terminal_costs = @lift [[c.non_terminal[1] for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
 
-    p2_total_costs = @lift [[c.total for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
-    p2_terminal_costs = @lift [[c.terminal for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
-    p2_non_terminal_costs = @lift [[c.non_terminal for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
+    p2_total_costs = @lift [[c.total[2] for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
+    p2_terminal_costs = @lift [[c.terminal[2] for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
+    p2_non_terminal_costs = @lift [[c.non_terminal[2] for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
 
     # Incurred costs (safe fallback for older data without incurred_cost_history)
-    p1_incurred_costs = @lift [
-        haskey(sol, :incurred_cost_history) ? sol.incurred_cost_history : Float64[]
-        for sol in values($p1_sols)
-    ]
-    p2_incurred_costs = @lift [
-        haskey(sol, :incurred_cost_history) ? sol.incurred_cost_history : Float64[]
-        for sol in values($p2_sols)
-    ]
+    # Note: incurred_cost_history contains tuples of (non_terminal, non_terminal_det, terminal, terminal_det)
+    # t[1] = stochastic non-terminal (at estimated beliefs with cov)
+    # t[2] = deterministic non-terminal (at GT state with zero cov) <-- "true" incurred cost
+
+    # Helper to extract incurred costs from solutions
+    function extract_incurred_costs(sols_dict, tuple_idx, label)
+        result = []
+        keys_list = []
+        for (key, sol) in sols_dict
+            push!(keys_list, key)
+            if hasproperty(sol, :incurred_cost_history)
+                ich = sol.incurred_cost_history
+                if !isempty(ich)
+                    costs = [t[tuple_idx] for t in ich]
+                    println("DEBUG $label[$key]: $(length(costs)) entries, sum=$(sum(to_scalar_cost.(costs)))")
+                    push!(result, costs)
+                else
+                    push!(result, Float64[])
+                end
+            else
+                push!(result, Float64[])
+            end
+        end
+        (result, keys_list)
+    end
+
+    # Stochastic incurred costs (t[1]) - at estimated beliefs with covariance
+    p1_incurred_costs = @lift extract_incurred_costs($p1_sols, 1, "p1_inc_stoch")[1]
+    p2_incurred_costs = @lift extract_incurred_costs($p2_sols, 1, "p2_inc_stoch")[1]
+
+    # Deterministic incurred costs (t[2]) - non-terminal at GT state with zero covariance
+    p1_incurred_det_costs = @lift extract_incurred_costs($p1_sols, 2, "p1_inc_det")[1]
+    p2_incurred_det_costs = @lift extract_incurred_costs($p2_sols, 2, "p2_inc_det")[1]
+
+    # Terminal incurred costs (t[4]) - terminal at GT state with zero covariance
+    p1_incurred_term_det_costs = @lift extract_incurred_costs($p1_sols, 4, "p1_inc_term_det")[1]
+    p2_incurred_term_det_costs = @lift extract_incurred_costs($p2_sols, 4, "p2_inc_term_det")[1]
+
+    # Also extract keys for per-trial labeling
+    incurred_keys = @lift extract_incurred_costs($p1_sols, 1, "keys")[2]
 
     # Create graphs once during setup with reactive data
+    # Graph 1: Planned costs + deterministic incurred (true cost on GT trajectory)
     add_multi_line_graph!(fig;
-        full_series=[p1_total_costs, p2_total_costs, p1_incurred_costs, p2_incurred_costs],
-        labels=["p1 planned", "p2 planned", "p1 incurred", "p2 incurred"],
+        full_series=[p1_total_costs, p2_total_costs, p1_incurred_det_costs, p2_incurred_det_costs],
+        labels=["p1 planned", "p2 planned", "p1 inc(GT)", "p2 inc(GT)"],
         current_time_step=current_time_step,
         title="Cost Over Time",
         ylabel="cost",
@@ -1375,17 +1410,24 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         selection_observable=exp_trial_pairs
     )
 
+    # Graph 2: All 8 cost components (planned + incurred, non-terminal + terminal, P1 + P2)
     add_multi_line_graph!(fig;
-        full_series=[p1_terminal_costs, p1_non_terminal_costs, p2_terminal_costs, p2_non_terminal_costs],
-        labels=["p1 terminal", "p1 non-terminal", "p2 terminal", "p2 non-terminal"],
+        full_series=[
+            p1_non_terminal_costs, p1_terminal_costs,           # P1 planned
+            p1_incurred_det_costs, p1_incurred_term_det_costs,  # P1 incurred (GT)
+            p2_non_terminal_costs, p2_terminal_costs,           # P2 planned
+            p2_incurred_det_costs, p2_incurred_term_det_costs   # P2 incurred (GT)
+        ],
+        labels=["p1 pl.nt", "p1 pl.t", "p1 in.nt", "p1 in.t", "p2 pl.nt", "p2 pl.t", "p2 in.nt", "p2 in.t"],
         current_time_step=current_time_step,
-        title="Component Cost Over Time",
+        title="Cost Components (pl=planned, in=incurred, nt=non-term, t=term)",
         ylabel="cost",
         scalarizer = to_scalar_cost,
         loc=(2,3),
         selection_observable=exp_trial_pairs
     )
     colsize!(fig.layout, 3, Relative(0.20))  # 1:3:1 ratio - right column
+
 
 
 
@@ -1439,14 +1481,35 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     on(show_p2_planned_trajectory) do _; rebuild_center_legend!(); end
     on(show_executed_trajectory) do _; rebuild_center_legend!(); end
 
-    # ===== TEMPORARY DEBUG CIRCLE =====
-    # Draw a circle at (1.7, 1.7) for debugging obstacle cost visualization
-    # This matches the obstacle center used in drift_experiment_runner.jl
-    debug_obstacle_center = [1.7, 1.7]
-    debug_circle_radius = 0.1  # Small radius for visibility
-    plot_ellipse!(ax, debug_obstacle_center, debug_circle_radius, debug_circle_radius, 
-                  label="Debug Obstacle", color=color_with_alpha(:orange, 0.8))
-    # ===== END TEMPORARY DEBUG CIRCLE =====
+    # ===== OBSTACLE VISUALIZATION =====
+    # Draw obstacles from experiment params (P1's obstacle centers)
+    obstacle_plots = Any[]
+
+    on(exp_trial_pairs) do pairs
+        # Clear previous obstacle plots
+        for plot in obstacle_plots
+            delete!(ax, plot)
+        end
+        empty!(obstacle_plots)
+
+        # Draw obstacles for first selected trial (they should all have same obstacles)
+        if !isempty(pairs)
+            first_key = first(pairs)
+            if haskey(params_dict[], first_key)
+                trial_params = params_dict[][first_key]
+                p1_config = trial_params.player_configs[1]
+                if hasproperty(p1_config, :obstacle_centers) && !isempty(p1_config.obstacle_centers)
+                    for center in p1_config.obstacle_centers
+                        println("DEBUG: Drawing obstacle at $center")
+                        plot = plot_ellipse!(ax, center, 0.1, 0.1,
+                                            label="Obstacle", color=color_with_alpha(:orange, 0.8))
+                        push!(obstacle_plots, plot)
+                    end
+                end
+            end
+        end
+    end
+    # ===== END OBSTACLE VISUALIZATION =====
 end
 
 # ---- Optional: convert complex "cost" objects to scalars ----
