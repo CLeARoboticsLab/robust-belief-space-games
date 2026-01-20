@@ -241,11 +241,11 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
     dynamics_types = [:default]
     dt_values = [0.75]
 
-    # Ground truth drift values (reality is drifty)
-    gt_drift_values = [5.0, 10.0]
+    # Ground truth drift (reality)
+    gt_drift_values = [10.0]
     # P1 correctly knows its own drift (same as GT)
-    p1_self_drift_values = [5.0, 10.0]
-    # P2 belief: 0 for mismatch, same as GT for control
+    p1_self_drift_values = [10.0]
+    # P2 belief: 0 for mismatch, 10 for control (matches GT)
     p2_belief_drift = [0.0, 10.0]
 
     obstacle_centers = [
@@ -293,12 +293,12 @@ function run_obstacle_blocking_v2_position_sweep(override=false;)
     dynamics_types = [:default]
     dt_values = [0.75]
 
-    # Ground truth drift values (reality is drifty)
-    gt_drift_values = [5.0, 10.0]
+    # Ground truth drift (reality)
+    gt_drift_values = [10.0]
     # P1 correctly knows its own drift (same as GT)
-    p1_self_drift_values = [5.0, 10.0]
-    # P2 belief: 0 for mismatch, same as GT for control
-    p2_belief_drift = [0.0, 5.0]
+    p1_self_drift_values = [10.0]
+    # P2 belief: 0 for mismatch, 10 for control (matches GT)
+    p2_belief_drift = [0.0, 10.0]
 
     # three deeper-in-corridor placements
     obstacle_centers = [
@@ -348,12 +348,12 @@ function run_obstacle_blocking_v3_cluster_wall(override=false;)
     dynamics_types = [:default]
     dt_values = [0.75]
 
-    # Ground truth drift values (reality is drifty)
-    gt_drift_values = [5.0, 10.0]
+    # Ground truth drift (reality)
+    gt_drift_values = [10.0]
     # P1 correctly knows its own drift (same as GT)
-    p1_self_drift_values = [5.0, 10.0]
-    # P2 belief: 0 for mismatch, same as GT for control
-    p2_belief_drift = [0.0, 5.0]
+    p1_self_drift_values = [10.0]
+    # P2 belief: 0 for mismatch, 10 for control (matches GT)
+    p2_belief_drift = [0.0, 10.0]
 
     # Multiple centers forming a diagonal "wall" in the main corridor
     obstacle_centers = [
