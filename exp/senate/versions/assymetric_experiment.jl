@@ -167,17 +167,27 @@ function build_asymmetric_player_configs(combo, fixed_params)
     # --- Asymmetric Beliefs ---
     # Player 1's beliefs
     p1_belief_about_p2 = deepcopy(p2_config)
-    # TODO: p1_believes_p2_drift_sensor_scale not yet implemented (needs parsing + sensor model template setting)
-    # if haskey(combo, :p1_believes_p2_drift_sensor_scale)
-    #     p1_belief_about_p2.drift_sensor_scale = combo[:p1_believes_p2_drift_sensor_scale]
-    # end
+    if haskey(combo, :p1_believes_p2_drift_sensor_scale)
+        p1_belief_about_p2.drift_sensor_scale = combo[:p1_believes_p2_drift_sensor_scale]
+        # Automatically set sensor model based on drift value
+        if combo[:p1_believes_p2_drift_sensor_scale] == 0.0
+            p1_belief_about_p2.self_sensor_model_template = base_sensor_model
+        else
+            p1_belief_about_p2.self_sensor_model_template = covariance_drift_sensor_model
+        end
+    end
     p1_belief_about_p2.type = non_robust
 
     p1_belief_about_self = deepcopy(p1_config)
-    # TODO: p1_believes_self_drift_sensor_scale not yet implemented
-    # if haskey(combo, :p1_believes_self_drift_sensor_scale)
-    #     p1_belief_about_self.drift_sensor_scale = combo[:p1_believes_self_drift_sensor_scale]
-    # end
+    if haskey(combo, :p1_believes_self_drift_sensor_scale)
+        p1_belief_about_self.drift_sensor_scale = combo[:p1_believes_self_drift_sensor_scale]
+        # Automatically set sensor model based on drift value
+        if combo[:p1_believes_self_drift_sensor_scale] == 0.0
+            p1_belief_about_self.self_sensor_model_template = base_sensor_model
+        else
+            p1_belief_about_self.self_sensor_model_template = covariance_drift_sensor_model
+        end
+    end
 
     p1_beliefs = Dict(
         1 => p1_belief_about_self,
@@ -207,9 +217,20 @@ function build_asymmetric_player_configs(combo, fixed_params)
     end
     p2_belief_about_p1.type = non_robust
 
+    p2_belief_about_self = deepcopy(p2_config)
+    if haskey(combo, :p2_believes_self_drift_sensor_scale)
+        p2_belief_about_self.drift_sensor_scale = combo[:p2_believes_self_drift_sensor_scale]
+        # Automatically set sensor model based on drift value
+        if combo[:p2_believes_self_drift_sensor_scale] == 0.0
+            p2_belief_about_self.self_sensor_model_template = base_sensor_model
+        else
+            p2_belief_about_self.self_sensor_model_template = covariance_drift_sensor_model
+        end
+    end
+
     p2_beliefs = Dict(
         1 => p2_belief_about_p1,
-        2 => deepcopy(p2_config)
+        2 => p2_belief_about_self
     )
     if p2_config.type == robust
         nature_idx = max(keys(p2_beliefs)...) + 1
@@ -374,7 +395,9 @@ function run_asymmetric_experiment(;
     attraction_matrix = nothing,
 
     # Asymmetric belief parameters
-    # p1_believes_p2_drift_sensor_scale = nothing,  # TODO: not yet implemented
+    p1_believes_self_drift_sensor_scale = nothing,
+    p1_believes_p2_drift_sensor_scale = nothing,
+    p2_believes_self_drift_sensor_scale = nothing,
     p2_believes_p1_drift_sensor_scale = nothing,
     p2_believes_p1_sensor_model = nothing,
 
@@ -614,6 +637,15 @@ function run_asymmetric_experiment(;
         fixed_params[:attraction_matrix] = attraction_matrix
     end
     
+    if !isnothing(p1_believes_self_drift_sensor_scale)
+        param_variations[:p1_believes_self_drift_sensor_scale] = generate_range(p1_believes_self_drift_sensor_scale)
+    end
+    if !isnothing(p1_believes_p2_drift_sensor_scale)
+        param_variations[:p1_believes_p2_drift_sensor_scale] = generate_range(p1_believes_p2_drift_sensor_scale)
+    end
+    if !isnothing(p2_believes_self_drift_sensor_scale)
+        param_variations[:p2_believes_self_drift_sensor_scale] = generate_range(p2_believes_self_drift_sensor_scale)
+    end
     if !isnothing(p2_believes_p1_drift_sensor_scale)
         param_variations[:p2_believes_p1_drift_sensor_scale] = generate_range(p2_believes_p1_drift_sensor_scale)
     end
@@ -724,7 +756,8 @@ function run_asymmetric_experiment(;
     if !isempty(param_keys)
         println("\nParameter variations:")
         for key in param_keys
-            println("  $key: $(length(param_variations[key])) value(s)")
+            vals = param_variations[key]
+            println("  $key: $(length(vals)) value(s) → $vals")
         end
     end
     if !isempty(fixed_params)

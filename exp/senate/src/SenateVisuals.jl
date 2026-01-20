@@ -179,7 +179,7 @@ function parse_experiment_name(exp_name::String)
     parts = split(exp_name, "_")
     
     # Define known parameter keys to identify where the parameters start
-    known_keys = ["p1t", "p2t", "p1nm", "p2nm", "dmt", "p1bpdss", "p2bpdss", "p1ow", "gtis", "h"]
+    known_keys = ["p1t", "p2t", "p1nm", "p2nm", "dmt", "p1bpdss", "p2bpdss", "p1ow", "gtis", "gdss", "h"]
     
     key_indices = findall(part -> part in known_keys, parts)
     
@@ -381,6 +381,7 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         "p2bpdss" => "P2 Belief Drift",
         "p1ow" => "P1 Obstacle Weight",
         "gtis" => "Ground Truth",
+        "gdss" => "GT Drift Std",
         "h" => "Horizon",
         "p1t" => "P1 Type"
     )

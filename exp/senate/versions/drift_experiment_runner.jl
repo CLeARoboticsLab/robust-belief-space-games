@@ -243,8 +243,10 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
 
     # Ground truth drift values (reality is drifty)
     gt_drift_values = [5.0, 10.0]
-    # P2 underestimates P1's drift (thinks it's 0)
-    p2_belief_drift = [0.0]
+    # P1 correctly knows its own drift (same as GT)
+    p1_self_drift_values = [5.0, 10.0]
+    # P2 belief: 0 for mismatch, same as GT for control
+    p2_belief_drift = [0.0, 10.0]
 
     obstacle_centers = [
         mortar([[[1.78, 1.00]]]),
@@ -263,6 +265,7 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p1_obstacle_cost_function=obstacle_cost,
         dynamics_model_template=dynamics_types,
         gt_drift_sensor_scale=gt_drift_values,
+        p1_believes_self_drift_sensor_scale=p1_self_drift_values,
         p2_believes_p1_drift_sensor_scale=p2_belief_drift,
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
@@ -292,8 +295,10 @@ function run_obstacle_blocking_v2_position_sweep(override=false;)
 
     # Ground truth drift values (reality is drifty)
     gt_drift_values = [5.0, 10.0]
-    # P2 underestimates P1's drift (thinks it's 0)
-    p2_belief_drift = [0.0]
+    # P1 correctly knows its own drift (same as GT)
+    p1_self_drift_values = [5.0, 10.0]
+    # P2 belief: 0 for mismatch, same as GT for control
+    p2_belief_drift = [0.0, 5.0]
 
     # three deeper-in-corridor placements
     obstacle_centers = [
@@ -315,6 +320,7 @@ function run_obstacle_blocking_v2_position_sweep(override=false;)
         p1_obstacle_cost_function=obstacle_cost,
         dynamics_model_template=dynamics_types,
         gt_drift_sensor_scale=gt_drift_values,
+        p1_believes_self_drift_sensor_scale=p1_self_drift_values,
         p2_believes_p1_drift_sensor_scale=p2_belief_drift,
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
@@ -344,8 +350,10 @@ function run_obstacle_blocking_v3_cluster_wall(override=false;)
 
     # Ground truth drift values (reality is drifty)
     gt_drift_values = [5.0, 10.0]
-    # P2 underestimates P1's drift (thinks it's 0)
-    p2_belief_drift = [0.0]
+    # P1 correctly knows its own drift (same as GT)
+    p1_self_drift_values = [5.0, 10.0]
+    # P2 belief: 0 for mismatch, same as GT for control
+    p2_belief_drift = [0.0, 5.0]
 
     # Multiple centers forming a diagonal "wall" in the main corridor
     obstacle_centers = [
@@ -368,6 +376,7 @@ function run_obstacle_blocking_v3_cluster_wall(override=false;)
         p1_obstacle_cost_function=obstacle_cost,
         dynamics_model_template=dynamics_types,
         gt_drift_sensor_scale=gt_drift_values,
+        p1_believes_self_drift_sensor_scale=p1_self_drift_values,
         p2_believes_p1_drift_sensor_scale=p2_belief_drift,
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
