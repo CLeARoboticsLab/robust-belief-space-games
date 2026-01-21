@@ -349,7 +349,33 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     p2_sols = @lift Dict(k => $solutions[k][2] for k in keys($solutions))
     dims_dict = @lift Dict(k => Senate.dims($cost_params[k]) for k in keys($cost_params))
     params_dict = @lift Dict(k => $cost_params[k] for k in keys($cost_params))
-    
+
+    # Debug: print parameters when trials are selected
+    on(params_dict) do pd
+        for (trial_key, p) in pd
+            println("\n" * "="^60)
+            println("Parameters for: $trial_key")
+            println("="^60)
+            for (idx, cfg) in p.player_configs
+                println("\nPlayer $idx ($(cfg.type)):")
+                println("  drift_sensor_scale:     $(cfg.drift_sensor_scale)")
+                println("  sensor_noise_scale:     $(cfg.sensor_noise_scale)")
+                println("  covariance_weight:      $(cfg.covariance_weight)")
+                println("  ellipsoidal_cost_weight: $(cfg.ellipsoidal_cost_weight)")
+                println("  control_cost_weight:    $(cfg.control_cost_weight)")
+                println("  obstacle_weights:       $(cfg.obstacle_weights)")
+                println("  obstacle_centers:       $(cfg.obstacle_centers)")
+                println("  nature_multiplier:      $(cfg.nature_multiplier)")
+                if !isempty(cfg.other_player_configs)
+                    println("  --- Beliefs about others ---")
+                    for (other_idx, other_cfg) in cfg.other_player_configs
+                        println("    About Player $other_idx: drift_sensor_scale=$(other_cfg.drift_sensor_scale)")
+                    end
+                end
+            end
+        end
+    end
+
     # Helper observables for solution history and costs
     p1_solution_history_dict = @lift Dict(k => $p1_sols[k].solution_history for k in keys($p1_sols))
     p2_solution_history_dict = @lift Dict(k => $p2_sols[k].solution_history for k in keys($p2_sols))
@@ -602,6 +628,41 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         end
     end
 
+    # Plot obstacle centers as yellow dots
+    obstacle_plots = Dict{Tuple{String, String}, Vector{Any}}()
+
+    on(exp_trial_pairs) do pairs
+        # Clear all previous obstacle plots
+        for plots in values(obstacle_plots)
+            for plot in plots
+                delete!(ax, plot)
+            end
+        end
+        empty!(obstacle_plots)
+
+        # Create obstacle scatter plots for currently selected trials
+        for trial_key in pairs
+            if !haskey(params_dict[], trial_key)
+                continue
+            end
+            trial_params = params_dict[][trial_key]
+            plot_list = Any[]
+            # Get obstacle centers from first activist's config (they should be the same for all)
+            if !isempty(trial_params.player_configs)
+                params = trial_params.player_configs[1]
+                for obstacle_center in params.obstacle_centers
+                    # Skip default/placeholder obstacle at origin
+                    if obstacle_center != [0.0, 0.0]
+                        plot = scatter!(ax, [Point2f(obstacle_center[1], obstacle_center[2])],
+                                       color=:yellow, markersize=15, marker=:circle, strokewidth=2, strokecolor=:black)
+                        push!(plot_list, plot)
+                    end
+                end
+            end
+            obstacle_plots[trial_key] = plot_list
+        end
+    end
+
     min_num_senators = @lift isempty($dims_dict) ? 0 : minimum(d.num_senators for d in values($dims_dict))
     min_num_activists = @lift isempty($dims_dict) ? 0 : minimum(d.num_activists for d in values($dims_dict))
     point_colors = @lift begin
@@ -684,21 +745,13 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     
     # Function to update trajectory plots
     function update_trajectory_plots(plan_t, curr_t, p1_horizon, p2_horizon, pairs)
-        # println("=== DEBUG update_trajectory_plots START ===")
-        # println("  plan_t=$plan_t, curr_t=$curr_t, p1_horizon=$p1_horizon, p2_horizon=$p2_horizon")
-        # println("  pairs=$(pairs)")
-        # println("  p1_means_trajectory[] keys: $(keys(p1_means_trajectory[]))")
-        # println("  p2_means_trajectory[] keys: $(keys(p2_means_trajectory[]))")
-        # println("  p1_planned_trajectory_plots keys: $(keys(p1_planned_trajectory_plots))")
-        # println("  p2_planned_trajectory_plots keys: $(keys(p2_planned_trajectory_plots))")
-        
+
         # Create plots lazily if they don't exist
         for (exp_name, trial_id) in pairs
             trial_key = (exp_name, trial_id)
             
             # Create P1 plots if they don't exist
             if !haskey(p1_planned_trajectory_plots, trial_key)
-                # println("  Creating P1 plots lazily for trial: $trial_key")
                 p1_dict = Dict{Tuple{Int, Int}, Tuple{Any, Observable{Vector{Point2f}}}}()
                 for activist_id in 1:min_num_activists[]
                     for senator_id in 1:min_num_senators[]
@@ -709,12 +762,10 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
                     end
                 end
                 p1_planned_trajectory_plots[trial_key] = p1_dict
-                # println("    Created P1 plots_dict with $(length(p1_dict)) entries")
             end
             
             # Create P2 plots if they don't exist
             if !haskey(p2_planned_trajectory_plots, trial_key)
-                # println("  Creating P2 plots lazily for trial: $trial_key")
                 p2_dict = Dict{Tuple{Int, Int}, Tuple{Any, Observable{Vector{Point2f}}}}()
                 for activist_id in 1:min_num_activists[]
                     for senator_id in 1:min_num_senators[]
@@ -725,7 +776,6 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
                     end
                 end
                 p2_planned_trajectory_plots[trial_key] = p2_dict
-                # println("    Created P2 plots_dict with $(length(p2_dict)) entries")
             end
         end
         
@@ -734,79 +784,42 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         
         for (exp_name, trial_id) in pairs
             trial_key = (exp_name, trial_id)
-            # println("  Checking P1 trial: $trial_key")
             plots_dict = p1_planned_trajectory_plots[trial_key]
-            # println("    Found plots_dict with $(length(plots_dict)) entries")
             if haskey(p1_means_trajectory[], trial_key)
                 means_traj_p1 = p1_means_trajectory[][trial_key]
-                # println("    Found means_traj_p1: length=$(length(means_traj_p1)), p1_horizon=$p1_horizon, plan_t=$plan_t")
-                # println("    Conditions check: !isempty=$(!isempty(means_traj_p1)), p1_horizon>0=$(p1_horizon > 0), plan_t<=length=$(plan_t <= length(means_traj_p1))")
                 if !isempty(means_traj_p1) && p1_horizon > 0 && plan_t <= length(means_traj_p1)
-                    # println("    Iterating over $(length(plots_dict)) plots in plots_dict")
                     for ((activist_id, senator_id), (_, trajectory_obs)) in plots_dict
                         belief_idx_local = (activist_id-1)*min_num_senators[] + senator_id
-                        # println("      Processing (activist=$activist_id, senator=$senator_id) -> belief_idx=$belief_idx_local")
-                        # println("        blocks length=$(length(means_traj_p1[plan_t].blocks))")
                         if belief_idx_local <= length(means_traj_p1[plan_t].blocks)
                             p1_pts = [Point2f(means_traj_p1[time][Block(belief_idx_local)][1], means_traj_p1[time][Block(belief_idx_local)][2]) for time in 1:p1_horizon]
-                            # println("  DEBUG: Setting P1 trajectory_obs[] for ($activist_id, $senator_id) with $(length(p1_pts)) points")
                             trajectory_obs[] = p1_pts
                             p1_update_count += 1
-                        else
-                            # println("        SKIP: belief_idx_local=$belief_idx_local > length(blocks)=$(length(means_traj_p1[plan_t].blocks))")
                         end
                     end
-                else
-                    # println("    SKIP: Conditions not met")
                 end
-            else
-                # println("    SKIP: !haskey(p1_means_trajectory[], $trial_key)")
             end
         end
         
         for (exp_name, trial_id) in pairs
             trial_key = (exp_name, trial_id)
-            # println("  Checking P2 trial: $trial_key")
             plots_dict = p2_planned_trajectory_plots[trial_key]
-            # println("    Found plots_dict with $(length(plots_dict)) entries")
             if haskey(p2_means_trajectory[], trial_key)
                 means_traj_p2 = p2_means_trajectory[][trial_key]
-                # println("    Found means_traj_p2: length=$(length(means_traj_p2)), p2_horizon=$p2_horizon, plan_t=$plan_t")
-                # println("    Conditions check: !isempty=$(!isempty(means_traj_p2)), p2_horizon>0=$(p2_horizon > 0), plan_t<=length=$(plan_t <= length(means_traj_p2))")
                 if !isempty(means_traj_p2) && p2_horizon > 0 && plan_t <= length(means_traj_p2)
-                    # println("    Iterating over $(length(plots_dict)) plots in plots_dict")
                     for ((activist_id, senator_id), (_, trajectory_obs)) in plots_dict
                         belief_idx_local = (activist_id-1)*min_num_senators[] + senator_id
-                        # println("      Processing (activist=$activist_id, senator=$senator_id) -> belief_idx=$belief_idx_local")
-                        # println("        blocks length=$(length(means_traj_p2[plan_t].blocks))")
                         if belief_idx_local <= length(means_traj_p2[plan_t].blocks)
                             p2_pts = [Point2f(means_traj_p2[time][Block(belief_idx_local)][1], means_traj_p2[time][Block(belief_idx_local)][2]) for time in 1:p2_horizon]
-                            # println("  DEBUG: Setting P2 trajectory_obs[] for ($activist_id, $senator_id) with $(length(p2_pts)) points")
                             trajectory_obs[] = p2_pts
                             p2_update_count += 1
-                        else
-                            # println("        SKIP: belief_idx_local=$belief_idx_local > length(blocks)=$(length(means_traj_p2[plan_t].blocks))")
                         end
                     end
-                else
-                    # println("    SKIP: Conditions not met")
                 end
-            else
-                # println("    SKIP: !haskey(p2_means_trajectory[], $trial_key)")
             end
         end
-        
-        # println("  DEBUG: Updated $p1_update_count P1 trajectories and $p2_update_count P2 trajectories")
-        # println("=== DEBUG update_trajectory_plots END ===\n")
     end
     
     on(exp_trial_pairs) do pairs
-        # println("=== DEBUG on(exp_trial_pairs) START ===")
-        # println("  pairs=$(pairs)")
-        # println("  BEFORE clear: p1_planned_trajectory_plots keys: $(keys(p1_planned_trajectory_plots))")
-        # println("  BEFORE clear: p2_planned_trajectory_plots keys: $(keys(p2_planned_trajectory_plots))")
-        
-        # Clear all previous planned trajectory plots
         for plots_dict in values(p1_planned_trajectory_plots)
             for (plot_handle, _) in values(plots_dict)
                 delete!(ax, plot_handle)
@@ -820,14 +833,9 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         empty!(p1_planned_trajectory_plots)
         empty!(p2_planned_trajectory_plots)
         
-        # println("  AFTER clear: p1_planned_trajectory_plots keys: $(keys(p1_planned_trajectory_plots))")
-        # println("  AFTER clear: p2_planned_trajectory_plots keys: $(keys(p2_planned_trajectory_plots))")
-        # println("  min_num_activists[]=$(min_num_activists[]), min_num_senators[]=$(min_num_senators[])")
-        
         # Create plots and Observables for currently selected trials
         for (exp_name, trial_id) in pairs
             trial_key = (exp_name, trial_id)
-            # println("  Creating plots for trial_key: $trial_key")
             p1_dict = Dict{Tuple{Int, Int}, Tuple{Any, Observable{Vector{Point2f}}}}()
             p2_dict = Dict{Tuple{Int, Int}, Tuple{Any, Observable{Vector{Point2f}}}}()
             
@@ -846,31 +854,15 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
                 end
             end
             
-            # println("  p1_dict has $(length(p1_dict)) entries, p2_dict has $(length(p2_dict)) entries")
             p1_planned_trajectory_plots[trial_key] = p1_dict
             p2_planned_trajectory_plots[trial_key] = p2_dict
-            # println("  AFTER assignment: p1_planned_trajectory_plots keys: $(keys(p1_planned_trajectory_plots))")
-            # println("  AFTER assignment: p2_planned_trajectory_plots keys: $(keys(p2_planned_trajectory_plots))")
         end
-        
-        # println("  FINAL: p1_planned_trajectory_plots keys: $(keys(p1_planned_trajectory_plots))")
-        # println("  FINAL: p2_planned_trajectory_plots keys: $(keys(p2_planned_trajectory_plots))")
-        # println("  Calling update_trajectory_plots from on(exp_trial_pairs)")
-        # Manually trigger updates after populating dictionaries
         update_trajectory_plots(plan_time_step[], current_time_step[], p1_planning_horizon[], p2_planning_horizon[], pairs)
-        # println("=== DEBUG on(exp_trial_pairs) END ===\n")
     end
     
     # Update planned trajectory Observables when time steps change (but not when exp_trial_pairs changes)
     onany(plan_time_step, current_time_step, p1_planning_horizon, p2_planning_horizon) do plan_t, curr_t, p1_horizon, p2_horizon
-        # println("=== DEBUG onany(plan_time_step, ...) FIRED ===")
-        # println("  plan_t=$plan_t, curr_t=$curr_t, p1_horizon=$p1_horizon, p2_horizon=$p2_horizon")
-        # println("  exp_trial_pairs[]=$(exp_trial_pairs[])")
-        # println("  p1_planned_trajectory_plots keys: $(keys(p1_planned_trajectory_plots))")
-        # println("  p2_planned_trajectory_plots keys: $(keys(p2_planned_trajectory_plots))")
-        # println("  Calling update_trajectory_plots from onany")
         update_trajectory_plots(plan_t, curr_t, p1_horizon, p2_horizon, exp_trial_pairs[])
-        # println("=== DEBUG onany(plan_time_step, ...) END ===\n")
     end
 
     # --- Toggles ---
@@ -1186,7 +1178,6 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
             
             # Create P1 ellipse observables if they don't exist
             if !haskey(p1_ellipse_observables_dict, key)
-                # println("  Creating P1 ellipse observables lazily for trial: $key")
                 p1_list = Observable{Vector{Point2f}}[]
                 p1_plots = Any[]
                 min_num_activists_val = min_num_activists[]
@@ -1201,12 +1192,10 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
                 end
                 p1_ellipse_observables_dict[key] = p1_list
                 p1_ellipse_plots_dict[key] = p1_plots
-                # println("    Created P1 ellipse list with $(length(p1_list)) entries")
             end
             
             # Create P2 ellipse observables if they don't exist
             if !haskey(p2_ellipse_observables_dict, key)
-                # println("  Creating P2 ellipse observables lazily for trial: $key")
                 p2_list = Observable{Vector{Point2f}}[]
                 p2_plots = Any[]
                 min_num_activists_val = min_num_activists[]
@@ -1221,7 +1210,6 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
                 end
                 p2_ellipse_observables_dict[key] = p2_list
                 p2_ellipse_plots_dict[key] = p2_plots
-                # # println("    Created P2 ellipse list with $(length(p2_list)) entries")
             end
         end
         
@@ -1370,7 +1358,6 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
                 ich = sol.incurred_cost_history
                 if !isempty(ich)
                     costs = [t[tuple_idx] for t in ich]
-                    println("DEBUG $label[$key]: $(length(costs)) entries, sum=$(sum(to_scalar_cost.(costs)))")
                     push!(result, costs)
                 else
                     push!(result, Float64[])
@@ -1481,35 +1468,6 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     on(show_p2_planned_trajectory) do _; rebuild_center_legend!(); end
     on(show_executed_trajectory) do _; rebuild_center_legend!(); end
 
-    # ===== OBSTACLE VISUALIZATION =====
-    # Draw obstacles from experiment params (P1's obstacle centers)
-    obstacle_plots = Any[]
-
-    on(exp_trial_pairs) do pairs
-        # Clear previous obstacle plots
-        for plot in obstacle_plots
-            delete!(ax, plot)
-        end
-        empty!(obstacle_plots)
-
-        # Draw obstacles for first selected trial (they should all have same obstacles)
-        if !isempty(pairs)
-            first_key = first(pairs)
-            if haskey(params_dict[], first_key)
-                trial_params = params_dict[][first_key]
-                p1_config = trial_params.player_configs[1]
-                if hasproperty(p1_config, :obstacle_centers) && !isempty(p1_config.obstacle_centers)
-                    for center in p1_config.obstacle_centers
-                        println("DEBUG: Drawing obstacle at $center")
-                        plot = plot_ellipse!(ax, center, 0.1, 0.1,
-                                            label="Obstacle", color=color_with_alpha(:orange, 0.8))
-                        push!(obstacle_plots, plot)
-                    end
-                end
-            end
-        end
-    end
-    # ===== END OBSTACLE VISUALIZATION =====
 end
 
 # ---- Optional: convert complex "cost" objects to scalars ----
@@ -1539,7 +1497,7 @@ to_scalar_cost(c) = c isa Number ? float(c) :
 
 Plot multiple time-aligned series on a single axis. Each element of `series` is a
 vector of values at the same discrete timesteps. Use `scalarizer` (e.g., `to_scalar_cost`)
-if your elements aren’t plain numbers.
+if your elements aren’t plain numbers.o
 
 - `parent`: either a `Figure` (an axis will be placed at `loc`) or an existing `Axis`.
 - `current_time_step`: if you pass the same Observable you use for your main slider,

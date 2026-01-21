@@ -88,13 +88,18 @@ function build_asymmetric_player_configs(combo, fixed_params)
                 @assert value isa Vector "p2_sigmoid_scale must be a Vector"
                 p2_config.obstacle_sigmoid_scales = Vector{Float64}(value)
             elseif hasproperty(p2_config, field_name)
-                setproperty!(p2_config, field_name, value)
+                # Ensure obstacle_weights is always a Vector{Float64} to prevent serialization issues
+                if field_name == :obstacle_weights && value isa Vector
+                    setproperty!(p2_config, field_name, Vector{Float64}(value))
+                else
+                    setproperty!(p2_config, field_name, value)
+                end
             else
                 error("Player 2 config has no property named $field_name")
             end
         end
     end
-    
+
     # Apply fixed player 2 params
     for (key, value) in fixed_params
         if startswith(String(key), "p2_") && !occursin("cost_model_template", String(key))
@@ -104,7 +109,12 @@ function build_asymmetric_player_configs(combo, fixed_params)
                 @assert value isa Vector "p2_sigmoid_scale must be a Vector"
                 p2_config.obstacle_sigmoid_scales = Vector{Float64}(value)
             elseif hasproperty(p2_config, field_name)
-                setproperty!(p2_config, field_name, value)
+                # Ensure obstacle_weights is always a Vector{Float64} to prevent serialization issues
+                if field_name == :obstacle_weights && value isa Vector
+                    setproperty!(p2_config, field_name, Vector{Float64}(value))
+                else
+                    setproperty!(p2_config, field_name, value)
+                end
             end
         end
     end
@@ -391,6 +401,8 @@ function run_asymmetric_experiment(;
     p2_non_terminal_cost_model_template = nothing,
     p2_terminal_cost_model_template = nothing,
     p2_obstacle_cost_function = nothing,
+    p2_obstacle_centers = [[1.7, 1.7]],  # Single value only: Vector{Vector{Real}}
+    p2_obstacle_weights = [1.0],  # Can vary: Vector{Float64} (single value) or (start, stop, step_func) tuple or Vector{Float64} (multiple values)
     p2_sigmoid_scale = nothing,
     attraction_matrix = nothing,
 
@@ -467,7 +479,32 @@ function run_asymmetric_experiment(;
             error("p1_obstacle_weights must be Vector{Real} or (start, stop, step_func) tuple")
         end
     end
-    
+
+    if !isnothing(p2_obstacle_centers)
+        if p2_obstacle_centers isa Vector{<:Vector{<:Real}} || p2_obstacle_centers isa Array{<:Vector{<:Real}}
+            fixed_params[:p2_obstacle_centers] = p2_obstacle_centers
+        else
+            param_variations[:p2_obstacle_centers] = collect(p2_obstacle_centers)
+        end
+    end
+
+    if !isnothing(p2_obstacle_weights)
+        if p2_obstacle_weights isa Tuple && length(p2_obstacle_weights) == 3
+            weight_range = generate_range(p2_obstacle_weights)
+            @assert all(x -> x >= 0, weight_range) "Obstacle weights must be non-negative"
+            param_variations[:p2_obstacle_weights] = [Vector{Float64}([w]) for w in weight_range]
+        elseif p2_obstacle_weights isa Vector{<:Real}
+            @assert all(x -> x >= 0, p2_obstacle_weights) "Obstacle weights must be non-negative"
+            if length(p2_obstacle_weights) == 1
+                fixed_params[:p2_obstacle_weights] = Vector{Float64}(p2_obstacle_weights)
+            else
+                param_variations[:p2_obstacle_weights] = [Vector{Float64}([w]) for w in p2_obstacle_weights]
+            end
+        else
+            error("p2_obstacle_weights must be Vector{Real} or (start, stop, step_func) tuple")
+        end
+    end
+
     # Process Player 1 range parameters
     if !isnothing(p1_ellipsoidal_cost_weight)
         param_variations[:p1_ellipsoidal_cost_weight] = generate_range(p1_ellipsoidal_cost_weight)

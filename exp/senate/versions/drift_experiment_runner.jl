@@ -257,12 +257,21 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
     run_asymmetric_experiment(
         p1_type=[non_robust],
         p2_type=[non_robust, robust],
+        # P1 obstacle cost
         p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
         p1_obstacle_centers=obstacle_centers,
         p1_obstacle_weights=obstacle_weights,
         p1_ellipsoidal_cost_weight=0.5,
         p1_obstacle_cost_function=obstacle_cost,
+        # P2 obstacle cost (same obstacle)
+        p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+        p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p2_obstacle_centers=obstacle_centers,
+        p2_obstacle_weights=obstacle_weights,
+        p2_ellipsoidal_cost_weight=0.5,
+        p2_obstacle_cost_function=obstacle_cost,
+        # Dynamics and drift
         dynamics_model_template=dynamics_types,
         gt_drift_sensor_scale=gt_drift_values,
         p1_believes_self_drift_sensor_scale=p1_self_drift_values,
@@ -270,7 +279,7 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
-        experiment_name_prefix="obst_block_v1_wtsweep",
+        experiment_name_prefix="obst_block_v1_wtsweep_mind",
         override=override,
         dt=dt_values,
     )
@@ -325,7 +334,7 @@ function run_obstacle_blocking_v2_position_sweep(override=false;)
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
-        experiment_name_prefix="obst_block_v2_possweep",
+        experiment_name_prefix="obst_block_v2_possweep_mind",
         override=override,
         dt=dt_values,
     )
@@ -381,7 +390,7 @@ function run_obstacle_blocking_v3_cluster_wall(override=false;)
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
-        experiment_name_prefix="obst_block_v3_clusterwall",
+        experiment_name_prefix="obst_block_v3_clusterwall_mind",
         override=override,
         dt=dt_values,
     )
