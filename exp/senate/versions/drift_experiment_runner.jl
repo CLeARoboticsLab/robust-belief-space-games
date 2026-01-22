@@ -229,15 +229,18 @@ function run_obstacle_blocking(override=false;)
     println("="^60)
 end
 
-# V1: Fast weight sweep at a single, deeper-in-corridor obstacle location.
-# Purpose: quickly see how obstacle weight changes behavior.
-# Model mismatch: GT has drift, P2 underestimates it (thinks P1 has no drift)
+# V1: Mirror-symmetric setup about y=x line
+# Purpose: Test drift mismatch with fully symmetric game geometry
+# Senators: one on y=x line, two as symmetric pair
+# Goals: P1 [3,1] ↔ P2 [1,3], Radii: P1 [1.5,1] ↔ P2 [1,1.5]
+# Obstacle: on y=x line for symmetry
 function run_obstacle_blocking_v1_weight_sweep(override=false;)
+    # Symmetric senators about y=x: one on line, one symmetric pair
     senator_ground_truths = [
-        mortar([[0.75, 0.75], [2.0, 0.5], [1.0, 1.75]]),
+        mortar([[1.0, 1.0], [2.0, 0.5], [0.5, 2.0]]),
     ]
 
-    nature_multiplier_values = [8.0, 16.0]
+    nature_multiplier_values = [8.0]
     dynamics_types = [:default]
     dt_values = [0.75]
 
@@ -248,30 +251,31 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
     # P2 belief: 0 for mismatch, 10 for control (matches GT)
     p2_belief_drift = [0.0, 10.0]
 
+    # Obstacle on y=x line for symmetry
     obstacle_centers = [
-        mortar([[[1.78, 1.00]]]),
+        mortar([[[1.5, 1.5]]]),
     ]
 
-    obstacle_weights = [8.0]
+    obstacle_weights = [0.0, 8.0]  # 0 to verify symmetry, 8 with obstacle
 
     run_asymmetric_experiment(
         p1_type=[non_robust],
         p2_type=[non_robust, robust],
-        # P1 obstacle cost
+        # P1 cost (goals/radii use defaults: [3,1] and [1.5,1])
         p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
         p1_obstacle_centers=obstacle_centers,
         p1_obstacle_weights=obstacle_weights,
         p1_ellipsoidal_cost_weight=0.5,
-        p1_control_cost_weight=4.0,
+        p1_control_cost_weight=2.0,
         p1_obstacle_cost_function=obstacle_cost,
-        # P2 obstacle cost (same obstacle)
+        # P2 cost (goals/radii use defaults: [1,3] and [1,1.5] - mirror symmetric)
         p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
         p2_obstacle_centers=obstacle_centers,
         p2_obstacle_weights=obstacle_weights,
         p2_ellipsoidal_cost_weight=0.5,
-        p2_control_cost_weight=4.0,
+        p2_control_cost_weight=2.0,
         p2_obstacle_cost_function=obstacle_cost,
         # Dynamics and drift
         dynamics_model_template=dynamics_types,
@@ -281,26 +285,26 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
-        experiment_name_prefix="obst_block_v1_wtsweep_smaller",
+        experiment_name_prefix="obst_block_v1_symmetric",
         override=override,
         dt=dt_values,
     )
 
     println("\n\n" * "="^60)
-    println("COMPLETED V1 (weight sweep)")
+    println("COMPLETED V1 (symmetric setup)")
     println("="^60)
 end
 
 
-# V2: Fast position sweep (3 positions) at a fixed high weight.
-# Purpose: find where "further into trajectory" blocks best.
-# Model mismatch: GT has drift, P2 underestimates it (thinks P1 has no drift)
-function run_obstacle_blocking_v2_position_sweep(override=false;)
+# V2: Same goal for both players - pure robustness comparison
+# Purpose: When both players want the same thing, does robustness help or hurt?
+# With drift mismatch, robust P2 hedges against uncertainty
+function run_obstacle_blocking_v2_same_goal(override=false;)
     senator_ground_truths = [
-        mortar([[0.75, 0.75], [2.0, 0.5], [1.0, 1.75]]),
+        mortar([[1.0, 1.0], [2.0, 0.5], [0.5, 2.0]]),
     ]
 
-    nature_multiplier_values = [0.5]
+    nature_multiplier_values = [8.0]
     dynamics_types = [:default]
     dt_values = [0.75]
 
@@ -311,24 +315,41 @@ function run_obstacle_blocking_v2_position_sweep(override=false;)
     # P2 belief: 0 for mismatch, 10 for control (matches GT)
     p2_belief_drift = [0.0, 10.0]
 
-    # three deeper-in-corridor placements
+    # Obstacle between senators and shared goal
     obstacle_centers = [
-        mortar([[[1.70, 0.95]]]),
-        mortar([[[1.82, 1.00]]]),
-        mortar([[[1.92, 1.05]]]),
+        mortar([[[2.0, 2.0]]]),
     ]
 
-    obstacle_weights = [8.0]
+    obstacle_weights = [0.0, 8.0]
+
+    # Shared goal for both players
+    shared_goal = [[3.0, 3.0]]
+    shared_radii = [[1.0, 1.0]]
 
     run_asymmetric_experiment(
         p1_type=[non_robust],
         p2_type=[non_robust, robust],
+        # P1 cost - same goal as P2
         p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p1_ellipsoid_centers=shared_goal,
+        p1_ellipsoid_radii=shared_radii,
         p1_obstacle_centers=obstacle_centers,
         p1_obstacle_weights=obstacle_weights,
         p1_ellipsoidal_cost_weight=0.5,
+        p1_control_cost_weight=2.0,
         p1_obstacle_cost_function=obstacle_cost,
+        # P2 cost - same goal as P1
+        p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+        p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p2_ellipsoid_centers=shared_goal,
+        p2_ellipsoid_radii=shared_radii,
+        p2_obstacle_centers=obstacle_centers,
+        p2_obstacle_weights=obstacle_weights,
+        p2_ellipsoidal_cost_weight=0.5,
+        p2_control_cost_weight=2.0,
+        p2_obstacle_cost_function=obstacle_cost,
+        # Dynamics and drift
         dynamics_model_template=dynamics_types,
         gt_drift_sensor_scale=gt_drift_values,
         p1_believes_self_drift_sensor_scale=p1_self_drift_values,
@@ -336,13 +357,13 @@ function run_obstacle_blocking_v2_position_sweep(override=false;)
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
-        experiment_name_prefix="obst_block_v2_possweep_sym",
+        experiment_name_prefix="obst_block_v2_same_goal",
         override=override,
         dt=dt_values,
     )
 
     println("\n\n" * "="^60)
-    println("COMPLETED V2 (position sweep)")
+    println("COMPLETED V2 (same goal)")
     println("="^60)
 end
 

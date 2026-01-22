@@ -734,10 +734,38 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     on(p1_sols) do _
         update_executed_trajectories()
     end
-    
+
     on(p1_solution_history_dict) do _
         update_executed_trajectories()
     end
+
+    # Current position indicator on executed trajectory
+    current_position_obs = Observable(Point2f[])
+    current_position_plot = scatter!(ax, current_position_obs, color=:black, markersize=16, marker=:star5, visible=show_executed_trajectory, strokewidth=2, strokecolor=:white)
+
+    function update_current_position_indicator()
+        positions = Point2f[]
+        for (trial_key, plot_list) in executed_trajectory_plots
+            for (senator_idx, (_, _, trajectory_obs)) in enumerate(plot_list)
+                traj = trajectory_obs[]
+                t = current_time_step[]
+                if !isempty(traj) && t <= length(traj)
+                    push!(positions, traj[t])
+                end
+            end
+        end
+        current_position_obs[] = positions
+    end
+
+    on(current_time_step) do _
+        update_current_position_indicator()
+    end
+
+    on(exp_trial_pairs) do _
+        # Delay update to ensure trajectory data is populated
+        update_current_position_indicator()
+    end
+
     # Plot full planned trajectories as lines - use on() callback to manage plot elements per trial
     # Store as Dict{trial_key => Dict{(activist_id, senator_id) => (plot_handle, trajectory_obs)}}
     p1_planned_trajectory_plots = Dict{Tuple{String, String}, Dict{Tuple{Int, Int}, Tuple{Any, Observable{Vector{Point2f}}}}}()
