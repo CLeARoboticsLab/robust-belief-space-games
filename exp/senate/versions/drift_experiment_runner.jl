@@ -237,7 +237,7 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         mortar([[0.75, 0.75], [2.0, 0.5], [1.0, 1.75]]),
     ]
 
-    nature_multiplier_values = [0.5]
+    nature_multiplier_values = [8.0, 16.0]
     dynamics_types = [:default]
     dt_values = [0.75]
 
@@ -252,7 +252,7 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         mortar([[[1.78, 1.00]]]),
     ]
 
-    obstacle_weights = [4.0, 8.0]
+    obstacle_weights = [8.0]
 
     run_asymmetric_experiment(
         p1_type=[non_robust],
@@ -263,6 +263,7 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p1_obstacle_centers=obstacle_centers,
         p1_obstacle_weights=obstacle_weights,
         p1_ellipsoidal_cost_weight=0.5,
+        p1_control_cost_weight=4.0,
         p1_obstacle_cost_function=obstacle_cost,
         # P2 obstacle cost (same obstacle)
         p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
@@ -270,6 +271,7 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p2_obstacle_centers=obstacle_centers,
         p2_obstacle_weights=obstacle_weights,
         p2_ellipsoidal_cost_weight=0.5,
+        p2_control_cost_weight=4.0,
         p2_obstacle_cost_function=obstacle_cost,
         # Dynamics and drift
         dynamics_model_template=dynamics_types,
@@ -279,7 +281,7 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
-        experiment_name_prefix="obst_block_v1_wtsweep_mind",
+        experiment_name_prefix="obst_block_v1_wtsweep_smaller",
         override=override,
         dt=dt_values,
     )
@@ -316,7 +318,7 @@ function run_obstacle_blocking_v2_position_sweep(override=false;)
         mortar([[[1.92, 1.05]]]),
     ]
 
-    obstacle_weights = [6.0]
+    obstacle_weights = [8.0]
 
     run_asymmetric_experiment(
         p1_type=[non_robust],
@@ -334,7 +336,7 @@ function run_obstacle_blocking_v2_position_sweep(override=false;)
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
-        experiment_name_prefix="obst_block_v2_possweep_mind",
+        experiment_name_prefix="obst_block_v2_possweep_sym",
         override=override,
         dt=dt_values,
     )
@@ -372,7 +374,7 @@ function run_obstacle_blocking_v3_cluster_wall(override=false;)
                  [1.96, 1.10]]]),
     ]
 
-    obstacle_weights = [6.0]
+    obstacle_weights = [8.0]
 
     run_asymmetric_experiment(
         p1_type=[non_robust],
@@ -390,7 +392,7 @@ function run_obstacle_blocking_v3_cluster_wall(override=false;)
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
-        experiment_name_prefix="obst_block_v3_clusterwall_mind",
+        experiment_name_prefix="obst_block_v3_clusterwall_sym",
         override=override,
         dt=dt_values,
     )
