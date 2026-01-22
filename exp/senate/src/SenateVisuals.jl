@@ -1363,14 +1363,17 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     # Compute component costs for all shown trials, using lifted observables
     # Note: c.total, c.terminal, c.non_terminal are vectors [p1_cost, p2_cost, nature_cost?]
     # We extract index [1] for P1's costs, index [2] for P2's costs
-    p1_total_costs = @lift [[c.total[1] for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
-    p1_terminal_costs = @lift [[c.terminal[1] for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
-    p1_non_terminal_costs = @lift [[c.non_terminal[1] for c in trial_costs] for (key, trial_costs) in $p1_costs_dict]
+    # Plan costs divided by min(planning_horizon, horizon-t+1) to make per-step (comparable to incurred)
+    # Helper to get effective horizon for normalization
+    eff_horizon(p, t) = max(1, min(p.planning_horizon, p.horizon - t))
 
-    p2_total_costs = @lift [[c.total[2] for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
-    p2_terminal_costs = @lift [[c.terminal[2] for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
-    p2_non_terminal_costs = @lift [[c.non_terminal[2] for c in trial_costs] for (key, trial_costs) in $p2_costs_dict]
+    p1_total_costs = @lift [[c.total[1] / eff_horizon($params_dict[k], t) for (t, c) in enumerate(cs)] for (k, cs) in $p1_costs_dict if haskey($params_dict, k)]
+    p1_terminal_costs = @lift [[c.terminal[1] / eff_horizon($params_dict[k], t) for (t, c) in enumerate(cs)] for (k, cs) in $p1_costs_dict if haskey($params_dict, k)]
+    p1_non_terminal_costs = @lift [[c.non_terminal[1] / eff_horizon($params_dict[k], t) for (t, c) in enumerate(cs)] for (k, cs) in $p1_costs_dict if haskey($params_dict, k)]
 
+    p2_total_costs = @lift [[c.total[2] / eff_horizon($params_dict[k], t) for (t, c) in enumerate(cs)] for (k, cs) in $p2_costs_dict if haskey($params_dict, k)]
+    p2_terminal_costs = @lift [[c.terminal[2] / eff_horizon($params_dict[k], t) for (t, c) in enumerate(cs)] for (k, cs) in $p2_costs_dict if haskey($params_dict, k)]
+    p2_non_terminal_costs = @lift [[c.non_terminal[2] / eff_horizon($params_dict[k], t) for (t, c) in enumerate(cs)] for (k, cs) in $p2_costs_dict if haskey($params_dict, k)]
     # Incurred costs (safe fallback for older data without incurred_cost_history)
     # Note: incurred_cost_history contains tuples of (non_terminal, non_terminal_det, terminal, terminal_det)
     # t[1] = stochastic non-terminal (at estimated beliefs with cov)

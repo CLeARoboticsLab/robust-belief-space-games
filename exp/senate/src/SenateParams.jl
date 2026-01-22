@@ -16,11 +16,12 @@ Base.@kwdef mutable struct PlayerConfig
     control_cost_weight::Float64 = 1.0
     terminal_cost_weight::Float64 = 1.0
     nature_multiplier::Float64 = 5.0
-    covariance_weight::Float64 = 1.0
+    covariance_weight::Float64 = 0.0
     obstacle_sigmoid_scales::Vector{Float64} = [1.0]
     obstacle_sigmoid_offsets::Vector{Float64} = [0.0]
     obstacle_centers::Vector{Vector{Float64}} = [[0.0, 0.0]]
     obstacle_weights::Vector{Float64} = [1.0]
+    obstacle_covariance_scale::Float64 = 1.0  # α in: cost = base_cost / (1 + α * tr(Σ))
     obstacle_cost_function::Function = obstacle_cost
 
     # attraction params

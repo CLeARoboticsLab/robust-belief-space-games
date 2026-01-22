@@ -385,7 +385,8 @@ function run_asymmetric_experiment(;
     p1_terminal_cost_model_template = nothing,
     p1_obstacle_cost_function = nothing,
     p1_sigmoid_scale = nothing,
-    
+    p1_obstacle_covariance_scale = nothing,
+
     # Player 2 parameters
     p2_ellipsoid_centers = [[1, 3]],  # Single value only: Vector{Vector{Real}}
     p2_ellipsoid_radii = [[1, 1.5]],    # Single value only: Vector{Vector{Real}}
@@ -404,6 +405,7 @@ function run_asymmetric_experiment(;
     p2_obstacle_centers = [[1.7, 1.7]],  # Single value only: Vector{Vector{Real}}
     p2_obstacle_weights = [1.0],  # Can vary: Vector{Float64} (single value) or (start, stop, step_func) tuple or Vector{Float64} (multiple values)
     p2_sigmoid_scale = nothing,
+    p2_obstacle_covariance_scale = nothing,
     attraction_matrix = nothing,
 
     # Asymmetric belief parameters
@@ -581,7 +583,11 @@ function run_asymmetric_experiment(;
             error("p1_sigmoid_scale must be Vector{Real} or (start, stop, step_func) tuple")
         end
     end
-    
+    if !isnothing(p1_obstacle_covariance_scale)
+        param_variations[:p1_obstacle_covariance_scale] = generate_range(p1_obstacle_covariance_scale)
+        @assert all(x -> x >= 0, param_variations[:p1_obstacle_covariance_scale]) "Obstacle covariance scale must be non-negative"
+    end
+
     # Process Player 2 ellipsoid parameters (single values only)
     if !isnothing(p2_ellipsoid_centers)
         @assert p2_ellipsoid_centers isa Vector{<:Vector{<:Real}} "p2_ellipsoid_centers must be Vector{Vector{Real}}"
@@ -669,6 +675,10 @@ function run_asymmetric_experiment(;
         else
             error("p2_sigmoid_scale must be Vector{Real} or (start, stop, step_func) tuple")
         end
+    end
+    if !isnothing(p2_obstacle_covariance_scale)
+        param_variations[:p2_obstacle_covariance_scale] = generate_range(p2_obstacle_covariance_scale)
+        @assert all(x -> x >= 0, param_variations[:p2_obstacle_covariance_scale]) "Obstacle covariance scale must be non-negative"
     end
     if !isnothing(attraction_matrix)
         fixed_params[:attraction_matrix] = attraction_matrix

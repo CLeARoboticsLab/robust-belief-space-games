@@ -121,3 +121,15 @@ function obstacle_cost_v3(belief::Belief, config::PlayerConfig)
         return obstacle_weight * (cov_adjusted_sigmoid_input < 3 ? cov_adjusted_sigmoid_input^2 : 0)
     end
 end
+
+# Option A: Divide by covariance instead of subtracting
+# Higher uncertainty → lower cost (you could be anywhere, less certain you're hitting obstacle)
+# Zero uncertainty + at obstacle → full cost (certain you're there)
+function obstacle_cost_v4(belief::Belief, config::PlayerConfig)
+    mapreduce(+, zip(config.obstacle_centers, config.obstacle_sigmoid_scales, config.obstacle_sigmoid_offsets, config.obstacle_weights)) do (obstacle_center, sigmoid_scale, sigmoid_offset, obstacle_weight)
+        dist_from_obstacle_center = norm(belief.belief_mean - obstacle_center)
+        base_cost = obstacle_weight * 1/(1+exp(sigmoid_scale * (dist_from_obstacle_center - sigmoid_offset)))
+        confidence_weight = 1 / (1 + config.obstacle_covariance_scale * tr(belief.belief_covariance))
+        return base_cost * confidence_weight
+    end
+end
