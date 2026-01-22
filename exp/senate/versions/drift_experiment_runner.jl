@@ -267,8 +267,6 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p1_obstacle_weights=obstacle_weights,
         p1_ellipsoidal_cost_weight=0.5,
         p1_control_cost_weight=2.0,
-        p1_obstacle_cost_function=obstacle_cost_v4,
-        p1_obstacle_covariance_scale=1.0,
         # P2 cost (goals/radii use defaults: [1,3] and [1,1.5] - mirror symmetric)
         p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
@@ -276,8 +274,6 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p2_obstacle_weights=obstacle_weights,
         p2_ellipsoidal_cost_weight=0.5,
         p2_control_cost_weight=2.0,
-        p2_obstacle_cost_function=obstacle_cost_v4,
-        p2_obstacle_covariance_scale=1.0,
         # Dynamics and drift
         dynamics_model_template=dynamics_types,
         gt_drift_sensor_scale=gt_drift_values,
@@ -339,8 +335,6 @@ function run_obstacle_blocking_v2_same_goal(override=false;)
         p1_obstacle_weights=obstacle_weights,
         p1_ellipsoidal_cost_weight=0.5,
         p1_control_cost_weight=2.0,
-        p1_obstacle_cost_function=obstacle_cost_v4,
-        p1_obstacle_covariance_scale=1.0,
         # P2 cost - same goal as P1
         p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
@@ -350,8 +344,6 @@ function run_obstacle_blocking_v2_same_goal(override=false;)
         p2_obstacle_weights=obstacle_weights,
         p2_ellipsoidal_cost_weight=0.5,
         p2_control_cost_weight=2.0,
-        p2_obstacle_cost_function=obstacle_cost_v4,
-        p2_obstacle_covariance_scale=1.0,
         # Dynamics and drift
         dynamics_model_template=dynamics_types,
         gt_drift_sensor_scale=gt_drift_values,

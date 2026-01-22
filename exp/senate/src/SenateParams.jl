@@ -22,7 +22,7 @@ Base.@kwdef mutable struct PlayerConfig
     obstacle_centers::Vector{Vector{Float64}} = [[0.0, 0.0]]
     obstacle_weights::Vector{Float64} = [1.0]
     obstacle_covariance_scale::Float64 = 1.0  # α in: cost = base_cost / (1 + α * tr(Σ))
-    obstacle_cost_function::Function = obstacle_cost
+    obstacle_cost_function::Function = obstacle_cost_v4
 
     # attraction params
     attraction_numerator::Float64 = 1.0
