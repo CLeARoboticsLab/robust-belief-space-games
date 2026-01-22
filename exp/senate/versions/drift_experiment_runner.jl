@@ -245,12 +245,11 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
     dt_values = [0.75]
 
     # Ground truth drift (reality)
-    gt_drift_values = [10.0]
+    gt_drift_values = [1.0]
     # P1 correctly knows its own drift (same as GT)
-    p1_self_drift_values = [10.0]
+    p1_self_drift_values = [1.0]
     # P2 belief: 0 for mismatch, 10 for control (matches GT)
-    p2_belief_drift = [0.0, 10.0]
-
+    p2_belief_drift = [0.0, 1.0]    
     # Obstacle on y=x line for symmetry
     obstacle_centers = [
         mortar([[[1.5, 1.5]]]),
@@ -285,7 +284,7 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
-        experiment_name_prefix="obst_block_v1_symmetric",
+        experiment_name_prefix="obst_block_v1_small_drift",
         override=override,
         dt=dt_values,
     )
