@@ -19,21 +19,19 @@ Base.@kwdef mutable struct PlayerConfig
     steal_dist_weight::Float64 = 0.1
     shot_uncertainty_weight::Float64 = 20.0
     
-    # Nature properites (relevant if player is robust)
+    # Nature properites
     nature_control_cost_weight::Float64 = 300.0
     nature_bounds_cost_weight::Float64 = 10.0
     
-    # Dynamics (if needed specific per player)
-    
     # Derived
     self_dynamics_model::Union{Function, Nothing} = nothing
-    self_sensor_model::Union{Function, Nothing} = nothing
+    self_sensor_model::Union{Function, Nothing} = h_noise_dict["medium"]
     self_non_terminal_cost_model::Union{Function, Nothing} = nothing
     self_terminal_cost_model::Union{Function, Nothing} = nothing
     
     other_player_configs::Dict{Int, PlayerConfig} = Dict()
     
-    # Dims (for compatibility)
+    # Dims
     state_dims_per_activist::Vector{Int} = [4, 4] # Using 4 for Hockey (x, y, vx, vy)
     control_dims_per_activist::Vector{Int} = [2, 2] # (ax, ay)
     belief_dims_per_activist=[(4, 16), (4, 16)]
@@ -45,7 +43,7 @@ Base.@kwdef mutable struct HockeyParams
     # Game Params
     player_configs::Dict{Int, PlayerConfig} = Dict(
         1 => PlayerConfig(player_idx=1, type=non_robust, control_cost_weight=2.0), # Attacker
-        2 => PlayerConfig(player_idx=2, type=robust, control_cost_weight=0.5)      # Defender
+        2 => PlayerConfig(player_idx=2, type=non_robust, control_cost_weight=0.5)  # Defender (default non_robust)
     )
     
     # Hockey Specific
@@ -59,6 +57,8 @@ Base.@kwdef mutable struct HockeyParams
     # Noise
     process_noise_distribution::Union{Distribution, Nothing} = MvNormal(zeros(8), 0.001 * I(8)) # 2 players * 4 states
     sensor_noise_distribution::Union{Distribution, Nothing} = MvNormal(zeros(8), 0.001 * I(8))
+
+    sensor_model::Function = h_noise_dict["low"]
     
     # Dimensions
     state_dim::Int = 4
@@ -71,24 +71,20 @@ Base.@kwdef mutable struct HockeyParams
     ])
     initial_beliefs::Union{Any, Nothing} = nothing # Will be mapped to Beliefs
     
-    # Helper for Senate compat (if needed)
+    # Helper for Senate compatability
     control_dims_per_activist::Vector{Int} = [2, 2]
     
     trials::Int = 1
     random_seed::Int = 1
+    
+    # Experiment Config
+    output_dir::String = "outputs"
 end
 
 function dims(params::HockeyParams)
-    # Mapping to TrajectoryGamesBase/Solver dims
-    # Assuming standard mapping:
-    # num_players = 2
-    # states per player = 4
-    # controls per player = 2
-    
     return (;
         num_players=length(params.player_configs),
         
-        # Breakdown
         state_dims_per_activist=[4, 4], player_state_dims=[4,4],# Fixed for Hockey 
         control_dims_per_activist=[2, 2],
         belief_dims_per_activist=[(4, 16), (4, 16)],
@@ -102,34 +98,7 @@ function dims(params::HockeyParams)
         
         states=[4, 4],
         controls=[2, 2],
-        belief=[4, 4, 4, 4], # 4 beliefs (P1->P1, P1->P2, P2->P1, P2->P2) each of dim 4 (mean) + cov?
-        # The solver `BeliefGame` seems to need `dims.belief` to be the dimension of the belief state vector?
-        # In `Hockey.jl` line 545: `belief=[state_dim for _ in 1:4]` which is `[4, 4, 4, 4]`.
-        # This likely refers to the mean dimension. The covariance is handled separately or implicitly?
-        # Actually `Belief` struct usually has mean and covariance.
-        
-        sensor=[4, 4] # Sensor output dim
+        belief=[4, 4, 4, 4], # four beliefs, each dim 4
+        sensor=[4, 4]
     )
-end
-
-function params_to_name(params::HockeyParams)
-    # Construct a descriptive name
-    # e.g. "hockey_robust_def_cc0.1" or "hockey_baseline"
-    
-    parts = String[]
-    push!(parts, "hockey")
-    
-    # Check player types
-    p1_type = params.player_configs[1].type
-    p2_type = params.player_configs[2].type
-    
-    if p2_type == robust
-        push!(parts, "robust_def")
-        clean_weight = replace(string(params.player_configs[2].control_cost_weight), "." => "p")
-        push!(parts, "cc_$(clean_weight)")
-    else
-        push!(parts, "baseline")
-    end
-    
-    return join(parts, "_")
 end

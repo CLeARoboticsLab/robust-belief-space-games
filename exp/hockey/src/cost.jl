@@ -145,3 +145,9 @@ defender_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belie
 nature_terminal_cost(belief_over_attacker::Belief, belief_over_defender::Belief, params::HockeyParams) =
     sum(nature_terminal_cost_components(belief_over_attacker, belief_over_defender, params))
 
+
+player_cost_components = Dict(
+    :attacker => (;non_terminal = attacker_non_terminal_cost_components, terminal = attacker_terminal_cost_components),
+    :defender => (;non_terminal = defender_non_terminal_cost_components, terminal = defender_terminal_cost_components),
+    :nature => (;non_terminal = nature_non_terminal_cost_components, terminal = nature_terminal_cost_components)
+)
