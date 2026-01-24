@@ -7,6 +7,8 @@ using Statistics
 using Logging
 using GLMakie
 using LinearAlgebra
+using Distributions
+using Random
 
 # Add procs if needed
 if nprocs() < 2
@@ -379,7 +381,7 @@ function calculate_mean_trajectory_difference(traj_list_1, traj_list_2)
             
             # len = min(length(t1), length(t2))
             @assert length(t1) == length(t2)
-            dist_sum = sum(norm(t1[t] - t2[t]) for t in 1:length(t1))
+            dist_sum = sum(norm(t1[t] - t2[t]) for t in eachindex(t1))
             total_diff += dist_sum / length(t1)
             valid_pairs += 1
         end
@@ -539,14 +541,14 @@ function visualize_sweep_rank(rank::Int;
                         break
                     end
                 catch e
-                     println("Failed to load $f: $e")
+                    println("Failed to load $f: $e")
                 end
             end
         end
     end
     
-    load_dir_to_sol(sweep_dir, "Robust", entry.robust_dir, 1)
-    load_dir_to_sol(sweep_dir, "Non-Robust", entry.non_robust_dir, 1)
+    load_dir_to_sol(sweep_dir, "Robust", entry.robust_dir, 1000)
+    load_dir_to_sol(sweep_dir, "Non-Robust", entry.non_robust_dir, 1000)
     
     if isempty(solutions)
         println("No valid solution files found to visualize.")
@@ -558,11 +560,11 @@ function visualize_sweep_rank(rank::Int;
     # Generate Analysis Plots - organize by robust config name
     analysis_dir = joinpath(dirname(sweep_dir), "..", "analysis", entry.robust_dir)
     generate_comparison_plots(solutions, rank, analysis_dir)
-    
-    if @isdefined(visualize_receding_horizon_solutions_multi_figure)
+
+    println("visualize? (y): ")
+    viz = readline()
+    if viz == "y"
         visualize_receding_horizon_solutions_multi_figure(solutions, [[-1.5, 0.25], [-1.5, -0.25]])
-    else
-        println("Error: visualize_receding_horizon_solutions_multi_figure not defined. Check HockeyVisuals.jl include.")
     end
 end
 
@@ -605,7 +607,7 @@ function visualize_sweep(;
             continue
         end
         
-        # 3. Show Top Options
+        # Show Top Options
         println("\nTop Options:")
         for i in 1:min(k, length(results))
             res = results[i]
@@ -779,13 +781,13 @@ function generate_comparison_plots(solutions, rank, output_dir)
         mkpath(output_dir)
     end
     
-    # 1. Clear Trackers
+    # Clear Trackers
     TrajectoryAnalysis.clear_trajectory_tracker!()
     TrajectoryAnalysis.KKTErrorTracker.clear_rh_kkt_tracker!()
     
     println("Populating analysis trackers...")
     
-    # 2. Populate from solutions
+    # Populate from solutions
     for (key_name, solution_data) in solutions
         # Robustness check
         is_robust = occursin("Robust", key_name) && !occursin("Non-Robust", key_name)
@@ -833,24 +835,140 @@ function generate_comparison_plots(solutions, rank, output_dir)
     
     # --- Statistical Significance Report ---
     println("Generating statistical significance report...")
-    robust_costs = Float64[]
-    non_robust_costs = Float64[]
+    robust_cost_entries = Tuple{Float64, String}[]  # (cost, key_name)
+    non_robust_cost_entries = Tuple{Float64, String}[]
     
     for (key_name, solution_data) in solutions
-        # Robustness check
         is_robust = occursin("Robust", key_name) && !occursin("Non-Robust", key_name)
         cost = calculate_defender_total_cost(solution_data)
         
         if is_robust
-            push!(robust_costs, cost)
+            push!(robust_cost_entries, (cost, key_name))
         else
-            push!(non_robust_costs, cost)
+            push!(non_robust_cost_entries, (cost, key_name))
         end
+    end
+    
+    # Interactive Q-Q plot loop for outlier removal
+    robust_outliers_to_remove = 0
+    non_robust_outliers_to_remove = 0
+    kept_keys = Set{String}()  # Track which trials to keep
+    
+    robust_costs = [e[1] for e in robust_cost_entries]
+    non_robust_costs = [e[1] for e in non_robust_cost_entries]
+    
+    if length(robust_costs) > 1 && length(non_robust_costs) > 1
+        while true
+            # Sort entries by cost to identify outliers (high cost = outliers)
+            sorted_r_entries = sort(robust_cost_entries, by=x->x[1])
+            sorted_nr_entries = sort(non_robust_cost_entries, by=x->x[1])
+            
+            n_r_remove = min(robust_outliers_to_remove, length(sorted_r_entries) - 2)
+            n_nr_remove = min(non_robust_outliers_to_remove, length(sorted_nr_entries) - 2)
+            
+            filtered_r_entries = n_r_remove > 0 ? sorted_r_entries[1:end-n_r_remove] : sorted_r_entries
+            filtered_nr_entries = n_nr_remove > 0 ? sorted_nr_entries[1:end-n_nr_remove] : sorted_nr_entries
+            
+            filtered_r = [e[1] for e in filtered_r_entries]
+            filtered_nr = [e[1] for e in filtered_nr_entries]
+            
+            # Generate Q-Q plot
+            fig_qq = Figure(size=(1000, 500))
+            Label(fig_qq[0, :], text="Q-Q Plots: Normality Assessment (Outliers removed: R=$(n_r_remove), NR=$(n_nr_remove))", fontsize=16)
+            
+            # Robust Q-Q
+            ax_qq_r = Axis(fig_qq[1, 1], 
+                title="Robust Costs (n=$(length(filtered_r)))",
+                xlabel="Theoretical Quantiles",
+                ylabel="Sample Quantiles")
+            
+            if length(filtered_r) > 1 && std(filtered_r) > 0
+                n_r = length(filtered_r)
+                theoretical_quantiles_r = [quantile(Normal(0, 1), (i - 0.5) / n_r) for i in 1:n_r]
+                standardized_r = (filtered_r .- mean(filtered_r)) ./ std(filtered_r)
+                
+                scatter!(ax_qq_r, theoretical_quantiles_r, standardized_r, color=:blue, markersize=8)
+                lines!(ax_qq_r, [-3, 3], [-3, 3], color=:red, linestyle=:dash, linewidth=2)
+            end
+            
+            # # Non-Robust Q-Q
+            # ax_qq_nr = Axis(fig_qq[1, 2], 
+            #     title="Non-Robust Costs (n=$(length(filtered_nr)))",
+            #     xlabel="Theoretical Quantiles",
+            #     ylabel="Sample Quantiles")
+            
+            if length(filtered_nr) > 1 && std(filtered_nr) > 0
+                n_nr = length(filtered_nr)
+                theoretical_quantiles_nr = [quantile(Normal(0, 1), (i - 0.5) / n_nr) for i in 1:n_nr]
+                standardized_nr = (filtered_nr .- mean(filtered_nr)) ./ std(filtered_nr)
+                
+                scatter!(ax_qq_r, theoretical_quantiles_nr, standardized_nr, color=:red, markersize=8)
+                # lines!(ax_qq_nr, [-3, 3], [-3, 3], color=:red, linestyle=:dash, linewidth=2)
+            end
+            
+            qq_path = joinpath(output_dir, "qq_plots.png")
+            save(qq_path, fig_qq)
+            println("\n" * "="^60)
+            println("Q-Q plot saved: $qq_path")
+            println("Current outlier removal: Robust=$(n_r_remove), Non-Robust=$(n_nr_remove)")
+            println("="^60)
+            
+            print("Adjust outliers? [r]obust/[n]on-robust/[c]ontinue to analysis: ")
+            choice = strip(readline())
+            
+            if choice == "r"
+                print("  Outliers to remove from robust (max $(length(sorted_r_entries)-2)) [current: $robust_outliers_to_remove]: ")
+                input = strip(readline())
+                if !isempty(input)
+                    parsed = tryparse(Int, input)
+                    if !isnothing(parsed) && parsed >= 0
+                        robust_outliers_to_remove = parsed
+                    end
+                end
+            elseif choice == "n"
+                print("  Outliers to remove from non-robust (max $(length(sorted_nr_entries)-2)) [current: $non_robust_outliers_to_remove]: ")
+                input = strip(readline())
+                if !isempty(input)
+                    parsed = tryparse(Int, input)
+                    if !isnothing(parsed) && parsed >= 0
+                        non_robust_outliers_to_remove = parsed
+                    end
+                end
+            elseif choice == "c" || isempty(choice)
+                # Save the keys of kept entries
+                for e in filtered_r_entries
+                    push!(kept_keys, e[2])
+                end
+                for e in filtered_nr_entries
+                    push!(kept_keys, e[2])
+                end
+                println("Proceeding with analysis using filtered data...")
+                break
+            end
+        end
+        
+        # Apply final outlier removal
+        sorted_r_entries = sort(robust_cost_entries, by=x->x[1])
+        sorted_nr_entries = sort(non_robust_cost_entries, by=x->x[1])
+        n_r_remove = min(robust_outliers_to_remove, length(sorted_r_entries) - 2)
+        n_nr_remove = min(non_robust_outliers_to_remove, length(sorted_nr_entries) - 2)
+        
+        filtered_r_entries = n_r_remove > 0 ? sorted_r_entries[1:end-n_r_remove] : sorted_r_entries
+        filtered_nr_entries = n_nr_remove > 0 ? sorted_nr_entries[1:end-n_nr_remove] : sorted_nr_entries
+        
+        robust_costs = [e[1] for e in filtered_r_entries]
+        non_robust_costs = [e[1] for e in filtered_nr_entries]
+        
+        # Filter TRAJECTORY_TRACKER entries to only include kept trials
+        filter!(e -> e.scenario_name in kept_keys, TrajectoryAnalysis.TRAJECTORY_TRACKER.entries)
+        
+        println("Final data: $(length(robust_costs)) robust, $(length(non_robust_costs)) non-robust samples")
+        println("Filtered TRAJECTORY_TRACKER to $(length(TrajectoryAnalysis.TRAJECTORY_TRACKER.entries)) entries")
     end
     
     open(joinpath(output_dir, "significance_report.txt"), "w") do io
         println(io, "Statistical Significance Report (Defender Total Cost)")
-        println(io, "===================================================")
+        println(io, "===================================================\n")
         
         n_r = length(robust_costs)
         n_nr = length(non_robust_costs)
@@ -861,65 +979,116 @@ function generate_comparison_plots(solutions, rank, output_dir)
             mean_nr = mean(non_robust_costs)
             std_nr = std(non_robust_costs)
             
+            println(io, "DESCRIPTIVE STATISTICS")
+            println(io, "---------------------------------------------------")
+            println(io, "Outliers removed: Robust=$(robust_outliers_to_remove), Non-Robust=$(non_robust_outliers_to_remove)")
+            println(io, "Robust (n=$n_r):     Mean = $(round(mean_r, digits=4)), Std = $(round(std_r, digits=4))")
+            println(io, "Non-Robust (n=$n_nr): Mean = $(round(mean_nr, digits=4)), Std = $(round(std_nr, digits=4))")
+            println(io, "Difference (Robust - Non-Robust): $(round(mean_r - mean_nr, digits=4))\n")
+            
             # Welch's t-test
+            println(io, "WELCH'S T-TEST")
+            println(io, "---------------------------------------------------")
             se_diff = sqrt((std_r^2 / n_r) + (std_nr^2 / n_nr))
             t_stat = (mean_r - mean_nr) / se_diff
             
-            # Degrees of freedom (Welch-Satterthwaite equation)
             df_num = ((std_r^2 / n_r) + (std_nr^2 / n_nr))^2
             df_den = ((std_r^2 / n_r)^2 / (n_r - 1)) + ((std_nr^2 / n_nr)^2 / (n_nr - 1))
             df = df_num / df_den
             
-            # P-value (approximate using normal distribution for large degrees of freedom, or simple lookup/heuristic)
-            # Since we don't have Distributions.jl loaded explicitly here, we'll report t-stat.
-            # However, Distributions IS loaded in ExperimentRunner.jl, let's see if it's available.
-            # ExperimentRunner is a module... let's check imports.
-            # param_sweep.jl uses Distributions. Let's assume Main has it or we can just report t-stat.
-            # For now, just reporting stats is good, t >= 1.96 roughly significant at 0.05.
+            p_val_t = 2 * (1 - cdf(TDist(df), abs(t_stat)))
             
-            println(io, "Robust (n=$n_r):     Mean = $(round(mean_r, digits=4)), Std = $(round(std_r, digits=4))")
-            println(io, "Non-Robust (n=$n_nr): Mean = $(round(mean_nr, digits=4)), Std = $(round(std_nr, digits=4))")
-            println(io, "---------------------------------------------------")
-            println(io, "Difference (Robust - Non-Robust): $(round(mean_r - mean_nr, digits=4))")
             println(io, "T-Statistic: $(round(t_stat, digits=4))")
             println(io, "Degrees of Freedom: $(round(df, digits=2))")
+            println(io, "P-Value: $(round(p_val_t, digits=5))")
+            println(io, "Significant (p < 0.05): $(p_val_t < 0.05 ? "YES" : "NO")\n")
             
-            critical_val_05 = 1.96 # Approx cost large df
-            is_sig = abs(t_stat) > critical_val_05
+            # Mann-Whitney U test
+            println(io, " MANN-WHITNEY U TEST")
+            println(io, "---------------------------------------------------")
+            combined = vcat(robust_costs, non_robust_costs)
+            ranks = sortperm(sortperm(combined))
+            R_r = sum(ranks[1:n_r])
+            U_r = R_r - n_r * (n_r + 1) / 2
+            U_nr = n_r * n_nr - U_r
+            U = min(U_r, U_nr)
+            mu_U = n_r * n_nr / 2
+            sigma_U = sqrt(n_r * n_nr * (n_r + n_nr + 1) / 12)
+            z_score = (U - mu_U) / sigma_U
+            p_val_mw = 2 * (1 - cdf(Normal(0, 1), abs(z_score)))
             
-            println(io, "Significant Difference (p < 0.05 approx): $(is_sig ? "YES" : "NO")")
-            if is_sig
-                better = mean_r < mean_nr ? "Robust is better (lower cost)" : "Non-Robust is better (lower cost)"
-                println(io, "Conclusion: $better")
-            else
-                println(io, "Conclusion: No significant difference detected.")
+            println(io, "U-Statistic: $(round(U, digits=2))")
+            println(io, "Z-Score: $(round(z_score, digits=4))")
+            println(io, "P-Value: $(round(p_val_mw, digits=5))")
+            println(io, "Significant (p < 0.05): $(p_val_mw < 0.05 ? "YES" : "NO")\n")
+            
+            # Bootstrap test
+            println(io, "BOOTSTRAP TEST (Resampling)")
+            println(io, "---------------------------------------------------")
+            
+            n_bootstrap = 10000
+            observed_diff = mean_r - mean_nr
+            bootstrap_diffs = Float64[]
+            
+            Random.seed!(42)  # For reproducibility
+            for _ in 1:n_bootstrap
+                boot_r = [robust_costs[rand(1:n_r)] for _ in 1:n_r]
+                boot_nr = [non_robust_costs[rand(1:n_nr)] for _ in 1:n_nr]
+                push!(bootstrap_diffs, mean(boot_r) - mean(boot_nr))
             end
+            
+            # Bootstrap confidence interval (95%)
+            ci_lower = quantile(bootstrap_diffs, 0.025)
+            ci_upper = quantile(bootstrap_diffs, 0.975)
+            
+            # Bootstrap p-value (two-tailed)
+            pooled = vcat(robust_costs, non_robust_costs)
+            null_diffs = Float64[]
+            
+            for _ in 1:n_bootstrap
+                boot_sample = [pooled[rand(1:length(pooled))] for _ in 1:length(pooled)]
+                boot_r = boot_sample[1:n_r]
+                boot_nr = boot_sample[n_r+1:end]
+                push!(null_diffs, mean(boot_r) - mean(boot_nr))
+            end
+            
+            p_val_boot = sum(abs.(null_diffs) .>= abs(observed_diff)) / n_bootstrap
+            
+            println(io, "Bootstrap Iterations: $n_bootstrap")
+            println(io, "Observed Difference: $(round(observed_diff, digits=4))")
+            println(io, "95% CI: [$(round(ci_lower, digits=4)), $(round(ci_upper, digits=4))]")
+            println(io, "P-Value: $(round(p_val_boot, digits=5))")
+            println(io, "Significant (p < 0.05): $(p_val_boot < 0.05 ? "YES" : "NO")\n")
         else
-            println(io, "Insufficient data for t-test (n_robust=$n_r, n_non_robust=$n_nr). Need at least 2 samples each.")
+            println(io, "Insufficient data for statistical tests (n_robust=$n_r, n_non_robust=$n_nr).")
+            println(io, "Need at least 2 samples each.")
         end
     end
     println("Saved significance report to $(joinpath(output_dir, "significance_report.txt"))")
     
-    # Costs & Actions
-    # Pass directory to save plots there
     TrajectoryAnalysis.get_trajectory_summary(directory=output_dir)
     println("Saved Cost and Action comparisons to $output_dir")
     
-    # 4. Generate Specific Defender Cost Comparison
+    # Generate Specific Defender Cost Comparison
     println("Generating Defender-only cost comparison...")
     try
-        robust_entry = nothing
-        non_robust_entry = nothing
+        robust_entries = TrajectoryAnalysisEntry[]
+        non_robust_entries = TrajectoryAnalysisEntry[]
         
         for entry in TrajectoryAnalysis.TRAJECTORY_TRACKER.entries
             if entry.robust
-                robust_entry = entry
+                push!(robust_entries, entry)
             else
-                non_robust_entry = entry
+                push!(non_robust_entries, entry)
             end
         end
         
-        if !isnothing(robust_entry) && !isnothing(non_robust_entry)
+        if !isempty(robust_entries) && !isempty(non_robust_entries)
+            try
+                TrajectoryAnalysis.create_defender_yarnball_comparison(robust_entries, non_robust_entries; output_dir=output_dir)
+            catch e
+                println("Error creating defender yarnball: $e")
+            end
             
             function get_defender_cost_series(entry)
                 executed_costs = TrajectoryAnalysis.compute_executed_trajectory_costs(entry, false)
@@ -927,47 +1096,77 @@ function generate_comparison_plots(solutions, rank, output_dir)
                 costs = Float64[]
                 for step_costs in executed_costs
                     if haskey(step_costs, :defender)
-                        
                         step = step_costs[:defender]
-                        
-                        # Sum all components
                         total_val = sum(values(step))
                         push!(costs, total_val)
                     else
                         push!(costs, 0.0)
                     end
                 end
-                if !isnothing(robust_entry) && !isnothing(non_robust_entry)
-                    try
-                        TrajectoryAnalysis.create_defender_yarnball_comparison(robust_entry, non_robust_entry; output_dir=output_dir)
-                    catch e
-                        println("Error creating defender yarnball: $e")
-                    end
-                end
-                
                 return costs
             end
             
-            r_costs = get_defender_cost_series(robust_entry)
-            nr_costs = get_defender_cost_series(non_robust_entry)
+            # Helper
+            function compute_stats(data_list)
+                if isempty(data_list) return Float64[], Float64[], Float64[] end
+                max_len = maximum(length(d) for d in data_list)
+                means = Float64[]
+                stds = Float64[]
+                for t in 1:max_len
+                    vals = [d[t] for d in data_list if length(d) >= t]
+                    if !isempty(vals)
+                        push!(means, mean(vals))
+                        push!(stds, length(vals) > 1 ? std(vals) : 0.0)
+                    end
+                end
+                return 1:length(means), means, stds
+            end
+            
+            # Collect all cost series
+            r_costs_all = [get_defender_cost_series(entry) for entry in robust_entries]
+            nr_costs_all = [get_defender_cost_series(entry) for entry in non_robust_entries]
             
             fig = Figure(size=(1000, 500))
             
+            # Instantaneous cost
             ax1 = Axis(fig[1, 1], title="Defender Instantaneous Cost", xlabel="Time Step", ylabel="Cost")
-            if !isempty(r_costs)
-                lines!(ax1, 1:length(r_costs), r_costs, color=:blue, label="Robust", linewidth=2)
+            
+            if !isempty(r_costs_all)
+                ts, means, stds = compute_stats(r_costs_all)
+                if !isempty(ts)
+                    band!(ax1, collect(ts), means .- stds, means .+ stds, color=(:blue, 0.2))
+                    lines!(ax1, collect(ts), means, color=:blue, label="Robust", linewidth=2)
+                end
             end
-            if !isempty(nr_costs)
-                lines!(ax1, 1:length(nr_costs), nr_costs, color=:red, label="Non-Robust", linewidth=2)
+            
+            if !isempty(nr_costs_all)
+                ts, means, stds = compute_stats(nr_costs_all)
+                if !isempty(ts)
+                    band!(ax1, collect(ts), means .- stds, means .+ stds, color=(:red, 0.2))
+                    lines!(ax1, collect(ts), means, color=:red, label="Non-Robust", linewidth=2)
+                end
             end
             axislegend(ax1)
             
+            # Cumulative cost
             ax2 = Axis(fig[1, 2], title="Defender Cumulative Cost", xlabel="Time Step", ylabel="Total Cost")
-            if !isempty(r_costs)
-                lines!(ax2, 1:length(r_costs), cumsum(r_costs), color=:blue, label="Robust", linewidth=2)
+            
+            if !isempty(r_costs_all)
+                r_cumsum_all = [cumsum(costs) for costs in r_costs_all]
+                ts, means, stds = compute_stats(r_cumsum_all)
+                if !isempty(ts)
+                    band!(ax2, collect(ts), means .- stds, means .+ stds, color=(:blue, 0.2))
+                    lines!(ax2, collect(ts), means, color=:blue, label="Robust", linewidth=2)
+                end
             end
-            if !isempty(nr_costs)
-                lines!(ax2, 1:length(nr_costs), cumsum(nr_costs), color=:red, label="Non-Robust", linewidth=2)
+            
+            if !isempty(nr_costs_all)
+                nr_cumsum_all = [cumsum(costs) for costs in nr_costs_all]
+                ts, means, stds = compute_stats(nr_cumsum_all)
+                if !isempty(ts)
+                    band!(ax2, collect(ts), means .- stds, means .+ stds, color=(:red, 0.2))
+                    lines!(ax2, collect(ts), means, color=:red, label="Non-Robust", linewidth=2)
+                end
             end
             axislegend(ax2)
             

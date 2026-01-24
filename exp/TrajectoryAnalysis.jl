@@ -513,47 +513,97 @@ function create_action_difference_plots(robust_entries, non_robust_entries, conf
         ylabel = "Angle (radians)"
     )
     
-    # Plot all 4 trajectory types
-    for (trial_idx, controls) in enumerate(robust_controls_all)
-        attacker_controls = controls[:attacker]
-        defender_controls = controls[:defender]
-        
-        if length(attacker_controls) >= min_time_steps
-            norms = [norm(u) for u in attacker_controls[1:min_time_steps]]
-            angles = [control_angle(u) for u in attacker_controls[1:min_time_steps]]
-            lines!(ax_norm, 1:min_time_steps, norms, color=(color_attacker_robust, 0.6), linewidth=2,
-                   label = trial_idx == 1 ? "Attacker (Robust)" : nothing)
-            lines!(ax_angle, 1:min_time_steps, angles, color=(color_attacker_robust, 0.6), linewidth=2)
+    # Helper to compute stats
+    function compute_stats_over_trials(data_list)
+        if isempty(data_list) return Float64[], Float64[], Float64[] end
+        max_len = maximum(length(d) for d in data_list)
+        means = Float64[]
+        stds = Float64[]
+        for t in 1:max_len
+            vals = [d[t] for d in data_list if length(d) >= t]
+            if !isempty(vals)
+                push!(means, mean(vals))
+                push!(stds, length(vals) > 1 ? std(vals) : 0.0)
+            end
         end
-        
-        if length(defender_controls) >= min_time_steps
-            norms = [norm(u) for u in defender_controls[1:min_time_steps]]
-            angles = [control_angle(u) for u in defender_controls[1:min_time_steps]]
-            lines!(ax_norm, 1:min_time_steps, norms, color=(color_defender_robust, 0.6), linewidth=2,
-                   label = trial_idx == 1 ? "Defender (Robust)" : nothing)
-            lines!(ax_angle, 1:min_time_steps, angles, color=(color_defender_robust, 0.6), linewidth=2)
+        return 1:length(means), means, stds
+    end
+    
+    # Collect all norms and angles for each player/robustness combination
+    robust_att_norms = Vector{Vector{Float64}}()
+    robust_att_angles = Vector{Vector{Float64}}()
+    robust_def_norms = Vector{Vector{Float64}}()
+    robust_def_angles = Vector{Vector{Float64}}()
+    
+    for controls in robust_controls_all
+        if length(controls[:attacker]) >= min_time_steps
+            push!(robust_att_norms, [norm(u) for u in controls[:attacker][1:min_time_steps]])
+            push!(robust_att_angles, [control_angle(u) for u in controls[:attacker][1:min_time_steps]])
+        end
+        if length(controls[:defender]) >= min_time_steps
+            push!(robust_def_norms, [norm(u) for u in controls[:defender][1:min_time_steps]])
+            push!(robust_def_angles, [control_angle(u) for u in controls[:defender][1:min_time_steps]])
         end
     end
     
-    for (trial_idx, controls) in enumerate(non_robust_controls_all)
-        attacker_controls = controls[:attacker]
-        defender_controls = controls[:defender]
-        
-        if length(attacker_controls) >= min_time_steps
-            norms = [norm(u) for u in attacker_controls[1:min_time_steps]]
-            angles = [control_angle(u) for u in attacker_controls[1:min_time_steps]]
-            lines!(ax_norm, 1:min_time_steps, norms, color=(color_attacker_non_robust, 0.6), linewidth=2, linestyle=:dash,
-                   label = trial_idx == 1 ? "Attacker (Non-Robust)" : nothing)
-            lines!(ax_angle, 1:min_time_steps, angles, color=(color_attacker_non_robust, 0.6), linewidth=2, linestyle=:dash)
+    non_robust_att_norms = Vector{Vector{Float64}}()
+    non_robust_att_angles = Vector{Vector{Float64}}()
+    non_robust_def_norms = Vector{Vector{Float64}}()
+    non_robust_def_angles = Vector{Vector{Float64}}()
+    
+    for controls in non_robust_controls_all
+        if length(controls[:attacker]) >= min_time_steps
+            push!(non_robust_att_norms, [norm(u) for u in controls[:attacker][1:min_time_steps]])
+            push!(non_robust_att_angles, [control_angle(u) for u in controls[:attacker][1:min_time_steps]])
         end
-        
-        if length(defender_controls) >= min_time_steps
-            norms = [norm(u) for u in defender_controls[1:min_time_steps]]
-            angles = [control_angle(u) for u in defender_controls[1:min_time_steps]]
-            lines!(ax_norm, 1:min_time_steps, norms, color=(color_defender_non_robust, 0.6), linewidth=2, linestyle=:dash,
-                   label = trial_idx == 1 ? "Defender (Non-Robust)" : nothing)
-            lines!(ax_angle, 1:min_time_steps, angles, color=(color_defender_non_robust, 0.6), linewidth=2, linestyle=:dash)
+        if length(controls[:defender]) >= min_time_steps
+            push!(non_robust_def_norms, [norm(u) for u in controls[:defender][1:min_time_steps]])
+            push!(non_robust_def_angles, [control_angle(u) for u in controls[:defender][1:min_time_steps]])
         end
+    end
+    
+    # Plot robust attacker
+    if !isempty(robust_att_norms)
+        ts, means, stds = compute_stats_over_trials(robust_att_norms)
+        band!(ax_norm, collect(ts), means .- stds, means .+ stds, color=(color_attacker_robust, 0.2))
+        lines!(ax_norm, collect(ts), means, color=color_attacker_robust, linewidth=2, label="Attacker (Robust)")
+        
+        ts, means, stds = compute_stats_over_trials(robust_att_angles)
+        band!(ax_angle, collect(ts), means .- stds, means .+ stds, color=(color_attacker_robust, 0.2))
+        lines!(ax_angle, collect(ts), means, color=color_attacker_robust, linewidth=2)
+    end
+    
+    # Plot robust defender
+    if !isempty(robust_def_norms)
+        ts, means, stds = compute_stats_over_trials(robust_def_norms)
+        band!(ax_norm, collect(ts), means .- stds, means .+ stds, color=(color_defender_robust, 0.2))
+        lines!(ax_norm, collect(ts), means, color=color_defender_robust, linewidth=2, label="Defender (Robust)")
+        
+        ts, means, stds = compute_stats_over_trials(robust_def_angles)
+        band!(ax_angle, collect(ts), means .- stds, means .+ stds, color=(color_defender_robust, 0.2))
+        lines!(ax_angle, collect(ts), means, color=color_defender_robust, linewidth=2)
+    end
+    
+    # Plot non-robust attacker
+    if !isempty(non_robust_att_norms)
+        ts, means, stds = compute_stats_over_trials(non_robust_att_norms)
+        band!(ax_norm, collect(ts), means .- stds, means .+ stds, color=(color_attacker_non_robust, 0.2))
+        lines!(ax_norm, collect(ts), means, color=color_attacker_non_robust, linewidth=2, linestyle=:dash, label="Attacker (Non-Robust)")
+        
+        ts, means, stds = compute_stats_over_trials(non_robust_att_angles)
+        band!(ax_angle, collect(ts), means .- stds, means .+ stds, color=(color_attacker_non_robust, 0.2))
+        lines!(ax_angle, collect(ts), means, color=color_attacker_non_robust, linewidth=2, linestyle=:dash)
+    end
+    
+    # Plot non-robust defender
+    if !isempty(non_robust_def_norms)
+        ts, means, stds = compute_stats_over_trials(non_robust_def_norms)
+        band!(ax_norm, collect(ts), means .- stds, means .+ stds, color=(color_defender_non_robust, 0.2))
+        lines!(ax_norm, collect(ts), means, color=color_defender_non_robust, linewidth=2, linestyle=:dash, label="Defender (Non-Robust)")
+        
+        ts, means, stds = compute_stats_over_trials(non_robust_def_angles)
+        band!(ax_angle, collect(ts), means .- stds, means .+ stds, color=(color_defender_non_robust, 0.2))
+        lines!(ax_angle, collect(ts), means, color=color_defender_non_robust, linewidth=2, linestyle=:dash)
     end
     
     axislegend(ax_norm, position=:rt)
@@ -640,34 +690,34 @@ function create_action_difference_plots(robust_entries, non_robust_entries, conf
     ts_att_norm, mean_att_norm, std_att_norm = compute_mean_std(attacker_norm_diffs_all)
     if !isempty(ts_att_norm)
         band!(ax_norm_diff, collect(ts_att_norm), mean_att_norm .- std_att_norm, mean_att_norm .+ std_att_norm, 
-              color=(color_attacker_robust, 0.2))
+            color=(color_attacker_robust, 0.2))
         lines!(ax_norm_diff, collect(ts_att_norm), mean_att_norm, 
-               color=color_attacker_robust, linewidth=2, label="Attacker")
+            color=color_attacker_robust, linewidth=2, label="Attacker")
     end
     
     ts_att_angle, mean_att_angle, std_att_angle = compute_mean_std(attacker_angle_diffs_all)
     if !isempty(ts_att_angle)
         band!(ax_angle_diff, collect(ts_att_angle), mean_att_angle .- std_att_angle, mean_att_angle .+ std_att_angle, 
-              color=(color_attacker_robust, 0.2))
+            color=(color_attacker_robust, 0.2))
         lines!(ax_angle_diff, collect(ts_att_angle), mean_att_angle, 
-               color=color_attacker_robust, linewidth=2)
+            color=color_attacker_robust, linewidth=2)
     end
     
     # Plot defender differences (mean ± std)
     ts_def_norm, mean_def_norm, std_def_norm = compute_mean_std(defender_norm_diffs_all)
     if !isempty(ts_def_norm)
         band!(ax_norm_diff, collect(ts_def_norm), mean_def_norm .- std_def_norm, mean_def_norm .+ std_def_norm, 
-              color=(color_defender_robust, 0.2))
+            color=(color_defender_robust, 0.2))
         lines!(ax_norm_diff, collect(ts_def_norm), mean_def_norm, 
-               color=color_defender_robust, linewidth=2, label="Defender")
+            color=color_defender_robust, linewidth=2, label="Defender")
     end
     
     ts_def_angle, mean_def_angle, std_def_angle = compute_mean_std(defender_angle_diffs_all)
     if !isempty(ts_def_angle)
         band!(ax_angle_diff, collect(ts_def_angle), mean_def_angle .- std_def_angle, mean_def_angle .+ std_def_angle, 
-              color=(color_defender_robust, 0.2))
+            color=(color_defender_robust, 0.2))
         lines!(ax_angle_diff, collect(ts_def_angle), mean_def_angle, 
-               color=color_defender_robust, linewidth=2)
+            color=color_defender_robust, linewidth=2)
     end
     
     axislegend(ax_norm_diff, position=:rt)
@@ -692,42 +742,54 @@ function create_action_difference_plots(robust_entries, non_robust_entries, conf
             ylabel = "Control u₂",
         )
         
-        # Collect all points for axis limits
         all_xs = Float64[]
         all_ys = Float64[]
         
-        # Plot robust trials
-        for (trial_idx, controls) in enumerate(robust_controls_all)
+        robust_xs = Float64[]
+        robust_ys = Float64[]
+        non_robust_xs = Float64[]
+        non_robust_ys = Float64[]
+        
+        # Collect robust trials data
+        for controls in robust_controls_all
             player_controls = controls[player_sym]
             if length(player_controls) >= min_time_steps
                 xs = [u[1] for u in player_controls[1:min_time_steps]]
                 ys = [u[2] for u in player_controls[1:min_time_steps]]
                 append!(all_xs, xs)
                 append!(all_ys, ys)
-                
-                lines!(ax, xs, ys, color=(colors_robust[col], 0.6), linewidth=1.5)
-                scatter!(ax, xs, ys, color=(colors_robust[col], 0.6), markersize=8,
-                        label = trial_idx == 1 ? "Robust" : nothing)
-                
-                # Mark start (green) and end (black star)
-                scatter!(ax, [xs[1]], [ys[1]], color=:green, markersize=12, marker=:circle)
-                scatter!(ax, [xs[end]], [ys[end]], color=:black, markersize=12, marker=:star5)
+                append!(robust_xs, xs)
+                append!(robust_ys, ys)
             end
         end
         
-        # Plot non-robust trials
-        for (trial_idx, controls) in enumerate(non_robust_controls_all)
+        # Collect non-robust trials data
+        for controls in non_robust_controls_all
             player_controls = controls[player_sym]
             if length(player_controls) >= min_time_steps
                 xs = [u[1] for u in player_controls[1:min_time_steps]]
                 ys = [u[2] for u in player_controls[1:min_time_steps]]
                 append!(all_xs, xs)
                 append!(all_ys, ys)
-                
-                lines!(ax, xs, ys, color=(colors_non_robust[col], 0.6), linewidth=1.5, linestyle=:dash)
-                scatter!(ax, xs, ys, color=(colors_non_robust[col], 0.6), markersize=8,
-                        label = trial_idx == 1 ? "Non-Robust" : nothing)
+                append!(non_robust_xs, xs)
+                append!(non_robust_ys, ys)
             end
+        end
+        
+        # Plot as scatter with low opacity to create colored bands
+        if !isempty(robust_xs)
+            scatter!(ax, robust_xs, robust_ys, 
+                    color=(colors_robust[col], 0.15), 
+                    markersize=10,
+                    label="Robust")
+        end
+        
+        if !isempty(non_robust_xs)
+            scatter!(ax, non_robust_xs, non_robust_ys, 
+                    color=(colors_non_robust[col], 0.15), 
+                    markersize=10,
+                    marker=:diamond,
+                    label="Non-Robust")
         end
         
         # Set axis limits with padding
@@ -1096,7 +1158,7 @@ function create_planned_trajectory_costs_plots(planned_trajectory_costs)
 end
 
 function create_yarnball_plot_for_cost_components(all_planned_costs, all_entries; directory="../outputs/verification_sweep")
-    println("Generating yarnball plots for cost components (with ribbons)...")
+    println("Generating yarnball plots for cost components...")
 
     for (scenario, scenario_costs) in all_planned_costs # scenario_costs is for all trials of a scenario
         
@@ -1279,9 +1341,9 @@ function create_yarnball_plot_for_cost_components(all_planned_costs, all_entries
                     ts, means, stds = get_component_stats(trajectories)
                     valid_idx = findall(.!isnan.(means))
                     if !isempty(valid_idx)
-                         band!(ax, ts[valid_idx], means[valid_idx] .- stds[valid_idx], means[valid_idx] .+ stds[valid_idx], 
-                               color=(color, 0.2))
-                         lines!(ax, ts[valid_idx], means[valid_idx], color=color, linewidth=2)
+                        band!(ax, ts[valid_idx], means[valid_idx] .- stds[valid_idx], means[valid_idx] .+ stds[valid_idx], 
+                            color=(color, 0.2))
+                        lines!(ax, ts[valid_idx], means[valid_idx], color=color, linewidth=2)
                     end
                 end
             end
@@ -1334,56 +1396,66 @@ function create_yarnball_plot_for_cost_components(all_planned_costs, all_entries
 end
 
 """
-    create_defender_yarnball_comparison(r_entry, nr_entry; output_dir=".")
+    create_defender_yarnball_comparison(r_entries, nr_entries; output_dir=".")
 
 Create a side-by-side or overlaid yarnball plot comparing Robust vs Non-Robust defender costs.
-Breakdown by component.
+Breakdown by component. Now supports multiple trials with mean ± std bands.
 """
-function create_defender_yarnball_comparison(r_entry, nr_entry; output_dir=".")
-    if isnothing(r_entry) || isnothing(nr_entry) return end
+function create_defender_yarnball_comparison(r_entries, nr_entries; output_dir=".")
+    # Handle both single entries and lists
+    r_entries_list = r_entries isa Vector ? r_entries : [r_entries]
+    nr_entries_list = nr_entries isa Vector ? nr_entries : [nr_entries]
+    
+    if isempty(r_entries_list) || isempty(nr_entries_list) return end
     
     println("Generating Defender Yarnball Comparison...")
     
-    # Calculate planned costs
-    r_planned = calculate_planned_trajectory_costs(r_entry, false)
-    nr_planned = calculate_planned_trajectory_costs(nr_entry, false)
+    # Helper to compute stats
+    function compute_stats(data_list)
+        if isempty(data_list) return Float64[], Float64[], Float64[] end
+        max_len = maximum(length(d) for d in data_list)
+        means = Float64[]
+        stds = Float64[]
+        for t in 1:max_len
+            vals = [d[t] for d in data_list if length(d) >= t]
+            if !isempty(vals)
+                push!(means, mean(vals))
+                push!(stds, length(vals) > 1 ? std(vals) : 0.0)
+            end
+        end
+        return 1:length(means), means, stds
+    end
     
-    # Calculate executed costs
-    r_exec = compute_executed_trajectory_costs(r_entry, false)
-    nr_exec = compute_executed_trajectory_costs(nr_entry, false)
-    
-    # helper to gather components
-    function val_components(planned_costs, player=:defender)
-        comps = Set{Symbol}()
-        for step_data in planned_costs
-            if haskey(step_data, player)
-                for plan_step in step_data[player]
-                    union!(comps, keys(plan_step))
+    # Collect all components from all entries
+    all_comps = Set{Symbol}()
+    for entry in vcat(r_entries_list, nr_entries_list)
+        planned = calculate_planned_trajectory_costs(entry, false)
+        for step_data in planned
+            if haskey(step_data, :defender)
+                for plan_step in step_data[:defender]
+                    union!(all_comps, keys(plan_step))
                 end
             end
         end
-        return comps
     end
-    
-    all_comps = union(val_components(r_planned), val_components(nr_planned))
     component_names = sort(collect(all_comps), by=string)
     
     if isempty(component_names) return end
     
-    # Layout Config
-    max_t_r = length(r_planned)
-    max_t_nr = length(nr_planned)
-    max_t = max(max_t_r, max_t_nr)
+    # Determine layout
+    max_t = 0
+    for entry in vcat(r_entries_list, nr_entries_list)
+        planned = calculate_planned_trajectory_costs(entry, false)
+        max_t = max(max_t, length(planned))
+    end
     
     num_plan_rows = min(max_t, 10)
-    num_rows = num_plan_rows + 1 # +1 for Executed Trajectory
-    num_cols = length(component_names) + 1 # +1 for Total
+    num_rows = num_plan_rows + 1
+    num_cols = length(component_names) + 1
     
     fig = Figure(size=(300 * (num_cols-1) + 100, 200 * num_rows))
     Label(fig[0, :], text = "Defender Cost Comparison: Robust (Blue) vs Non-Robust (Red)", fontsize = 20)
     
-    # Apply column sizing for first column (bounds/barrier)
-    # We assume the alphabetically first component is the "bounds" one (e.g. :barrier)
     colsize!(fig.layout, 1, Relative(0.12))
     
     for row_idx in 1:num_rows
@@ -1393,8 +1465,7 @@ function create_defender_yarnball_comparison(r_entry, nr_entry; output_dir=".")
         for col_idx in 1:num_cols
             is_total_col = (col_idx == num_cols)
             
-            # Determine Component Name for plotting
-            comp_sym = nothing 
+            comp_sym = nothing
             comp_str = ""
             if is_total_col
                 comp_str = "Total"
@@ -1403,104 +1474,139 @@ function create_defender_yarnball_comparison(r_entry, nr_entry; output_dir=".")
                 comp_str = string(comp_sym)
             end
             
-            # Titles and Labels
             ax_title = (row_idx == 1) ? comp_str : ""
             ax_ylabel = ""
-            if col_idx == 1 
+            if col_idx == 1
                 ax_ylabel = is_exec_row ? "Executed" : "Exec Step $t_plan"
             end
             ax_xlabel = is_exec_row ? "Execution Time" : ((row_idx == num_plan_rows) ? "Horizon Step" : "")
             
-            ax = Axis(fig[row_idx, col_idx], 
-                title=ax_title, 
+            ax = Axis(fig[row_idx, col_idx],
+                title=ax_title,
                 ylabel=ax_ylabel,
                 xlabel=ax_xlabel
             )
             
             if is_exec_row
-                # -- Plot Executed Trajectory --
-                # X-axis: Execution Time Steps
+                # Executed trajectory - aggregate across trials
+                r_trajectories = Vector{Vector{Float64}}()
+                nr_trajectories = Vector{Vector{Float64}}()
                 
-                # Robust
-                vals = Float64[]
-                for step_costs in r_exec
-                    if haskey(step_costs, :defender)
-                        if is_total_col
-                            push!(vals, sum(values(step_costs[:defender])))
-                        elseif haskey(step_costs[:defender], comp_sym)
-                            push!(vals, step_costs[:defender][comp_sym])
-                        else
-                            push!(vals, 0.0)
+                for entry in r_entries_list
+                    exec_costs = compute_executed_trajectory_costs(entry, false)
+                    vals = Float64[]
+                    for step_costs in exec_costs
+                        if haskey(step_costs, :defender)
+                            if is_total_col
+                                push!(vals, sum(values(step_costs[:defender])))
+                            elseif haskey(step_costs[:defender], comp_sym)
+                                push!(vals, step_costs[:defender][comp_sym])
+                            else
+                                push!(vals, 0.0)
+                            end
                         end
                     end
-                end
-                if !isempty(vals)
-                   lines!(ax, 1:length(vals), vals, color=(:blue, 0.5), linewidth=2)
-                end
-                
-                # Non-Robust
-                vals_nr = Float64[]
-                for step_costs in nr_exec
-                    if haskey(step_costs, :defender)
-                        if is_total_col
-                            push!(vals_nr, sum(values(step_costs[:defender])))
-                        elseif haskey(step_costs[:defender], comp_sym)
-                            push!(vals_nr, step_costs[:defender][comp_sym])
-                        else
-                            push!(vals_nr, 0.0)
-                        end
+                    if !isempty(vals)
+                        push!(r_trajectories, vals)
                     end
                 end
-                if !isempty(vals_nr)
-                   lines!(ax, 1:length(vals_nr), vals_nr, color=(:red, 0.5), linewidth=2)
+                
+                for entry in nr_entries_list
+                    exec_costs = compute_executed_trajectory_costs(entry, false)
+                    vals = Float64[]
+                    for step_costs in exec_costs
+                        if haskey(step_costs, :defender)
+                            if is_total_col
+                                push!(vals, sum(values(step_costs[:defender])))
+                            elseif haskey(step_costs[:defender], comp_sym)
+                                push!(vals, step_costs[:defender][comp_sym])
+                            else
+                                push!(vals, 0.0)
+                            end
+                        end
+                    end
+                    if !isempty(vals)
+                        push!(nr_trajectories, vals)
+                    end
+                end
+                
+                # Plot with bands
+                if !isempty(r_trajectories)
+                    ts, means, stds = compute_stats(r_trajectories)
+                    band!(ax, collect(ts), means .- stds, means .+ stds, color=(:blue, 0.2))
+                    lines!(ax, collect(ts), means, color=:blue, linewidth=2)
+                end
+                
+                if !isempty(nr_trajectories)
+                    ts, means, stds = compute_stats(nr_trajectories)
+                    band!(ax, collect(ts), means .- stds, means .+ stds, color=(:red, 0.2))
+                    lines!(ax, collect(ts), means, color=:red, linewidth=2)
                 end
                 
             else
-                # -- Plot Planned Trajectory at Step t_plan --
-                # X-axis: Horizon Step
+                # Planned trajectory at step t_plan - aggregate across trials
+                r_trajectories = Vector{Vector{Float64}}()
+                nr_trajectories = Vector{Vector{Float64}}()
                 
-                # Robust
-                if t_plan <= length(r_planned)
-                    step_data = r_planned[t_plan]
-                    if haskey(step_data, :defender)
-                        plan = step_data[:defender] # Vector of NamedTuples
-                        vals = Float64[]
-                        for p_step in plan
-                            if is_total_col
-                                push!(vals, sum(values(p_step)))
-                            else
-                                push!(vals, get(p_step, comp_sym, 0.0))
+                for entry in r_entries_list
+                    planned = calculate_planned_trajectory_costs(entry, false)
+                    if t_plan <= length(planned)
+                        step_data = planned[t_plan]
+                        if haskey(step_data, :defender)
+                            plan = step_data[:defender]
+                            vals = Float64[]
+                            for p_step in plan
+                                if is_total_col
+                                    push!(vals, sum(values(p_step)))
+                                else
+                                    push!(vals, get(p_step, comp_sym, 0.0))
+                                end
                             end
-                        end
-                        if !isempty(vals)
-                            lines!(ax, 1:length(vals), vals, color=(:blue, 0.5), linewidth=2)
+                            if !isempty(vals)
+                                push!(r_trajectories, vals)
+                            end
                         end
                     end
                 end
                 
-                # Non-Robust
-                if t_plan <= length(nr_planned)
-                    step_data = nr_planned[t_plan]
-                    if haskey(step_data, :defender)
-                        plan = step_data[:defender]
-                        vals = Float64[]
-                        for p_step in plan
-                            if is_total_col
-                                push!(vals, sum(values(p_step)))
-                            else
-                                push!(vals, get(p_step, comp_sym, 0.0))
+                for entry in nr_entries_list
+                    planned = calculate_planned_trajectory_costs(entry, false)
+                    if t_plan <= length(planned)
+                        step_data = planned[t_plan]
+                        if haskey(step_data, :defender)
+                            plan = step_data[:defender]
+                            vals = Float64[]
+                            for p_step in plan
+                                if is_total_col
+                                    push!(vals, sum(values(p_step)))
+                                else
+                                    push!(vals, get(p_step, comp_sym, 0.0))
+                                end
+                            end
+                            if !isempty(vals)
+                                push!(nr_trajectories, vals)
                             end
                         end
-                        if !isempty(vals)
-                            lines!(ax, 1:length(vals), vals, color=(:red, 0.5), linewidth=2)
-                        end
                     end
+                end
+                
+                # Plot with bands
+                if !isempty(r_trajectories)
+                    ts, means, stds = compute_stats(r_trajectories)
+                    band!(ax, collect(ts), means .- stds, means .+ stds, color=(:blue, 0.2))
+                    lines!(ax, collect(ts), means, color=:blue, linewidth=2)
+                end
+                
+                if !isempty(nr_trajectories)
+                    ts, means, stds = compute_stats(nr_trajectories)
+                    band!(ax, collect(ts), means .- stds, means .+ stds, color=(:red, 0.2))
+                    lines!(ax, collect(ts), means, color=:red, linewidth=2)
                 end
             end
         end
     end
     
-    rank = r_entry.trial_number
+    rank = r_entries_list[1].trial_number
     file_path = joinpath(output_dir, "rank_$(rank)_defender_yarnball.png")
     save(file_path, fig)
     println("Saved Defender Yarnball to $file_path")
