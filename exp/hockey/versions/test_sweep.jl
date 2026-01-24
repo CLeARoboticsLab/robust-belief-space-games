@@ -1171,6 +1171,7 @@ function generate_comparison_plots(solutions, rank, output_dir)
             axislegend(ax2)
             
             save(joinpath(output_dir, "defender_cost_comparison.png"), fig)
+            save(joinpath(output_dir, "defender_cost_comparison.pdf"), fig)
             println("Saved defender cost comparison to $(joinpath(output_dir, "defender_cost_comparison.png"))")
         else
             println("Could not find both robust and non-robust entries for cost comparison.")

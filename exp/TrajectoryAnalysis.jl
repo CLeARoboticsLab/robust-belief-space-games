@@ -610,6 +610,7 @@ function create_action_difference_plots(robust_entries, non_robust_entries, conf
     
     filename1 = "$(directory)/control_norm_angle_$(safe_name).png"
     save(filename1, fig1)
+    save("$(directory)/control_norm_angle_$(safe_name).pdf", fig1)
     println("Saved control norm/angle plot to $filename1")
     
     # ========== Figure 2: Difference in Norm and Angle (robust - non-robust) ==========
@@ -724,6 +725,7 @@ function create_action_difference_plots(robust_entries, non_robust_entries, conf
     
     filename2 = "$(directory)/control_differences_$(safe_name).png"
     save(filename2, fig2)
+    save("$(directory)/control_differences_$(safe_name).pdf", fig2)
     println("Saved control differences plot to $filename2")
     
     # ========== Figure 3: 2D Control Trajectory Evolution ==========
@@ -807,6 +809,7 @@ function create_action_difference_plots(robust_entries, non_robust_entries, conf
     
     filename3 = "$(directory)/control_trajectory_2d_$(safe_name).png"
     save(filename3, fig3)
+    save("$(directory)/control_trajectory_2d_$(safe_name).pdf", fig3)
     println("Saved 2D control trajectory plot to $filename3")
     
     return nothing
@@ -1390,6 +1393,7 @@ function create_yarnball_plot_for_cost_components(all_planned_costs, all_entries
         end
         
         save("$(directory)/yarnball_$(scenario)_cost_grid.png", fig);
+        save("$(directory)/yarnball_$(scenario)_cost_grid.pdf", fig);
         println("Saved yarnball cost grid plot to $(directory)/yarnball_$(scenario)_cost_grid.png")
     end
     return nothing
@@ -1609,6 +1613,7 @@ function create_defender_yarnball_comparison(r_entries, nr_entries; output_dir="
     rank = r_entries_list[1].trial_number
     file_path = joinpath(output_dir, "rank_$(rank)_defender_yarnball.png")
     save(file_path, fig)
+    save("$(directory)/rank_$(rank)_defender_yarnball.pdf", fig)
     println("Saved Defender Yarnball to $file_path")
 end
 
