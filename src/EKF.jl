@@ -2,12 +2,12 @@ function ekf_update(beliefs::Beliefs, control::BlockVector, game::BeliefGame)
     g_player_parts = Vector{Vector{eltype(beliefs.beliefs[1].belief_mean)}}(undef, length(game.environments))
     W_player_parts = Vector{Matrix{eltype(beliefs.beliefs[1].belief_mean)}}(undef, length(game.environments))
 
-    for i in 1:length(game.environments) 
+    for i in 1:length(game.environments)
         player_belief_indices = (i-1)*game.dims.num_beliefs_per_player[i]+1:i*game.dims.num_beliefs_per_player[i]
         player_beliefs = Beliefs(beliefs.beliefs[player_belief_indices])
         g_player_parts[i], W_player_parts[i] = ekf_update_per_player(player_beliefs, control, game, i)
     end
-    
+
     g = vcat(g_player_parts...)
     W = BlockDiagonal(W_player_parts)
 
@@ -17,15 +17,16 @@ end
 function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, game::BeliefGame, player_idx::Int)
     dynamics = game.environments[player_idx].dynamics
     sensor_model = game.environments[player_idx].sensor_models
-    non_robust_control = mortar(control.blocks[1:end-length(game.robust_players)])
+    non_robust_control = length(game.robust_players) > 0 ? mortar(control.blocks[1:end-1]) : control
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
-    expected_dynamics = dynamics(BlockVector(means(beliefs), dims(beliefs)), non_robust_control, zero_noise)
+    # Pass player_idx to dynamics to allow for correct control block selection
+    expected_dynamics = dynamics(BlockVector(means(beliefs), dims(beliefs)), non_robust_control, zero_noise, player_idx)
 
-    A_fn(x) = Vector(dynamics(BlockVector(x, dims(beliefs)), non_robust_control, zero_noise))
-    M_fn(x) = Vector(dynamics(means(beliefs), non_robust_control, x))
-    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), non_robust_control, zero_noise), zero_noise))
+    A_fn(x) = Vector(dynamics(BlockVector(x, dims(beliefs)), non_robust_control, zero_noise, player_idx))
+    M_fn(x) = Vector(dynamics(means(beliefs), non_robust_control, x, player_idx))
+    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), non_robust_control, zero_noise, player_idx), zero_noise))
     N_fn(x) = Vector(sensor_model(expected_dynamics, x))
-    
+
     A = ForwardDiff.jacobian(A_fn, means(beliefs))
     M = ForwardDiff.jacobian(M_fn, zero_noise)
     H = ForwardDiff.jacobian(H_fn, means(beliefs))
@@ -33,12 +34,12 @@ function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, game::Bel
 
     Σ = BlockDiagonal([b.belief_covariance for b in beliefs])
     Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
-    
+
     S = H * Γ * H' + N * N'
     K = dual_round.((Γ * H') / S, digits=5)
 
     updated_covs_matrix = Symmetric(dual_round.(Γ - K * H * Γ, digits=5))
-    
+
     new_beliefs_for_player = Vector{Belief}(undef, length(beliefs))
     current_idx = 1
     player_belief_dims = dims(beliefs)
@@ -46,7 +47,7 @@ function ekf_update_per_player(beliefs::Beliefs, control::BlockVector, game::Bel
     for i in 1:length(beliefs)
         dim_i = player_belief_dims[i]
         cov_range = current_idx:(current_idx + dim_i - 1)
-        
+
         mean_i = expected_dynamics.blocks[i]
         if !(player_idx in game.robust_players) && length(game.robust_players) > 0
             mean_i += control.blocks[end][sum(dims(beliefs)[1:i-1])+1:sum(dims(beliefs)[1:i])] # TODO this assumes that the nature's controls has only one block (for the only non-robust player's beliefs)
@@ -102,14 +103,14 @@ function ekf_update_gradient(beliefs::Beliefs, control::BlockVector, game::Belie
     x = vcat(vec(beliefs), vec(control))
     g_s = ForwardDiff.jacobian(g_grad_wrapper, x)
     W_s_flat = ForwardDiff.jacobian(W_grad_wrapper, x)
-    
+
     g_s_val = clip(ForwardDiff.value.(real.(g_s)), clip_norm)
-    
+
     # Reshape the flattened W jacobian back into its proper 3D tensor shape
     W_shape = (total_size(beliefs), sum(dims(beliefs)))
     W_s_val = reshape(W_s_flat, (W_shape..., length(x)))
     W_s_val = clip(real.(W_s_val), clip_norm)
-    
+
     global DEBUG = old_debug
     return g_s_val, W_s_val
 end
@@ -119,12 +120,12 @@ function ekf_update_with_observations_per_player(beliefs::Beliefs, control::Bloc
     sensor_model = game.environments[player_idx].sensor_models
     zero_noise = BlockVector(zeros(sum(dims(beliefs))), dims(beliefs))
     stacked_controls = mortar([control.blocks..., control.blocks...])
-    expected_dynamics = dynamics(means(beliefs), stacked_controls, zero_noise)
-    A_fn(x) = Vector(dynamics(x, stacked_controls, zero_noise))
-    M_fn(x) = Vector(dynamics(means(beliefs), stacked_controls, x))
-    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), stacked_controls, zero_noise), zero_noise))
+    expected_dynamics = dynamics(means(beliefs), stacked_controls, zero_noise, player_idx)
+    A_fn(x) = Vector(dynamics(x, stacked_controls, zero_noise, player_idx))
+    M_fn(x) = Vector(dynamics(means(beliefs), stacked_controls, x, player_idx))
+    H_fn(x) = Vector(sensor_model(dynamics(BlockVector(x, dims(beliefs)), stacked_controls, zero_noise, player_idx), zero_noise))
     N_fn(x) = Vector(sensor_model(expected_dynamics, x))
-    
+
     A = ForwardDiff.jacobian(A_fn, means(beliefs))
     M = ForwardDiff.jacobian(M_fn, zero_noise)
     H = ForwardDiff.jacobian(H_fn, vcat(means(beliefs)...))
@@ -132,7 +133,7 @@ function ekf_update_with_observations_per_player(beliefs::Beliefs, control::Bloc
 
     Σ = BlockDiagonal([b.belief_covariance for b in beliefs.beliefs])
     Γ = Symmetric(dual_round.(A * Σ * A' + M * M' + ϵ * I, digits = 5))
-    
+
     S = H * Γ * H' + N * N'
     Q, R = qr(S)
     K_transpose = R \ (Q' * (H * Γ))
@@ -158,6 +159,6 @@ function ekf_update_with_observations(beliefs::Beliefs, control::BlockVector, ga
         updated_player_beliefs = ekf_update_with_observations_per_player(player_beliefs, control, game, p, player_observations)
         new_beliefs[player_belief_indices] .= updated_player_beliefs.beliefs
     end
-    
+
     return Beliefs(new_beliefs)
 end

@@ -27,7 +27,7 @@ mutable struct RHKKTEntry
     kkt_errors_trajectory::Vector{Float64}  # Individual KKT errors for each time step
     trial::Int
     time_step::Int
-    player::Union{Int, Nothing}  # For BeliefGame solver calls
+    player::Union{Int, Nothing}
     robust::Bool
     iteration_count::Int
     convergence_status::Symbol
@@ -67,7 +67,6 @@ function record_rh_kkt_error!(
     convergence_status::Symbol=:unknown,
     additional_data::Dict{String, Any}=Dict{String, Any}()
 )
-    # Handle both single value and trajectory input
     if kkt_errors isa Float64
         kkt_errors_trajectory = [kkt_errors]
         kkt_error_mean = kkt_errors
@@ -95,10 +94,10 @@ function record_rh_kkt_error!(
         save_rh_kkt_tracker()
     end
     
-    player_str = isnothing(player) ? "" : " Player $player"
-    robust_str = robust ? " (Robust)" : " (Non-Robust)"
-    trajectory_info = length(kkt_errors_trajectory) > 1 ? " ($(length(kkt_errors_trajectory)) steps)" : ""
-    println("[RHKKTTracker] Trial $trial, Step $time_step$player_str$robust_str: $solver_type KKT mean = $(round(kkt_error_mean, digits=8))$trajectory_info")
+    # player_str = isnothing(player) ? "" : " Player $player"
+    # robust_str = robust ? " (Robust)" : " (Non-Robust)"
+    # trajectory_info = length(kkt_errors_trajectory) > 1 ? " ($(length(kkt_errors_trajectory)) steps)" : ""
+    # println("[RHKKTTracker] Trial $trial, Step $time_step$player_str$robust_str: $solver_type KKT mean = $(round(kkt_error_mean, digits=8))$trajectory_info")
     
     return entry
 end
@@ -130,12 +129,12 @@ function load_rh_kkt_tracker(filename::String="rh_multi-trial-kkt-error-data.jld
                 # Clear the global tracker
                 empty!(RH_KKT_TRACKER.entries)
                 
-                # Handle both old (RobustBeliefGame) and new (Utils) type formats
+                # Handle old format
                 try
-                    # Try direct assignment first (for new format)
+                    # new format
                     append!(RH_KKT_TRACKER.entries, loaded_tracker.entries)
                 catch e1
-                    # If that fails, try manual conversion (for old format)
+                    # old format
                     println("Converting from old format...")
                     for (i, entry) in enumerate(loaded_tracker.entries)
                         try
@@ -154,7 +153,7 @@ function load_rh_kkt_tracker(filename::String="rh_multi-trial-kkt-error-data.jld
                             )
                             push!(RH_KKT_TRACKER.entries, new_entry)
                         catch e2
-                            # Try even more manual extraction if property access fails
+                            # even more old format
                             try
                                 # Extract using reflection for JLD2 reconstructed objects
                                 fields = fieldnames(typeof(entry))
@@ -208,17 +207,9 @@ Analyze KKT errors from hockey receding horizon experiments.
 """
 function analyze_hockey_kkt_errors()
     println("=== Hockey Receding Horizon KKT Error Analysis ===")
-    load_rh_kkt_tracker("rh_multi-trial-kkt-error-data.jld2")
-    
-    # Debug: Check if data was actually loaded
-    println("Debug: Global tracker has $(length(RH_KKT_TRACKER.entries)) entries")
-    
+    load_rh_kkt_tracker("rh_multi-trial-kkt-error-data.jld2")    
     get_rh_kkt_summary()
-        
-    # Also plot spatial trajectories
     plot_spatial_trajectories()
-    
-    # Analyze trajectory data
     analyze_hockey_trajectory_data()
 end
 
@@ -442,8 +433,9 @@ function create_kkt_yarnball_plots()
     end
     
     # Save the plot
-    save("kkt_temporal_evolution.png", fig)
+    save("kkt_temporal_evolution.png", fig);
     println("Temporal KKT evolution plots saved to kkt_temporal_evolution.png")
+    return nothing
 end
 
 
@@ -469,10 +461,7 @@ function export_rh_kkt_csv(filename::String="rh_kkt_errors.csv")
     end
     
     open(filename, "w") do f
-        # Header
         println(f, "solver_type,kkt_error_mean,trial,time_step,player,robust,iteration_count,convergence_status,trajectory_length,kkt_errors_trajectory")
-        
-        # Data
         for entry in RH_KKT_TRACKER.entries
             player_str = isnothing(entry.player) ? "" : string(entry.player)
             trajectory_str = join(entry.kkt_errors_trajectory, ";")

@@ -9,7 +9,7 @@ using Makie
 using Makie.GeometryBasics
 using Symbolics
 # using CairoMakie
-# using GLMakie
+using GLMakie
 using JLD2
 using FileIO
 using Distributions
@@ -19,7 +19,7 @@ using Statistics
 include("../KKTErrorTracker.jl")
 using .KKTErrorTracker
 
-# include("./HockeyVisuals.jl")
+include("./HockeyVisuals.jl")
 
 export hockey_game, receding_horizon_main, attacker_cost, defender_cost, attacker_non_terminal_cost, defender_non_terminal_cost, nature_non_terminal_cost, attacker_terminal_cost, defender_terminal_cost, nature_terminal_cost, player_cost_components
 
@@ -104,7 +104,10 @@ function steal_liklihood(belief_over_attacker::Belief, belief_over_defender::Bel
     # defender_pos_uncertainty = 10 * tr(belief_over_defender.belief_covariance)
     
     # return max(0, 10 - sq_dist) + attacker_pos_uncertainty - defender_pos_uncertainty
-    return max(0, 10 - sq_dist)
+    # return max(0, 10 - sq_dist)
+    # k = 1.0 # Softness parameter
+    # return -0.1 * (log(exp(k * sq_dist) + exp(k * 5.0)) / k)
+    return -0.1 * sq_dist
 end
 
 function shot_probability(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
@@ -158,21 +161,21 @@ function main()
     ]
     # A single goal defined by its two posts.
     goal_position = [
-            [0.25, -1.5],
-            [-0.25, -1.5],
-        ]
+        [0.25, -1.5],
+        [-0.25, -1.5],
+    ]
 
     # Visual
     goal_line_width = 5
 
     game = hockey_game(;
-        horizon = horizon,
-        goal_position = goal_position,
-    )    
-    mcp_game = MCPGame(game, horizon, vcat(initial_states...);debug=true)
-    
+        horizon=horizon,
+        goal_position=goal_position,
+    )
+    mcp_game = MCPGame(game, horizon, vcat(initial_states...); debug=true)
+
     sol = solve(mcp_game; debug=true, warm_start=false)
-    
+
     # Create figure
     fig = Figure(resolution=(800, 600))
     ax = Axis(fig[1, 1],
@@ -181,41 +184,41 @@ function main()
         ylabel="y position",
         aspect=1,
     )
-    
+
     # Plot trajectories
     traj1 = lines!(ax, [x[Block(1)][1] for x in sol.xs], [x[Block(1)][2] for x in sol.xs], label="Attacker", color=:blue, linewidth=2)
     traj2 = lines!(ax, [x[Block(2)][1] for x in sol.xs], [x[Block(2)][2] for x in sol.xs], label="Defender", color=:red, linewidth=2)
-    
+
     # Plot goal positions
     goal_posts = [[p[1] for p in goal_position], [p[2] for p in goal_position]]
     goal = lines!(ax, goal_posts[1], goal_posts[2], label="Goal", color=:green, linewidth=goal_line_width)
 
-    
+
     # Plot initial positions
     init_atk = scatter!(ax, [sol.xs[1][Block(1)][1]], [sol.xs[1][Block(1)][2]], label="Attacker Start", color=:blue, markersize=15)
     init_def = scatter!(ax, [sol.xs[1][Block(2)][1]], [sol.xs[1][Block(2)][2]], label="Defender Start", color=:red, markersize=15)
-    
+
     # Add arrows to show direction of movement
     for i in 2:2:length(sol.xs)-1
-        arrows!(ax, 
-            [sol.xs[i][Block(1)][1]], [sol.xs[i][Block(1)][2]], 
-            [sol.xs[i][Block(1)][3] / norm(sol.xs[i][Block(1)][3:4])], [sol.xs[i][Block(1)][4] / norm(sol.xs[i][Block(1)][3:4])], 
+        arrows!(ax,
+            [sol.xs[i][Block(1)][1]], [sol.xs[i][Block(1)][2]],
+            [sol.xs[i][Block(1)][3] / norm(sol.xs[i][Block(1)][3:4])], [sol.xs[i][Block(1)][4] / norm(sol.xs[i][Block(1)][3:4])],
             color=:blue, arrowsize=10, lengthscale=0.1)
-        arrows!(ax, 
-            [sol.xs[i][Block(2)][1]], [sol.xs[i][Block(2)][2]], 
-            [sol.xs[i][Block(2)][3] / norm(sol.xs[i][Block(2)][3:4])], [sol.xs[i][Block(2)][4] / norm(sol.xs[i][Block(2)][3:4])], 
+        arrows!(ax,
+            [sol.xs[i][Block(2)][1]], [sol.xs[i][Block(2)][2]],
+            [sol.xs[i][Block(2)][3] / norm(sol.xs[i][Block(2)][3:4])], [sol.xs[i][Block(2)][4] / norm(sol.xs[i][Block(2)][3:4])],
             color=:red, arrowsize=10, lengthscale=0.1)
     end
 
     Legend(
-        fig[1, 2], 
+        fig[1, 2],
         # [traj1, traj2, goal, [init_atk, init_def], [final_atk, final_def]],
         [traj1, traj2, goal, [init_atk, init_def]],
         # ["Attacker Trajectory", "Defender Trajectory", "Goals", "Initial Positions", "Final Positions"]
         ["Attacker Trajectory", "Defender Trajectory", "Goals", "Initial Positions"]
     )
 
-    
+
     # Display and save
     # display(fig)
     save("exp/hockey/outputs/hockey_solution.png", fig)
@@ -230,10 +233,33 @@ function M_state_based(x)
     dist = dot(x[1:2] - goal_center + [0, 3], x[1:2] - goal_center + [0, 3])
     return 0.1 * I * dist
 end
-function f(xs::BlockVector, us::BlockVector, ms::BlockVector)   
+function f(xs::BlockVector, us::BlockVector, ms::BlockVector, player_idx::Union{Int,Nothing}=nothing)
     dt2 = 0.5 * dt^2
+
+    valid_us = if !isnothing(player_idx)
+        # If we know which player we are, we can just grab their controls
+        u_p = us[Block(player_idx)]
+        mortar([u_p])
+    else
+        us
+    end
+
     BlockVector(
-            mapreduce(vcat, zip(xs.blocks, us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
+        mapreduce(vcat, zip(xs.blocks, valid_us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
+            [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
+            [dt2 0; 0 dt2; dt 0; 0 dt] * uᵢ +
+            M_static(xᵢ) * mᵢ
+        end,
+        length.(xs.blocks)
+    )
+end
+
+function rh_f(xs::BlockVector, us::BlockVector, ms::BlockVector, player_idx::Union{Int,Nothing}=nothing)
+    dt2 = 0.5 * dt^2
+    valid_us = us
+
+    BlockVector(
+        mapreduce(vcat, zip(xs.blocks, valid_us.blocks, ms.blocks)) do (xᵢ, uᵢ, mᵢ)
             [1 0 dt 0; 0 1 0 dt; 0 0 1 0; 0 0 0 1] * xᵢ +
             [dt2 0; 0 dt2; dt 0; 0 dt] * uᵢ +
             M_static(xᵢ) * mᵢ
@@ -285,9 +311,9 @@ function attacker_non_terminal_cost_components(belief_over_attacker::Belief, bel
     attacker_covariance = tr(belief_over_attacker.belief_covariance)
     bounds = box_bounds(belief_over_attacker)
     if explicit_covariance
-        return (; steal_prob, shot_prob = -2 * shot_prob, control_effort, bounds, attacker_covariance)
+        return (; steal_prob, shot_prob = -1 * shot_prob, control_effort = 2 * control_effort, bounds, attacker_covariance)
     else
-        return (; steal_prob, shot_prob = -2 * shot_prob, control_effort, bounds)
+        return (; steal_prob, shot_prob = -1 * shot_prob, control_effort = 2 * control_effort, bounds)
     end
 end
 
@@ -298,35 +324,40 @@ function defender_non_terminal_cost_components(belief_over_attacker::Belief, bel
     bounds = box_bounds(belief_over_defender)
     defender_covariance = tr(belief_over_defender.belief_covariance)
     if explicit_covariance
-        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds, defender_covariance)
+        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 2 * control_effort, bounds, defender_covariance)
     else
-        return (; steal_prob = -1 * steal_prob, shot_prob, control_effort = 0.5 * control_effort, bounds)
+        return (; steal_prob=-1 * steal_prob, shot_prob, control_effort = 2 * control_effort, bounds)
     end
 end
 
 function nature_non_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief, us::BlockVector; explicit_covariance=false, control_effort_weight=3)
     defender_components = defender_non_terminal_cost_components(belief_over_attacker, belief_over_defender, us; explicit_covariance)
-    control_effort = control_effort_weight * dot(us[Block(3)], us[Block(3)])
-    bounds = box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
-    return (; defender_components = -sum(defender_components), control_effort, bounds)
+    defender_cost_val = defender_components.steal_prob + defender_components.shot_prob
+    if hasproperty(defender_components, :defender_covariance)
+        defender_cost_val += defender_components.defender_covariance
+    end
+
+    control_effort = 1000 * dot(us[Block(3)], us[Block(3)])
+    bounds = 10 * (box_bounds(belief_over_attacker) + box_bounds(belief_over_defender))
+    return (; defender_components = -1 * defender_cost_val, control_effort, bounds)
 end
 
 function attacker_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
-    shot_prob = -5 * shot_probability(belief_over_attacker, belief_over_defender)
+    shot_prob = -1 * shot_probability(belief_over_attacker, belief_over_defender)
     bounds = box_bounds(belief_over_attacker)
     return (; shot_prob, bounds)
 end
 
 function defender_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief; explicit_covariance=false)
-    shot_prob = 5 * shot_probability(belief_over_attacker, belief_over_defender)
+    shot_prob = shot_probability(belief_over_attacker, belief_over_defender)
     bounds = box_bounds(belief_over_defender)
     return (; shot_prob, bounds)
 end
 
 function nature_terminal_cost_components(belief_over_attacker::Belief, belief_over_defender::Belief)
     defender_components = defender_terminal_cost_components(belief_over_attacker, belief_over_defender)
-    bounds = box_bounds(belief_over_attacker) + box_bounds(belief_over_defender)
-    return (; defender_components = -sum(defender_components), bounds)
+    defender_cost_val = defender_components.shot_prob
+    return (; defender_components = -1 * defender_cost_val + 10 * defender_components.bounds)
 end
 
 #region: Component sum wrappers
@@ -408,45 +439,58 @@ function belief_main(sol_number=2, override_solution=false)
         ]
         initial_beliefs = Beliefs([Belief(gt_initial_state[Block(i)], initial_belief_covariance[i]) for i in 1:2])
 
-        environment = BeliefEnvironment(f, gt_initial_state, h)
+        environments = [BeliefEnvironment(f, gt_initial_state, h_low_noise) for _ in 1:2]
 
         attacker_cost = BeliefCost(
-            attacker_non_terminal_cost,
-            attacker_terminal_cost,
+            (bs, us) -> attacker_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us),
+            (bs) -> attacker_terminal_cost(bs.beliefs[1], bs.beliefs[2]),
         )
         defender_cost = BeliefCost(
-            defender_non_terminal_cost,
-            defender_terminal_cost,
+            (bs, us) -> defender_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us),
+            (bs) -> defender_terminal_cost(bs.beliefs[1], bs.beliefs[2]),
         )
         nature_cost = BeliefCost(
-            nature_non_terminal_cost,
-            nature_terminal_cost,
+            (bs, us) -> nature_non_terminal_cost(bs.beliefs[1], bs.beliefs[2], us),
+            (bs) -> nature_terminal_cost(bs.beliefs[1], bs.beliefs[2]),
         )
+        dims = (; n=2,
+            num_players=2,
+            control_blocks_per_player=1,
+            player_state_dims=length.(gt_initial_state.blocks),
+            num_beliefs_per_player=[1, 1],
+            states=length.(gt_initial_state.blocks),
+            total_states_dim=length.(gt_initial_state.blocks),
+            controls=[2, 2],
+            total_controls_dim=[2, 2],
+            belief=length.(gt_initial_state.blocks),
+            sensor=[2, 2],
+            nature_controls_dim=4)
+
         non_robust_hockey_game = BeliefGame(
-            environment,
+            environments,
             [attacker_cost, defender_cost],
             initial_beliefs,
             horizon,
-            (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
+            dims,
             gt_initial_state,
-            false,
+            Int[],
         )
         robust_hockey_game = BeliefGame(
-            environment,
+            environments,
             [attacker_cost, defender_cost, nature_cost],
             initial_beliefs,
             horizon,
-            (; n=2, states=length.(gt_initial_state.blocks), controls=[2, 2], belief=length.(gt_initial_state.blocks), sensor=[2, 2]),
+            dims,
             gt_initial_state,
-            true,
-            )
-        non_robust_sol = solve(non_robust_hockey_game; debug=true, α=1.0)
-        robust_sol = solve(robust_hockey_game; debug=true, α=1.0)
+            [2],
+        )
+        non_robust_sol = @time solve(non_robust_hockey_game; debug=false)
+        robust_sol = @time solve(robust_hockey_game; debug=false)
         println("Saving solution to $solution_filename")
         @save solution_filename robust_sol non_robust_sol goal_position
     end
-    plot_feed_forward_norms(robust_sol[4])
-    # visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
+    # plot_feed_forward_norms(robust_sol[4])
+    visualize_belief_hockey_solution(robust_sol, non_robust_sol, goal_position)
 end
 
 function safe_eigen(A) #Why not just override eigen. Isn't this strictly better. - Henry
@@ -469,11 +513,11 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
     if isfile("exp/hockey/outputs/rh_$file_id.jld2") && !override
         println("Loading solution from exp/hockey/outputs/rh_$file_id.jld2")
         @load "exp/hockey/outputs/rh_$file_id.jld2" solutions goal_position
-        # visualize_receding_horizon_solution(
-        #     solutions, 
-        #     goal_position;
-        #     dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
-        # )
+        visualize_receding_horizon_solution(
+            solutions, 
+            goal_position;
+            dims=(; n=2, states=[2, 2], controls=[2, 2], belief=[2, 2, 2, 2], sensor=[2, 2, 2, 2])
+        )
         return
     end
 
@@ -497,7 +541,8 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
     )
     
     # --- Shared Parameters ---
-    dims = (; n=2, states=length.(gt_initial_state.blocks), controls=[control_dim for _ in 1:2], belief=[state_dim for _ in 1:4], sensor=[state_dim for _ in 1:4])
+    dims = (; n=2, num_players=2, control_blocks_per_player=1, player_state_dims=length.(gt_initial_state.blocks), num_beliefs_per_player=[2, 2],
+        states=length.(gt_initial_state.blocks), controls=[control_dim for _ in 1:2], total_controls_dim=[control_dim for _ in 1:2], belief=[state_dim for _ in 1:4], sensor=[state_dim for _ in 1:4], nature_controls_dim=8)
     costs = [[attacker_cost, defender_cost], [attacker_cost, defender_cost, nature_cost]]
     # --- Run Scenarios ---
     for trial in 1:trials
@@ -511,8 +556,11 @@ function receding_horizon_main(file_id::String=""; horizon=10, planning_horizon=
                 solutions["$(int)_$(type_str)_$trial"] = run_receding_horizon_scenario(
                     gt_initial_state, initial_beliefs, costs, robust, dims,
                     horizon, planning_horizon, random_seed,
-                    (f, gt_initial_state, [noise, noise]), # environment
-                    (current_beliefs, u, environments, observations) -> ekf_update_with_observations(current_beliefs, u, environments, observations), # ekf_update
+                    (rh_f, gt_initial_state, [noise, noise]), # environment
+                    (current_beliefs, u, environments, observations) -> begin
+                        dummy_game = BeliefGame(environments, costs[1], current_beliefs, 5, dims, gt_initial_state, Int[])
+                        ekf_update_with_observations(current_beliefs, u, dummy_game, observations)
+                    end, # ekf_update
                     trial,
                     "$(int)_$(type_str)_$trial"
                 )
@@ -569,13 +617,13 @@ function run_receding_horizon_scenario(
         sols = Vector{Any}(undef, dims.n)
         for ii in 1:dims.n
             game = BeliefGame(
-                environments[ii],
+                environments,
                 costs[ii],
                 current_beliefs,
                 min(planning_horizon, horizon - t + 1),
                 dims,
                 current_gt_state,
-                robust[ii])
+                robust[ii] ? [2] : Int[])
             # nominal_beliefs, nominal_controls, _, _, _, cond = solve(game; debug=true, warm_start=warm_starts[ii], save_intermediate_solutions=true)
             nominal_beliefs, nominal_controls, kkt_error_norms = solve(game; debug=true, warm_start=warm_starts[ii], save_intermediate_solutions=false)
             
@@ -584,15 +632,15 @@ function run_receding_horizon_scenario(
                 # Convert the kkt_error_norms to individual trajectory values
                 kkt_trajectory = norm.(kkt_error_norms)
                 KKTErrorTracker.record_rh_kkt_error!(
-                    "BeliefGame", 
-                    kkt_trajectory, 
-                    trial_number, 
-                    t; 
+                    "BeliefGame",
+                    kkt_trajectory,
+                    trial_number,
+                    t;
                     player=ii,
                     robust=robust[ii],
                     iteration_count=-1,
                     convergence_status=:unknown,
-                    additional_data=Dict{String, Any}(
+                    additional_data=Dict{String,Any}(
                         "scenario_name" => scenario_name,
                         "planning_horizon" => min(planning_horizon, horizon - t + 1),
                         "warm_start_used" => !isnothing(warm_starts[ii])
@@ -612,7 +660,7 @@ function run_receding_horizon_scenario(
                     zero_control = BlockVector(zeros(sum(dims.controls)), dims.controls)
                 end
                 last_belief = shifted_beliefs[end]
-                g, W = ekf_update(last_belief, zero_control, environments[ii].dynamics, environments[ii].sensor_models; is_robust=robust[ii])
+                g, W = ekf_update(last_belief, zero_control, game)
                 extended_belief = unvec(g, game.dims.belief)
 
                 warm_start_beliefs = vcat(shifted_beliefs, [extended_belief])

@@ -1,12 +1,29 @@
 function _populate_configs!(config::PlayerConfig; force::Bool=false)
     if isnothing(config.self_dynamics_model) || force
-        config.self_dynamics_model = (x::BlockVector, u::BlockVector, m::BlockVector) -> config.self_dynamics_model_template(x, u, m; config=config)
+        config.self_dynamics_model = (x::BlockVector, u::BlockVector, m::BlockVector, player_idx::Int=0) -> begin
+            # Re-blockify u
+            # Calculate block sizes at runtime to ensure config.num_activists is populated
+            expected_block_sizes = repeat(config.control_dims_per_activist, config.num_activists)
+            if length(u) > sum(expected_block_sizes)
+                push!(expected_block_sizes, length(u) - sum(expected_block_sizes))
+            end
+            u_fine_grained = BlockVector(Vector(u), expected_block_sizes)
+            config.self_dynamics_model_template(x, u_fine_grained, m; config=config)
+        end
     end
     if isnothing(config.self_sensor_model) || force
         config.self_sensor_model = (x::BlockVector, ns::BlockVector) -> config.self_sensor_model_template(x, ns; config=config)
     end
     if isnothing(config.self_non_terminal_cost_model) || force
-        config.self_non_terminal_cost_model = (beliefs::Beliefs, u::BlockVector) -> config.self_non_terminal_cost_model_template(config)(beliefs, u)
+        config.self_non_terminal_cost_model = (beliefs::Beliefs, u::BlockVector) -> begin
+            # Re-blockify u
+            expected_block_sizes = repeat(config.control_dims_per_activist, config.num_activists)
+            if length(u) > sum(expected_block_sizes)
+                push!(expected_block_sizes, length(u) - sum(expected_block_sizes))
+            end
+            u_fine_grained = BlockVector(Vector(u), expected_block_sizes)
+            config.self_non_terminal_cost_model_template(config)(beliefs, u_fine_grained)
+        end
     end
     if isnothing(config.self_terminal_cost_model) || force
         config.self_terminal_cost_model = (beliefs::Beliefs) -> config.self_terminal_cost_model_template(config)(beliefs)
