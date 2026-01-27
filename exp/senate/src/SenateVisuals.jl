@@ -1415,6 +1415,20 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
     # Also extract keys for per-trial labeling
     incurred_keys = @lift extract_incurred_costs($p1_sols, 1, "keys")[2]
 
+    # # Reactive text for incurred cost sums
+    # cost_sums_text = @lift begin
+    #     p1_costs = $p1_incurred_det_costs
+    #     p2_costs = $p2_incurred_det_costs
+    #     pairs = $exp_trial_pairs
+    #     lines = ["Incurred Cost Sums (GT):"]
+    #     for (i, (exp_idx, trial_idx)) in enumerate(pairs)
+    #         p1_sum = (i <= length(p1_costs) && !isempty(p1_costs[i])) ? round(sum(p1_costs[i]), digits=3) : "N/A"
+    #         p2_sum = (i <= length(p2_costs) && !isempty(p2_costs[i])) ? round(sum(p2_costs[i]), digits=3) : "N/A"
+    #         push!(lines, "P1: $p1_sum | P2: $p2_sum")
+    #     end
+    #     join(lines, "\n")
+    # end
+
     # Create graphs once during setup with reactive data
     # Graph 1: Planned costs + deterministic incurred (true cost on GT trajectory)
     add_multi_line_graph!(fig;
@@ -1444,6 +1458,9 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         loc=(2,3),
         selection_observable=exp_trial_pairs
     )
+    # Display incurred cost sums under the graphs
+    # Label(fig[3, 3], cost_sums_text, fontsize=12, halign=:left, valign=:top)
+
     colsize!(fig.layout, 3, Relative(0.20))  # 1:3:1 ratio - right column
 
 
