@@ -38,7 +38,7 @@ function generate_drift_test_configs()
                 ),
                 2 => Dict(
                     :type => non_robust,
-                    :believes_p1_drift_sensor_scale => drift,
+                    :drift_sensor_scale => drift,
                 )
             ),
             :horizon => 7,
@@ -56,7 +56,7 @@ function generate_drift_test_configs()
                     ),
                     2 => Dict(
                         :type => robust,
-                        :believes_p1_drift_sensor_scale => drift,
+                        :drift_sensor_scale => drift,
                         :nature_multiplier => nm,
                     )
                 ),

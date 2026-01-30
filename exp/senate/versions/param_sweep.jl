@@ -125,6 +125,13 @@ function run_param_sweep(config_list::Vector{Dict{Symbol, Any}};
         # Apply overrides
         apply_config!(params, config)
 
+        # Re-synchronize after modifications to populate derived fields (sensor/dynamics models)
+        _sync_params_to_configs_dims!(params)
+        for (_, player_config) in params.player_configs
+            _populate_configs!(player_config; force=true)
+        end
+        _sync_params_to_configs_other_configs!(params)
+
         # Determine experiment name
         if haskey(config, :name)
             exp_name = config[:name]
