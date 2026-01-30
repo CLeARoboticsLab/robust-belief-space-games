@@ -21,7 +21,7 @@ export obstacle_cost_v2, obstacle_cost, obstacle_cost_v3, obstacle_cost_v4
 include("./sensor.jl")
 export base_sensor_model, drift_sensor_model, covariance_drift_sensor_model
 include("./SenateParamUtils.jl")
-export _sync_params_to_configs_dims!, _sync_params_to_configs_other_configs!, DefaultPlayerConfig, DefaultSenateParams, DefaultNaturePlayerConfig
+export _populate_configs!, _sync_params_to_configs_dims!, _sync_params_to_configs_other_configs!, DefaultPlayerConfig, DefaultSenateParams, DefaultNaturePlayerConfig
 include("./SenateExperiment.jl")
 export run_receding_horizon_trials, run_receding_horizon_trial, init_checks
 

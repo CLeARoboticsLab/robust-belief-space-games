@@ -37,73 +37,47 @@ function setup_workers(num_procs; save_file_prefix="exp/senate")
         using LinearAlgebra
         using Distributions
         using Serialization
-        if !@isdefined(ExperimentRunner)
-            include("./src/ExperimentRunner.jl")
+
+        # Load assymetric_experiment.jl (includes base_experiment.jl)
+        if !@isdefined(run_asymmetric_experiment)
+            include("./versions/assymetric_experiment.jl")
         end
-        using .ExperimentRunner
 
         function run_single_experiment_wrapper(args)
-            params, experiment_name, save_file_prefix, override = args
-            println("\n=== Running Experiment: $experiment_name on process $(myid()) ===")
+            kwargs, save_file_prefix, override = args
+            println("\n=== Running Experiment on process $(myid()) ===")
 
-            solution_filename = "$(save_file_prefix)/outputs/runs/$(experiment_name).dat"
-
-            # Check if already exists
-            if isfile(solution_filename) && !override
-                println("Solution already exists at $solution_filename, skipping.")
-                return (
-                    success = true,
-                    skipped = true,
-                    name = experiment_name,
-                    pid = myid()
-                )
-            end
-
-            result = run_receding_horizon_trials(params; override=override)
-
-            # Save results
-            println("Saving solution to $solution_filename")
-            open(solution_filename, "w") do f
-                serialize(f, result)
-            end
-
-            status = (
-                success = !isnothing(result),
-                skipped = false,
-                name = experiment_name,
-                pid = myid()
+            # Just call run_asymmetric_experiment with single values
+            run_asymmetric_experiment(;
+                kwargs...,
+                override=override,
+                save_file_prefix=save_file_prefix
             )
 
-            result = nothing
-            params = nothing
-
             GC.gc(false)
-
-            println("Finished experiment $experiment_name on process $(myid()).")
-            return status
+            println("Finished on process $(myid()).")
+            return (success=true, pid=myid())
         end
     end)
 end
 
 """
-    run_experiment_batch(tasks::Vector{Tuple{SenateParams, String}}; cores=4, auto_recycle=true, override=false, save_file_prefix="exp/senate")
+    run_experiment_batch(tasks; cores=4, auto_recycle=true, override=false, save_file_prefix="exp/senate")
 
-Runs a batch of senate experiments in parallel, distributing across workers.
+Runs a batch of senate experiments in parallel using pmap.
 
-Each task is a tuple of (params::SenateParams, experiment_name::String).
-
-If `auto_recycle=true` (default), workers are recycled when the number of tasks exceeds
-the number of workers.
+Each task is a Dict of kwargs to pass to run_asymmetric_experiment.
+Workers just call run_asymmetric_experiment with single values.
 """
 function run_experiment_batch(
-    tasks::Vector{<:Tuple{<:SenateParams, String}};
+    tasks::Vector{<:Dict};
     cores=4,
     auto_recycle=true,
     override=false,
     save_file_prefix="exp/senate"
 )
     # Wrap tasks with save_file_prefix and override
-    wrapped_tasks = [(params, name, save_file_prefix, override) for (params, name) in tasks]
+    wrapped_tasks = [(kwargs, save_file_prefix, override) for kwargs in tasks]
 
     num_tasks = length(wrapped_tasks)
     effective_cores = min(cores, num_tasks)
