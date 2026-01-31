@@ -3,6 +3,18 @@ using Senate  # for non_robust, robust enums
 using BlockArrays
 
 function run_drift_test_sweep(; cores=10, override=false, num_seeds=100)
+    experiment_name = "drift_test"
+    #Check for folder existence
+    output_dir = joinpath(@__DIR__, "..", "outputs", experiment_name)
+    if !isdir(output_dir)
+        #Confirm directory creation
+        print("Creating output directory at $output_dir... press y to continue\n")
+        if readline() != "y"
+            error("User did not confirm directory creation")
+        end
+        mkpath(output_dir)
+    end
+
     run_parallel_sweep(
         p1_type=non_robust,
         p2_type=[non_robust, robust],
