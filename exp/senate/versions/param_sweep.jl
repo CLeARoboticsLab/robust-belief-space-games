@@ -29,7 +29,7 @@ function run_parallel_sweep(;
     cores=4,
     override=false,
     save_file_prefix="exp/senate",
-    num_seeds=1000,
+    num_seeds=100,
     kwargs...
 )
     # Separate array params (to expand) from single params (fixed)

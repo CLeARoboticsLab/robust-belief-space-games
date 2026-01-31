@@ -283,7 +283,7 @@ function run_obstacle_blocking_v1_weight_sweep(override=false;)
         p2_nature_multiplier=nature_multiplier_values,
         ground_truth_initial_states=senator_ground_truths,
         horizon=10,
-        experiment_name_prefix="obst_block_v1_cov_scale",
+        experiment_name_prefix="obst_block_v1_cov_scale_sans",
         override=override,
         dt=dt_values,
     )
