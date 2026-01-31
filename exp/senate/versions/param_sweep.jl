@@ -6,12 +6,14 @@ end
 using .ExperimentRunner
 
 """
-    run_parallel_sweep(; cores=4, override=false, save_file_prefix="exp/senate", kwargs...)
+    run_parallel_sweep(; cores=4, override=false, save_file_prefix="exp/senate", num_seeds=1000, kwargs...)
 
 Parallel version of run_asymmetric_experiment.
 
 Pass parameter arrays just like run_asymmetric_experiment - this function
 expands them into a grid and distributes single experiments to workers.
+
+Each parameter combination is run with random seeds 1:num_seeds for Monte Carlo.
 
 Example:
     run_parallel_sweep(
@@ -19,6 +21,7 @@ Example:
         p2_type=[non_robust, robust],
         p2_nature_multiplier=[0.5, 8.0],
         horizon=7,
+        num_seeds=100,  # 100 seeds per config
         cores=4
     )
 """
@@ -26,6 +29,7 @@ function run_parallel_sweep(;
     cores=4,
     override=false,
     save_file_prefix="exp/senate",
+    num_seeds=1000,
     kwargs...
 )
     # Separate array params (to expand) from single params (fixed)
@@ -40,6 +44,9 @@ function run_parallel_sweep(;
         end
     end
 
+    # Add random_seed as an array param for Monte Carlo
+    array_params[:random_seed] = collect(1:num_seeds)
+
     # Generate all combinations
     if isempty(array_params)
         combinations = [Dict{Symbol,Any}()]
@@ -53,9 +60,13 @@ function run_parallel_sweep(;
     end
 
     # Build tasks: each is a kwargs dict with single values
+    # Append seed to experiment_name_prefix so files don't overwrite
+    base_prefix = get(fixed_params, :experiment_name_prefix, "sweep")
     tasks = Dict{Symbol,Any}[]
     for combo in combinations
         task_kwargs = merge(fixed_params, combo)
+        seed = get(combo, :random_seed, 1)
+        task_kwargs[:experiment_name_prefix] = "$(base_prefix)/seed_$(seed)"
         push!(tasks, task_kwargs)
     end
 

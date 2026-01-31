@@ -19,12 +19,12 @@ function run_receding_horizon_trials(
     params::SenateParams; override::Bool=false)::Dict{String, Any}
     results = Dict{String, Any}()
     for trial in 1:params.trials
-        results["trial_$trial"] = run_receding_horizon_trial(params; override=override)
+        results["trial_$trial"] = run_receding_horizon_trial(params; override=override, trial_number=trial)
     end
     return results
 end
 
-function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
+function run_receding_horizon_trial(params::SenateParams; override::Bool=false, trial_number::Int=1)
     # --- Receding Horizon Loop ---
     if isfile("exp/senate/outputs/$(params.name).dat") && !override
         println("Loading solution from exp/senate/outputs/$(params.name).dat")
@@ -54,7 +54,8 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false)
     plan_cost_history = Dict(idx => Any[] for idx in player_indices)
     incurred_cost_history = Dict(idx => Any[] for idx in player_indices)
 
-    Random.seed!(params.random_seed)
+    random_seed = params.random_seed + trial_number - 1  # Different seed per trial
+    Random.seed!(random_seed)
 
     dimensions = dims(params)
 

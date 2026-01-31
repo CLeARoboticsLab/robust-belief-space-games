@@ -13,6 +13,7 @@ function run_experiment(params::SenateParams;override::Bool=false, experiment_na
 
     results = run_receding_horizon_trials(params; override=override)
     println("Saving solution to $solution_filename")
+    mkpath(dirname(solution_filename))
     open(solution_filename, "w") do f
         serialize(f,results)
     end
