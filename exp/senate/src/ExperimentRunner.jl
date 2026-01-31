@@ -40,7 +40,7 @@ function setup_workers(num_procs; save_file_prefix="exp/senate")
 
         # Load assymetric_experiment.jl (includes base_experiment.jl)
         if !@isdefined(run_asymmetric_experiment)
-            include("./versions/assymetric_experiment.jl")
+            include("./exp/senate/versions/assymetric_experiment.jl")
         end
 
         function run_single_experiment_wrapper(args)
