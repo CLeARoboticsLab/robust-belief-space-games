@@ -10,18 +10,15 @@ using .ExperimentRunner
 
 Parallel version of run_asymmetric_experiment.
 
-Pass parameter arrays just like run_asymmetric_experiment - this function
-expands them into a grid and distributes single experiments to workers.
-
-Each parameter combination is run with random seeds 1:num_seeds for Monte Carlo.
+Only expands: random_seed (Monte Carlo), p1_type, p2_type.
+All other parameters pass through as-is to run_asymmetric_experiment.
 
 Example:
     run_parallel_sweep(
-        p1_type=[non_robust],
+        p1_type=non_robust,
         p2_type=[non_robust, robust],
-        p2_nature_multiplier=[0.5, 8.0],
         horizon=7,
-        num_seeds=100,  # 100 seeds per config
+        num_seeds=100,
         cores=4
     )
 """
@@ -32,22 +29,21 @@ function run_parallel_sweep(;
     num_seeds=100,
     kwargs...
 )
-    # Separate array params (to expand) from single params (fixed)
+    # Only expand these specific parameters
+    expandable_keys = Set([:p1_type, :p2_type])
+
     array_params = Dict{Symbol,Vector}()
     fixed_params = Dict{Symbol,Any}()
 
     for (k, v) in kwargs
-        if v isa BlockVector
-            # BlockVector (e.g. ground_truth_initial_states) should not be expanded
-            fixed_params[k] = v
-        elseif v isa AbstractVector && !(v isa Vector{<:Vector})
+        if k in expandable_keys && v isa AbstractVector
             array_params[k] = collect(v)
         else
             fixed_params[k] = v
         end
     end
 
-    # Add random_seed as an array param for Monte Carlo
+    # Add random_seed for Monte Carlo
     array_params[:random_seed] = collect(1:num_seeds)
 
     # Generate all combinations
