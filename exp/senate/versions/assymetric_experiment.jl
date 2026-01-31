@@ -462,24 +462,22 @@ function run_asymmetric_experiment(;
     if !isnothing(p1_obstacle_weights)
         if p1_obstacle_weights isa Tuple && length(p1_obstacle_weights) == 3
             # Range specification: (start, stop, step_func)
-            # Generate range and wrap each value in a vector since obstacle_weights expects Vector{Float64}
             weight_range = generate_range(p1_obstacle_weights)
             @assert all(x -> x >= 0, weight_range) "Obstacle weights must be non-negative"
-            # Ensure each variation is a proper Vector{Float64} to prevent serialization issues
             param_variations[:p1_obstacle_weights] = [Vector{Float64}([w]) for w in weight_range]
+        elseif p1_obstacle_weights isa Real
+            # Single float: wrap in vector
+            @assert p1_obstacle_weights >= 0 "Obstacle weights must be non-negative"
+            fixed_params[:p1_obstacle_weights] = Vector{Float64}([p1_obstacle_weights])
         elseif p1_obstacle_weights isa Vector{<:Real}
             @assert all(x -> x >= 0, p1_obstacle_weights) "Obstacle weights must be non-negative"
             if length(p1_obstacle_weights) == 1
-                # Single value: fixed parameter - ensure it's Vector{Float64}
                 fixed_params[:p1_obstacle_weights] = Vector{Float64}(p1_obstacle_weights)
             else
-                # Multiple values: variations (each value becomes [value])
-                # Note: If you want multiple obstacles with different weights, use a single vector as fixed parameter
-                # Ensure each variation is a proper Vector{Float64} to prevent serialization issues
                 param_variations[:p1_obstacle_weights] = [Vector{Float64}([w]) for w in p1_obstacle_weights]
             end
         else
-            error("p1_obstacle_weights must be Vector{Real} or (start, stop, step_func) tuple")
+            error("p1_obstacle_weights must be Real, Vector{Real}, or (start, stop, step_func) tuple")
         end
     end
 
@@ -496,6 +494,10 @@ function run_asymmetric_experiment(;
             weight_range = generate_range(p2_obstacle_weights)
             @assert all(x -> x >= 0, weight_range) "Obstacle weights must be non-negative"
             param_variations[:p2_obstacle_weights] = [Vector{Float64}([w]) for w in weight_range]
+        elseif p2_obstacle_weights isa Real
+            # Single float: wrap in vector
+            @assert p2_obstacle_weights >= 0 "Obstacle weights must be non-negative"
+            fixed_params[:p2_obstacle_weights] = Vector{Float64}([p2_obstacle_weights])
         elseif p2_obstacle_weights isa Vector{<:Real}
             @assert all(x -> x >= 0, p2_obstacle_weights) "Obstacle weights must be non-negative"
             if length(p2_obstacle_weights) == 1
@@ -504,7 +506,7 @@ function run_asymmetric_experiment(;
                 param_variations[:p2_obstacle_weights] = [Vector{Float64}([w]) for w in p2_obstacle_weights]
             end
         else
-            error("p2_obstacle_weights must be Vector{Real} or (start, stop, step_func) tuple")
+            error("p2_obstacle_weights must be Real, Vector{Real}, or (start, stop, step_func) tuple")
         end
     end
 
