@@ -24,8 +24,12 @@ function run_drift_test_sweep(; cores=10, override=false, num_seeds=100)
         p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
         # Obstacle settings
-        p1_obstacle_centers=[[1.5, 1.5]],
-        p2_obstacle_centers=[[1.5, 1.5]],
+        p1_obstacle_centers=[
+        mortar([[[1.5, 1.5]]]),
+    ],
+        p2_obstacle_centers=[
+        mortar([[[1.5, 1.5]]]),
+    ],
         p1_obstacle_weights=8.0,
         p2_obstacle_weights=8.0,
         p1_ellipsoidal_cost_weight=0.5,

@@ -37,7 +37,10 @@ function run_parallel_sweep(;
     fixed_params = Dict{Symbol,Any}()
 
     for (k, v) in kwargs
-        if v isa AbstractVector && !(v isa Vector{<:Vector})  # arrays but not nested vectors like ellipsoid_centers
+        if v isa BlockVector
+            # BlockVector (e.g. ground_truth_initial_states) should not be expanded
+            fixed_params[k] = v
+        elseif v isa AbstractVector && !(v isa Vector{<:Vector})
             array_params[k] = collect(v)
         else
             fixed_params[k] = v
