@@ -362,9 +362,10 @@ function get_dir_stats(dirpath::String, verbose=false)
     
     if isempty(costs) return nothing end
     
-    return (; 
-        mean_cost = mean(costs), 
-        mean_kkt = mean(kkt_pcts), 
+    return (;
+        mean_cost = mean(costs),
+        std_cost = length(costs) > 1 ? std(costs) : 0.0,
+        mean_kkt = mean(kkt_pcts),
         trajectories = trajectories,
         n_trials = length(costs)
     )
@@ -444,6 +445,8 @@ function analyze_sweep_results(;
                             non_robust_dir = non_robust_dir,
                             r_cost = r_stats.mean_cost,
                             nr_cost = nr_stats.mean_cost,
+                            r_std = r_stats.std_cost,
+                            nr_std = nr_stats.std_cost,
                             r_kkt = r_stats.mean_kkt,
                             nr_kkt = nr_stats.mean_kkt,
                             r_trials = r_stats.n_trials,
@@ -472,7 +475,7 @@ function analyze_sweep_results(;
         println("\n[$i] Cost Improvement: $(round(res.cost_improvement, digits=3)) (robust: $(round(res.r_cost, digits=3)), non-robust: $(round(res.nr_cost, digits=3)))")
         println("    Robust:     $(res.robust_dir)")
         println("    Non-Robust: $(res.non_robust_dir)")
-        println("    Statistics: Improvement: $(round(res.cost_improvement, digits=3)) | Traj Diff: $(round(res.traj_diff, digits=4)) | Robust KKT >0.01: $(round(res.r_kkt*100, digits=1))% | Non-Robust KKT >0.01: $(round(res.nr_kkt*100, digits=1))%")
+        println("    Statistics: Improvement: $(round(res.cost_improvement, digits=3)) | Robust Std: $(round(res.r_std, digits=5)) | NR Std: $(round(res.nr_std, digits=5)) | Traj Diff: $(round(res.traj_diff, digits=4)) | Robust KKT >0.01: $(round(res.r_kkt*100, digits=1))% | Non-Robust KKT >0.01: $(round(res.nr_kkt*100, digits=1))%")
     end
     
     # Sort by Trajectory Difference (Largest)
@@ -486,7 +489,7 @@ function analyze_sweep_results(;
         println("\n[$i] Traj Diff: $(round(res.traj_diff, digits=4))")
         println("    Robust:     $(res.robust_dir)")
         println("    Non-Robust: $(res.non_robust_dir)")
-        println("    Statistics: Improvement: $(round(res.cost_improvement, digits=3)) | Traj Diff: $(round(res.traj_diff, digits=4)) | Robust KKT >0.01: $(round(res.r_kkt*100, digits=1))% | Non-Robust KKT >0.01: $(round(res.nr_kkt*100, digits=1))%")
+        println("    Statistics: Improvement: $(round(res.cost_improvement, digits=3)) | Robust Std: $(round(res.r_std, digits=3)) | NR Std: $(round(res.nr_std, digits=3)) | Traj Diff: $(round(res.traj_diff, digits=4)) | Robust KKT >0.01: $(round(res.r_kkt*100, digits=1))% | Non-Robust KKT >0.01: $(round(res.nr_kkt*100, digits=1))%")
     end
     
     # Return sorted by cost improvement (default preference)
@@ -612,10 +615,11 @@ function visualize_sweep(;
         for i in 1:min(k, length(results))
             res = results[i]
             imp_str = "Improvement: $(rpad(round(res.cost_improvement, digits=2), 7))"
+            std_str = "Std R/NR: $(round(res.r_std, digits=2))/$(round(res.nr_std, digits=2))"
             d_str = "Diff: $(rpad(round(res.traj_diff, digits=3), 6))"
             kkt_str = "KKT>0.01: $(round(res.r_kkt*100, digits=0))%"
             trials_str = "Trials: $(res.r_trials)/$(res.nr_trials)"
-            println("[$i] $imp_str | $d_str | $kkt_str | $trials_str" )
+            println("[$i] $imp_str | $std_str | $d_str | $kkt_str | $trials_str" )
         end
     
         # 4. Ask for Rank
@@ -627,29 +631,73 @@ function visualize_sweep(;
         elseif typeof(tryparse(Int, rank_input)) <: Int
             rank = tryparse(Int, rank_input)
         end
+        # rank = 2
         
-        # 5. Ask for extra trials
-        print("\nHow many extra trials to run for this config? [default: 0]: ")
-        extra_trials_input = readline()
-        extra_trials = 0
-        if strip(extra_trials_input) == "q"
+        # 5. Action menu
+        entry = results[rank]
+        println("\nSelected: $(entry.robust_dir)")
+
+        nccw_match = match(r"p2_ncc([\d.]+)", entry.robust_dir)
+        if !isnothing(nccw_match)
+            println("Current nature_control_cost_weight: $(nccw_match.captures[1])")
+        end
+
+        println("\nActions:")
+        println("[1] Run extra trials (same config)")
+        println("[2] Run trials with different nature_control_cost_weight")
+        println("[s] Skip to visualization")
+        print("Choice [default: s]: ")
+        action = strip(readline())
+
+        if action == "q"
             continue
-        elseif typeof(tryparse(Int, extra_trials_input)) <: Int
-            extra_trials = tryparse(Int, extra_trials_input)
+        elseif action == "1"
+            print("\nHow many extra trials to run? [default: 0]: ")
+            extra_trials_input = readline()
+            extra_trials = 0
+            if strip(extra_trials_input) != "q" && typeof(tryparse(Int, extra_trials_input)) <: Int
+                extra_trials = tryparse(Int, extra_trials_input)
+            end
+
+            if extra_trials > 0
+                println("\nRunning $extra_trials extra trials for both robust and non-robust...")
+                run_extra_trials(entry, extra_trials, sweep_dir)
+
+                println("\nRe-analyzing sweep results with new trials...")
+                results = analyze_sweep_results(sweep_dir=sweep_dir, verbose=false, top_k=k)
+                sort!(results, by = x -> x.traj_diff, rev=true)
+            end
+        elseif action == "2"
+            print("\nNature_control_cost_weight values (comma-separated): ")
+            nccw_input = strip(readline())
+            nccw_vals = Float64[]
+            for tok in split(nccw_input, ",")
+                v = tryparse(Float64, strip(tok))
+                if !isnothing(v) && v > 0
+                    push!(nccw_vals, v)
+                end
+            end
+
+            if isempty(nccw_vals)
+                println("No valid values, skipping.")
+            else
+                print("How many trials per value? [default: 3]: ")
+                trials_input = strip(readline())
+                nccw_trials = 3
+                parsed = tryparse(Int, trials_input)
+                if !isnothing(parsed) && parsed > 0
+                    nccw_trials = parsed
+                end
+
+                println("\nRunning $nccw_trials trials for each of $(length(nccw_vals)) nccw values: $nccw_vals")
+                run_nccw_variant_trials(entry, nccw_vals, nccw_trials, sweep_dir)
+
+                println("\nRe-analyzing sweep results...")
+                results = analyze_sweep_results(sweep_dir=sweep_dir, verbose=false, top_k=k)
+                sort!(results, by = x -> x.traj_diff, rev=true)
+            end
         end
-        
-        # 5b. Run extra trials if requested
-        if extra_trials > 0
-            entry = results[rank]
-            println("\nRunning $extra_trials extra trials for both robust and non-robust...")
-            run_extra_trials(entry, extra_trials, sweep_dir)
-            
-            # Re-analyze to include new trials
-            println("\nRe-analyzing sweep results with new trials...")
-            results = analyze_sweep_results(sweep_dir=sweep_dir, verbose=false, top_k=k)
-            sort!(results, by = x -> x.traj_diff, rev=true)
-        end
-        
+
         # 6. Visualize
         visualize_sweep_rank(rank, results=results, sweep_dir=sweep_dir; k=k)
     end
@@ -775,6 +823,100 @@ function run_extra_trials(entry, num_trials::Int, sweep_dir::String)
     println("Extra trials completed. Total trials now: $(trial_offset + num_trials) each.")
 end
 
+"""
+    run_nccw_variant_trials(entry, nccw_values, num_trials, sweep_dir)
+
+Run robust trials for the same base config across multiple nature_control_cost_weight values.
+All values are batched into a single `run_experiment_batch` call so trials run in parallel.
+Only runs robust trials since the non-robust baseline (matched via extract_base_config) is unchanged.
+"""
+function run_nccw_variant_trials(entry, nccw_values::Vector{Float64}, num_trials::Int, sweep_dir::String)
+    robust_path = joinpath(sweep_dir, entry.robust_dir)
+
+    # Load existing robust params as template
+    base_params = nothing
+    if isdir(robust_path)
+        for f in readdir(robust_path)
+            if endswith(f, ".jld2")
+                try
+                    data = load(joinpath(robust_path, f))
+                    if haskey(data, "params")
+                        base_params = deepcopy(data["params"])
+                        break
+                    end
+                catch e
+                    println("Warning: Failed to load $f: $e")
+                end
+            end
+        end
+    end
+
+    if isnothing(base_params)
+        println("Error: Could not load robust params from existing trials.")
+        return
+    end
+
+    old_nccw = base_params.player_configs[2].nature_control_cost_weight
+
+    # Format value for directory name (match generate_name_from_config convention)
+    function format_val(v)
+        rounded = round(v, sigdigits=10)
+        if rounded == floor(rounded)
+            return string(Int(rounded))
+        else
+            return string(rounded)
+        end
+    end
+
+    # Build one params entry per nccw value, each with its own trial_offset
+    params_list = HockeyParams[]
+    offsets = Int[]
+
+    for nccw in nccw_values
+        p = deepcopy(base_params)
+        p.player_configs[2].nature_control_cost_weight = nccw
+        p.trials = num_trials
+
+        new_dir_name = replace(entry.robust_dir, r"p2_ncc[\d.]+" => "p2_ncc$(format_val(nccw))")
+        new_output_dir = joinpath(sweep_dir, new_dir_name)
+
+        trial_offset = 0
+        if isdir(new_output_dir)
+            trial_offset = count(f -> endswith(f, ".jld2"), readdir(new_output_dir))
+            println("  nccw=$nccw → $new_dir_name ($trial_offset existing trials)")
+        else
+            mkpath(new_output_dir)
+            println("  nccw=$nccw → $new_dir_name (new)")
+        end
+
+        p.output_dir = new_output_dir
+        push!(params_list, p)
+        push!(offsets, trial_offset)
+    end
+
+    # Build flat task list with per-config offsets
+    # (run_experiment_batch uses a single trial_offset for all params, so we
+    #  construct the task list manually and call the lower-level batch runner)
+    total_trials = num_trials * length(params_list)
+    println("Changing nature_control_cost_weight from $old_nccw → $nccw_values")
+    println("Running $total_trials total robust trials ($num_trials × $(length(nccw_values)) values)...")
+
+    # Since different configs may have different trial offsets, run each group
+    # but batch configs that share the same offset together.
+    offset_groups = Dict{Int, Vector{HockeyParams}}()
+    for (p, off) in zip(params_list, offsets)
+        group = get!(offset_groups, off, HockeyParams[])
+        push!(group, p)
+    end
+
+    for (off, group) in offset_groups
+        group_trials = num_trials * length(group)
+        run_experiment_batch(group; cores=min(40, group_trials), trial_offset=off)
+    end
+
+    println("All nccw variant trials completed.")
+end
+
 function generate_comparison_plots(solutions, rank, output_dir)
     # Ensure directory exists
     if !isdir(output_dir)
@@ -850,8 +992,8 @@ function generate_comparison_plots(solutions, rank, output_dir)
     end
     
     # Interactive Q-Q plot loop for outlier removal
-    robust_outliers_to_remove = 0
-    non_robust_outliers_to_remove = 0
+    robust_outliers_to_remove = 2
+    non_robust_outliers_to_remove = 1
     kept_keys = Set{String}()  # Track which trials to keep
     
     robust_costs = [e[1] for e in robust_cost_entries]
@@ -911,6 +1053,8 @@ function generate_comparison_plots(solutions, rank, output_dir)
             println("\n" * "="^60)
             println("Q-Q plot saved: $qq_path")
             println("Current outlier removal: Robust=$(n_r_remove), Non-Robust=$(n_nr_remove)")
+            println("Robust     (n=$(length(filtered_r))): mean=$(round(mean(filtered_r), digits=4)), std=$(round(std(filtered_r), digits=4))")
+            println("Non-Robust (n=$(length(filtered_nr))): mean=$(round(mean(filtered_nr), digits=4)), std=$(round(std(filtered_nr), digits=4))")
             println("="^60)
             
             print("Adjust outliers? [r]obust/[n]on-robust/[c]ontinue to analysis: ")
@@ -1126,7 +1270,7 @@ function generate_comparison_plots(solutions, rank, output_dir)
             r_costs_all = [get_defender_cost_series(entry) for entry in robust_entries]
             nr_costs_all = [get_defender_cost_series(entry) for entry in non_robust_entries]
             
-            fig = Figure(size=(1000, 500))
+            fig = Figure(size=(1000, 500),fontsize=40)
             
             # Instantaneous cost
             ax1 = Axis(fig[1, 1], title="Defender Instantaneous Cost", xlabel="Time Step", ylabel="Cost")
