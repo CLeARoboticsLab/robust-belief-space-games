@@ -2,7 +2,7 @@ include("param_sweep.jl")
 using Senate  # for non_robust, robust enums
 using BlockArrays
 
-function run_drift_test_sweep(; cores=4, override=false, num_seeds=100)
+function run_drift_test_sweep(; cores=10, override=false, num_seeds=100)
     experiment_name = "drift_test"
     #Check for folder existence
     output_dir = joinpath(@__DIR__, "..", "outputs", experiment_name)
