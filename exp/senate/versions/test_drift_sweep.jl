@@ -1,4 +1,4 @@
-include("param_sweep.jl")
+include(joinpath(@__DIR__, "param_sweep.jl"))
 using Senate  # for non_robust, robust enums
 using BlockArrays
 

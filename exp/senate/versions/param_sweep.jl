@@ -1,7 +1,7 @@
 using Distributed
 
 if !@isdefined(ExperimentRunner)
-    include("../src/ExperimentRunner.jl")
+    include(joinpath(@__DIR__, "..", "src", "ExperimentRunner.jl"))
 end
 using .ExperimentRunner
 
