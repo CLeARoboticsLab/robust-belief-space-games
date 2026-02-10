@@ -59,13 +59,21 @@ function run_parallel_sweep(;
     end
 
     # Build tasks: each is a kwargs dict with single values
-    # Append seed to experiment_name_prefix so files don't overwrite
+    # Append seed AND other varied params to experiment_name_prefix so files don't overwrite
     base_prefix = get(fixed_params, :experiment_name_prefix, "sweep")
     tasks = Dict{Symbol,Any}[]
     for combo in combinations
         task_kwargs = merge(fixed_params, combo)
         seed = get(combo, :random_seed, 1)
-        task_kwargs[:experiment_name_prefix] = "$(base_prefix)/seed_$(seed)"
+        # Include all non-seed combo params in the prefix to avoid overwrites
+        extra_parts = String[]
+        for (k, v) in combo
+            if k != :random_seed
+                push!(extra_parts, "$(k)_$(v)")
+            end
+        end
+        suffix = isempty(extra_parts) ? "" : "_" * join(sort(extra_parts), "_")
+        task_kwargs[:experiment_name_prefix] = "$(base_prefix)/seed_$(seed)$(suffix)"
         push!(tasks, task_kwargs)
     end
 
