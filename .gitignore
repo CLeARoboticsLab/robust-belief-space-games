@@ -6,3 +6,5 @@
 .vscode
 exp/senate/LocalPreferences.toml
 exp/senate/Manifest.toml
+Manifest.toml
+Project.toml

@@ -73,7 +73,7 @@ function covariance_terminal_cost_function_generator(config::PlayerConfig)
 end
 
 function obstacle_non_terminal_cost_function_generator(config::PlayerConfig)
-    pretend_config = config.type == nature ? 1 : config.player_idx #TODO nature should act on non-robust player's belief indices
+    pretend_config = config.type == nature ? 2 : config.player_idx # nature evaluates robust player's (P2) beliefs
     @assert (config.type == non_robust || config.type == nature) || config.player_idx == 2
     player_belief_indices = (pretend_config-1) * config.num_senators + 1:pretend_config * config.num_senators
     player_control_indices = sum(config.control_dims_per_activist) * (config.player_idx-1) + 1:sum(config.control_dims_per_activist) * config.player_idx
@@ -87,7 +87,7 @@ function obstacle_non_terminal_cost_function_generator(config::PlayerConfig)
 end
 
 function obstacle_terminal_cost_function_generator(config::PlayerConfig)
-    pretend_config = config.type == nature ? 1 : config.player_idx #TODO nature should act on non-robust player's belief indices
+    pretend_config = config.type == nature ? 2 : config.player_idx # nature evaluates robust player's (P2) beliefs
     @assert (config.type == non_robust || config.type == nature) || config.player_idx == 2
     player_belief_indices = (pretend_config-1) * config.num_senators + 1:pretend_config * config.num_senators
     function(beliefs::Beliefs)

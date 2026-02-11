@@ -8,20 +8,7 @@ using BlockArrays
 using Serialization
 using Infiltrator
 
-const senate_module_path = joinpath(@__DIR__, "Senate.jl")
-if !isdefined(Main, :Senate)
-    @eval Main begin
-        include($senate_module_path)
-    end
-end
-const Senate = Main.Senate
-
-# Register UUID for deserialization at module load time
-const senate_uuid = Base.UUID("a2515029-de12-424a-9371-454911e3b6f1")
-const senate_pkgid = Base.PkgId(senate_uuid, "Senate")
-if !haskey(Base.loaded_modules, senate_pkgid)
-    Base.loaded_modules[senate_pkgid] = Senate
-end
+using Senate
 
 export visualize_receding_horizon_solution, load_solution
 
@@ -58,14 +45,14 @@ function load_solution(folder, filename, type = "mass_results")
     else
         error("filename must be a String or Array of Strings")
     end
-    experiments = Dict{String, Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}}()
+    experiments = Dict{String, Dict{String, Tuple{Dict, Dict, Senate.SenateParams}}}()
     
     # Handle case where results itself is a Dict (direct from outputs/runs)
     if results isa Dict{String, Any}
         # This is a single experiment file from outputs/runs
         # Use the filename as the experiment name
         exp_name = filename != "" ? filename : "experiment"
-        experiments[exp_name] = Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}()
+        experiments[exp_name] = Dict{String, Tuple{Dict, Dict, Senate.SenateParams}}()
         for (trial_id, trial_data) in results
             if trial_data isa Tuple && length(trial_data) == 3
                 # Old format: (solutions, games, params) - skip games as they contain non-serializable closures
@@ -109,7 +96,7 @@ function load_solution(folder, filename, type = "mass_results")
             # or already in the expected format
             if trial_results isa Dict{String, Any}
                 # This is the format from outputs/runs - need to extract the tuple from each trial
-                experiments[exp_name] = Dict{String, Tuple{Dict, Dict, Main.Senate.SenateParams}}()
+                experiments[exp_name] = Dict{String, Tuple{Dict, Dict, Senate.SenateParams}}()
                 for (trial_id, trial_data) in trial_results
                     if trial_data isa Tuple && length(trial_data) == 3
                         # Old format: (solutions, games, params) - skip games as they contain non-serializable closures
@@ -933,14 +920,11 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
             if haskey($p1_means_trajectory, trial_key)
                 p1_means_traj = $p1_means_trajectory[trial_key]
                 if !isempty(p1_means_traj) && $plan_time_step <= length(p1_means_traj)
-                    for activist_id in 1:$min_num_activists
-                        for senator_id in 1:$min_num_senators
-                            belief_idx_local = (activist_id-1)*$min_num_senators + senator_id
-                            if belief_idx_local <= length(p1_means_traj[$plan_time_step].blocks)
-                                push!(starts, Point2f(p1_means_traj[$plan_time_step][Block(belief_idx_local)]))
-                            else
-                                push!(starts, Point2f(0, 0))
-                            end
+                    for senator_id in 1:$min_num_senators
+                        if senator_id <= length(p1_means_traj[$plan_time_step].blocks)
+                            push!(starts, Point2f(p1_means_traj[$plan_time_step][Block(senator_id)]))
+                        else
+                            push!(starts, Point2f(0, 0))
                         end
                     end
                 end
@@ -953,14 +937,18 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         vectors = Point2f[]
         for (exp_name, trial_id) in $exp_trial_pairs
             trial_key = (exp_name, trial_id)
-            if haskey($p1_planned_controls, trial_key)
+            if haskey($p1_planned_controls, trial_key) && haskey($dims_dict, trial_key)
                 p1_controls = $p1_planned_controls[trial_key]
+                trial_dims = $dims_dict[trial_key]
                 if !isempty(p1_controls) && $plan_time_step <= length(p1_controls)
-                    for activist_id in 1:$min_num_activists
+                    control_vec = p1_controls[$plan_time_step]
+                    # Block(1) = P1's full control vector (6D), split by senator
+                    if length(control_vec.blocks) >= 1
+                        p1_control_vec = control_vec[Block(1)]
+                        p1_control_block = BlockVector(p1_control_vec, trial_dims.control_dims_per_activist)
                         for senator_id in 1:$min_num_senators
-                            belief_idx_local = (activist_id-1)*$min_num_senators + senator_id
-                            if belief_idx_local <= length(p1_controls[$plan_time_step].blocks)
-                                push!(vectors, Point2f(p1_controls[$plan_time_step][Block(belief_idx_local)]))
+                            if senator_id <= length(p1_control_block.blocks)
+                                push!(vectors, Point2f(p1_control_block[Block(senator_id)]))
                             else
                                 push!(vectors, Point2f(0, 0))
                             end
@@ -979,14 +967,11 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
             if haskey($p2_means_trajectory, trial_key)
                 p2_means_traj = $p2_means_trajectory[trial_key]
                 if !isempty(p2_means_traj) && $plan_time_step <= length(p2_means_traj)
-                    for activist_id in 1:$min_num_activists
-                        for senator_id in 1:$min_num_senators
-                            belief_idx_local = (activist_id-1)*$min_num_senators + senator_id
-                            if belief_idx_local <= length(p2_means_traj[$plan_time_step].blocks)
-                                push!(starts, Point2f(p2_means_traj[$plan_time_step][Block(belief_idx_local)]))
-                            else
-                                push!(starts, Point2f(0, 0))
-                            end
+                    for senator_id in 1:$min_num_senators
+                        if senator_id <= length(p2_means_traj[$plan_time_step].blocks)
+                            push!(starts, Point2f(p2_means_traj[$plan_time_step][Block(senator_id)]))
+                        else
+                            push!(starts, Point2f(0, 0))
                         end
                     end
                 end
@@ -999,14 +984,18 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         vectors = Point2f[]
         for (exp_name, trial_id) in $exp_trial_pairs
             trial_key = (exp_name, trial_id)
-            if haskey($p2_planned_controls, trial_key)
+            if haskey($p2_planned_controls, trial_key) && haskey($dims_dict, trial_key)
                 p2_controls = $p2_planned_controls[trial_key]
+                trial_dims = $dims_dict[trial_key]
                 if !isempty(p2_controls) && $plan_time_step <= length(p2_controls)
-                    for activist_id in 1:$min_num_activists
+                    control_vec = p2_controls[$plan_time_step]
+                    # Block(2) = P2's full control vector (6D), split by senator
+                    if length(control_vec.blocks) >= 2
+                        p2_control_vec = control_vec[Block(2)]
+                        p2_control_block = BlockVector(p2_control_vec, trial_dims.control_dims_per_activist)
                         for senator_id in 1:$min_num_senators
-                            belief_idx_local = (activist_id-1)*$min_num_senators + senator_id
-                            if belief_idx_local <= length(p2_controls[$plan_time_step].blocks)
-                                push!(vectors, Point2f(p2_controls[$plan_time_step][Block(belief_idx_local)]))
+                            if senator_id <= length(p2_control_block.blocks)
+                                push!(vectors, Point2f(p2_control_block[Block(senator_id)]))
                             else
                                 push!(vectors, Point2f(0, 0))
                             end
@@ -1018,19 +1007,18 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
         vectors
     end
     
-    # Create arrow color array matching the structure
-    # Create arrow color array matching the structure (replicated for each trial)
+    # Create arrow color array matching the structure (one color per senator, replicated for each trial)
     arrow_colors = @lift begin
-        base_colors = vcat([fill(colors[activist_id], $min_num_senators) for activist_id in 1:$min_num_activists]...)
+        base_colors = fill(:black, $min_num_senators)
         num_trials = length($exp_trial_pairs)
         vcat([base_colors for _ in 1:num_trials]...)
-    end    
-    
-    # Create arrow plots ONCE with aggregated Observables
-    arrows!(ax, all_p1_arrow_starts, all_p1_arrow_vectors, color=arrow_colors, visible=show_p1_activist_controls)
-    arrows!(ax, all_p2_arrow_starts, all_p2_arrow_vectors, color=arrow_colors, visible=show_p2_activist_controls, linestyle=:dash)
+    end
 
-    # Draw arrows for nature's controls - aggregate from all trials
+    # Create arrow plots ONCE with aggregated Observables
+    arrows!(ax, all_p1_arrow_starts, all_p1_arrow_vectors, color=color_with_alpha(:blue), visible=show_p1_activist_controls)
+    arrows!(ax, all_p2_arrow_starts, all_p2_arrow_vectors, color=color_with_alpha(:red), visible=show_p2_activist_controls, linestyle=:dash)
+
+    # Draw arrows for nature's controls - only from robust players' solutions
     all_nature_arrow_starts = @lift begin
         starts = Point2f[]
         for (exp_name, trial_id) in $exp_trial_pairs
@@ -1039,33 +1027,8 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
                 continue
             end
             trial_dims = $dims_dict[trial_key]
-            
-            # Check p1 controls for nature and add corresponding starts
-            if haskey($p1_planned_controls, trial_key) && haskey($p1_means_trajectory, trial_key)
-                p1_controls = $p1_planned_controls[trial_key]
-                p1_means_traj = $p1_means_trajectory[trial_key]
-                if !isempty(p1_controls) && $plan_time_step <= length(p1_controls) && 
-                   !isempty(p1_means_traj) && $plan_time_step <= length(p1_means_traj)
-                    control_vec = p1_controls[$plan_time_step]
-                    if !isempty(control_vec.blocks)
-                        total_control_dims = sum(trial_dims.control_dims_per_activist)
-                        if length(control_vec) > total_control_dims
-                            # Nature controls exist, add starts from p1's beliefs
-                            for senator_id in 1:trial_dims.num_senators
-                                # Get senator position from first activist's belief (indices 1, 2, 3 for senators 1, 2, 3)
-                                belief_idx = senator_id
-                                if belief_idx <= length(p1_means_traj[$plan_time_step].blocks)
-                                    push!(starts, Point2f(p1_means_traj[$plan_time_step][Block(belief_idx)]))
-                                else
-                                    push!(starts, Point2f(0, 0))
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-            
-            # Check p2 controls for nature and add corresponding starts
+
+            # Only check p2 controls for nature (P2 is the robust player)
             if haskey($p2_planned_controls, trial_key) && haskey($p2_means_trajectory, trial_key)
                 p2_controls = $p2_planned_controls[trial_key]
                 p2_means_traj = $p2_means_trajectory[trial_key]
@@ -1073,8 +1036,8 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
                    !isempty(p2_means_traj) && $plan_time_step <= length(p2_means_traj)
                     control_vec = p2_controls[$plan_time_step]
                     if !isempty(control_vec.blocks)
-                        total_control_dims = sum(trial_dims.control_dims_per_activist)
-                        if length(control_vec) > total_control_dims
+                        num_players = trial_dims.num_players
+                        if length(control_vec.blocks) > num_players
                             # Nature controls exist, add starts from p2's beliefs
                             for senator_id in 1:trial_dims.num_senators
                                 # Get senator position from first activist's belief
@@ -1101,50 +1064,16 @@ function create_individual_solution_plot(fig, ax, experiments::Dict)# sol_data, 
                 continue
             end
             trial_dims = $dims_dict[trial_key]
-            
-            # Check p1 controls for nature
-            if haskey($p1_planned_controls, trial_key)
-                p1_controls = $p1_planned_controls[trial_key]
-                if !isempty(p1_controls) && $plan_time_step <= length(p1_controls)
-                    control_vec = p1_controls[$plan_time_step]
-                    if !isempty(control_vec.blocks)
-                        # Check if nature controls exist (last block should be nature if robust)
-                        total_control_dims = sum(trial_dims.control_dims_per_activist)
-                        if length(control_vec) > total_control_dims
-                            last_block_idx = length(control_vec.blocks)
-                            nature_control_vec = control_vec[Block(last_block_idx)]
-                            # Validate dimensions match state_dims_per_activist
-                            if length(nature_control_vec) == sum(trial_dims.state_dims_per_activist)
-                                nature_control_block = BlockVector(nature_control_vec, trial_dims.state_dims_per_activist)
-                                for senator_id in 1:trial_dims.num_senators
-                                    if senator_id <= length(nature_control_block.blocks)
-                                        push!(vectors, Point2f(nature_control_block[Block(senator_id)]))
-                                    else
-                                        push!(vectors, Point2f(0, 0))
-                                    end
-                                end
-                            else
-                                # Add zero vectors if dimensions don't match
-                                for _ in 1:trial_dims.num_senators
-                                    push!(vectors, Point2f(0, 0))
-                                end
-                            end
-                        else
-                            # No nature controls, skip (don't add vectors)
-                        end
-                    end
-                end
-            end
-            
-            # Check p2 controls for nature
+
+            # Only check p2 controls for nature (P2 is the robust player)
             if haskey($p2_planned_controls, trial_key)
                 p2_controls = $p2_planned_controls[trial_key]
                 if !isempty(p2_controls) && $plan_time_step <= length(p2_controls)
                     control_vec = p2_controls[$plan_time_step]
                     if !isempty(control_vec.blocks)
-                        # Check if nature controls exist (last block should be nature if robust)
-                        total_control_dims = sum(trial_dims.control_dims_per_activist)
-                        if length(control_vec) > total_control_dims
+                        # Nature block exists only when there are more than 2 blocks (P1 + P2 + nature)
+                        num_players = trial_dims.num_players
+                        if length(control_vec.blocks) > num_players
                             last_block_idx = length(control_vec.blocks)
                             nature_control_vec = control_vec[Block(last_block_idx)]
                             # Validate dimensions match state_dims_per_activist
