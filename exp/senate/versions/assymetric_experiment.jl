@@ -426,6 +426,10 @@ function run_asymmetric_experiment(;
     random_seed = nothing,  # Single int only
     num_senators = nothing,
     
+    # Noise parameters
+    process_noise_covariance = nothing,
+    sensor_noise_covariance = nothing,
+
     # Control parameters
     override = false,
     experiment_name_prefix = "asymmetric_exp",
@@ -783,8 +787,14 @@ function run_asymmetric_experiment(;
             error("dt must be Real, Vector{Real}, or (start, stop, step_func) tuple")
         end
     end
+    if !isnothing(process_noise_covariance)
+        fixed_params[:process_noise_covariance] = process_noise_covariance
+    end
+    if !isnothing(sensor_noise_covariance)
+        fixed_params[:sensor_noise_covariance] = sensor_noise_covariance
+    end
     #endregion
-    
+
     # Generate all combinations
     param_keys = collect(keys(param_variations))
     param_values = [param_variations[k] for k in param_keys]
