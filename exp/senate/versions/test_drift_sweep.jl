@@ -1,6 +1,7 @@
 include(joinpath(@__DIR__, "param_sweep.jl"))
 using Senate  # for non_robust, robust enums
 using BlockArrays
+using LinearAlgebra
 
 function run_drift_test_sweep(; cores=10, override=false, num_seeds=100)
     experiment_name = "drift_test"
@@ -38,6 +39,9 @@ function run_drift_test_sweep(; cores=10, override=false, num_seeds=100)
         p2_believes_p1_drift_sensor_scale=[0.0],
         # Robustness
         p2_nature_multiplier=[2.0],
+        # Noise
+        process_noise_covariance=0.01 * I(6),
+        sensor_noise_covariance=0.01 * I(6),
         # Dynamics
         dynamics_model_template=:default,
         dt=0.75,

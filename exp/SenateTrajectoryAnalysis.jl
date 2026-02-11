@@ -8,7 +8,6 @@ using Printf
 using CairoMakie
 using RobustBeliefGame
 
-# Use Senate as a registered package (has UUID in root Project.toml)
 using Senate
 
 # ========================================================================================
@@ -268,6 +267,10 @@ function extract_senate_config_name(scenario_name::String)
     name = replace(name, r"_?trial_?\d+" => "")
     name = replace(name, r"_?seed_?\d+" => "")
     name = replace(name, r"_mass_results" => "")
+    # Remove robustness labels so robust + non_robust group together
+    # (non_robust must come before robust to avoid partial match)
+    name = replace(name, r"_?p2_type_non_robust" => "")
+    name = replace(name, r"_?p2_type_robust" => "")
     # Clean up any resulting double underscores
     name = replace(name, r"__+" => "_")
     name = strip(name, '_')
@@ -579,9 +582,22 @@ function get_senate_trajectory_summary(; directory="./exp/senate/outputs/analysi
         all_config_entries[config] = group_entries
     end
 
+    # Merge config groups by base name (so robust + non_robust go into the same yarnball)
+    merged_planned_costs = Dict{String, Any}()
+    merged_config_entries = Dict{String, Vector{SenateTrajectoryAnalysisEntry}}()
+    for (config, costs) in all_planned_costs
+        base = base_senate_group(config)
+        if !haskey(merged_planned_costs, base)
+            merged_planned_costs[base] = Any[]
+            merged_config_entries[base] = SenateTrajectoryAnalysisEntry[]
+        end
+        append!(merged_planned_costs[base], costs)
+        append!(merged_config_entries[base], all_config_entries[config])
+    end
+
     # Create comparison plots
     compare_robust_vs_nonrobust_senate_actions(SENATE_TRAJECTORY_TRACKER.entries; directory=directory)
-    create_senate_yarnball_plot(all_planned_costs, all_config_entries; directory=directory)
+    create_senate_yarnball_plot(merged_planned_costs, merged_config_entries; directory=directory)
 
     return all_planned_costs
 end
@@ -832,7 +848,7 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
         num_components = length(component_names)
         num_rh_steps_display = min(num_rh_steps, 8)
         num_cols = num_components + 1  # +1 for total
-        num_rows = num_rh_steps_display + 1  # +1 for executed trajectory row
+        num_rows = num_rh_steps_display + 2  # +2 for deterministic and stochastic executed rows
 
         fig = Figure(size=(450 * num_cols, 400 * num_rows + 80))
         Label(fig[0, 1:num_cols], text = "$config - Cost Components", fontsize = 20)
@@ -950,25 +966,18 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
             end
         end
 
-        # ===== Executed trajectory row (bottom) =====
-        exec_row = num_rows
-
-        ax_exec_total = Axis(fig[exec_row, 1:num_cols],
-            title = "Executed Trajectory (Incurred Cost)",
-            xlabel = "Execution Step",
-            ylabel = "Executed",
-        )
-
-        # Helper to plot executed costs for a set of entries
-        function plot_executed!(ax, entries, player_idx, color; linestyle=:solid)
+        # ===== Executed trajectory rows (bottom two) =====
+        # Helper to extract incurred cost trajectories from entries
+        # tuple_index: 1 = stochastic (with believed cov), 2 = deterministic (center only)
+        function plot_executed!(ax, entries, player_idx, color, tuple_index; linestyle=:solid)
             trajectories = Vector{Vector{Float64}}()
             for entry in entries
                 if !isempty(entry.incurred_cost_history) && haskey(entry.incurred_cost_history, player_idx)
                     cost_hist = entry.incurred_cost_history[player_idx]
                     traj = Float64[]
                     for step in cost_hist
-                        if step isa Tuple && length(step) >= 2
-                            push!(traj, Float64(step[2]))
+                        if step isa Tuple && length(step) >= tuple_index
+                            push!(traj, Float64(step[tuple_index]))
                         elseif step isa Number
                             push!(traj, Float64(step))
                         end
@@ -989,13 +998,37 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
             end
         end
 
+        # Row 1: Deterministic incurred cost (center of belief)
+        exec_row_det = num_rows - 1
+        ax_exec_det = Axis(fig[exec_row_det, 1:num_cols],
+            title = "Executed (Deterministic - Center of Belief)",
+            xlabel = "Execution Step",
+            ylabel = "Exec Det",
+        )
         for player_idx in player_indices
             color = get(player_colors, player_idx, :gray)
             if has_robust
-                plot_executed!(ax_exec_total, robust_entries, player_idx, color; linestyle=:solid)
+                plot_executed!(ax_exec_det, robust_entries, player_idx, color, 2; linestyle=:solid)
             end
             if has_non_robust
-                plot_executed!(ax_exec_total, non_robust_entries, player_idx, color; linestyle=:dash)
+                plot_executed!(ax_exec_det, non_robust_entries, player_idx, color, 2; linestyle=:dash)
+            end
+        end
+
+        # Row 2: Stochastic incurred cost (with believed covariance)
+        exec_row_stoch = num_rows
+        ax_exec_stoch = Axis(fig[exec_row_stoch, 1:num_cols],
+            title = "Executed (Stochastic - With Believed Covariance)",
+            xlabel = "Execution Step",
+            ylabel = "Exec Stoch",
+        )
+        for player_idx in player_indices
+            color = get(player_colors, player_idx, :gray)
+            if has_robust
+                plot_executed!(ax_exec_stoch, robust_entries, player_idx, color, 1; linestyle=:solid)
+            end
+            if has_non_robust
+                plot_executed!(ax_exec_stoch, non_robust_entries, player_idx, color, 1; linestyle=:dash)
             end
         end
 
