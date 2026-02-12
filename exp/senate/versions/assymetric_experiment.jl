@@ -983,8 +983,9 @@ function run_asymmetric_experiment(;
                 # Save intermediate cumulative results if needed
                 if save_intermediate_results
                     mass_filename = "$(save_file_prefix)/outputs/merged/$(experiment_name_prefix)_mass_results.dat"
+                    mkpath(dirname(mass_filename))
                     println("Saving all results to $mass_filename")
-                    
+
                     open(mass_filename, "w") do f
                         serialize(f, all_results)
                     end
@@ -1001,6 +1002,7 @@ function run_asymmetric_experiment(;
 
     # Save all results to a single file
     mass_filename = "$(save_file_prefix)/outputs/merged/$(experiment_name_prefix)_mass_results.dat"
+    mkpath(dirname(mass_filename))
     println("Saving all results to $mass_filename")
 
     open(mass_filename, "w") do f
