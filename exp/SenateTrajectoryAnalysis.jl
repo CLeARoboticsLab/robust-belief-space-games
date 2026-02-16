@@ -19,7 +19,8 @@ export SenateTrajectoryAnalysisEntry, SenateTrajectoryAnalysisTracker, SENATE_TR
     compute_senate_belief_covariance_traces, compute_senator_distances,
     get_senate_trajectory_summary, create_senate_trajectory_analysis_plots,
     compare_robust_vs_nonrobust_senate_actions, create_senate_yarnball_plot,
-    analyze_senate_trajectory_data, plot_senate_spatial_trajectories
+    analyze_senate_trajectory_data, plot_senate_spatial_trajectories,
+    analyze_nature_control_sweep, analyze_planning_horizon_sweep
 
 """
     SenateTrajectoryAnalysisEntry
@@ -848,7 +849,7 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
         num_components = length(component_names)
         num_rh_steps_display = min(num_rh_steps, 8)
         num_cols = num_components + 1  # +1 for total
-        num_rows = num_rh_steps_display + 2  # +2 for deterministic and stochastic executed rows
+        num_rows = num_rh_steps_display
 
         fig = Figure(size=(450 * num_cols, 400 * num_rows + 80))
         Label(fig[0, 1:num_cols], text = "$config - Cost Components", fontsize = 20)
@@ -966,10 +967,16 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
             end
         end
 
-        # ===== Executed trajectory rows (bottom two) =====
+        safe_config = replace(config, r"[^a-zA-Z0-9_]" => "_")
+        filename = joinpath(directory, "senate_yarnball_$(safe_config).png")
+        save(filename, fig)
+        save(joinpath(directory, "senate_yarnball_$(safe_config).pdf"), fig)
+        println("Saved yarnball plot to $filename")
+
+        # ===== Separate figure: Executed & Cumulative costs =====
         # Helper to extract incurred cost trajectories from entries
         # tuple_index: 1 = stochastic (with believed cov), 2 = deterministic (center only)
-        function plot_executed!(ax, entries, player_idx, color, tuple_index; linestyle=:solid)
+        function extract_executed_trajectories(entries, player_idx, tuple_index; cumulative=false)
             trajectories = Vector{Vector{Float64}}()
             for entry in entries
                 if !isempty(entry.incurred_cost_history) && haskey(entry.incurred_cost_history, player_idx)
@@ -983,10 +990,15 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
                         end
                     end
                     if !isempty(traj)
-                        push!(trajectories, traj)
+                        push!(trajectories, cumulative ? cumsum(traj) : traj)
                     end
                 end
             end
+            return trajectories
+        end
+
+        function plot_executed_trajs!(ax, entries, player_idx, color, tuple_index; linestyle=:solid, cumulative=false)
+            trajectories = extract_executed_trajectories(entries, player_idx, tuple_index; cumulative=cumulative)
             if !isempty(trajectories)
                 ts, means, stds = get_component_stats(trajectories)
                 valid_idx = findall(.!isnan.(means))
@@ -998,45 +1010,39 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
             end
         end
 
-        # Row 1: Deterministic incurred cost (center of belief)
-        exec_row_det = num_rows - 1
-        ax_exec_det = Axis(fig[exec_row_det, 1:num_cols],
-            title = "Executed (Deterministic - Center of Belief)",
-            xlabel = "Execution Step",
-            ylabel = "Exec Det",
-        )
-        for player_idx in player_indices
-            color = get(player_colors, player_idx, :gray)
-            if has_robust
-                plot_executed!(ax_exec_det, robust_entries, player_idx, color, 2; linestyle=:solid)
-            end
-            if has_non_robust
-                plot_executed!(ax_exec_det, non_robust_entries, player_idx, color, 2; linestyle=:dash)
+        fig_exec = Figure(size=(2400, 1600))
+        Label(fig_exec[0, :], text = "$config - Executed Costs", fontsize = 20)
+        Legend(fig_exec[0, 2], legend_elements, legend_labels, framevisible=false)
+
+        exec_titles = [
+            "Per-Step (Deterministic)",
+            "Per-Step (Stochastic)",
+            "Cumulative (Deterministic)",
+            "Cumulative (Stochastic)",
+        ]
+        exec_params = [(2, false), (1, false), (2, true), (1, true)]
+
+        for (row, (title, (tuple_idx, cumul))) in enumerate(zip(exec_titles, exec_params))
+            ax = Axis(fig_exec[row, 1:2],
+                title = title,
+                xlabel = "Execution Step",
+                ylabel = cumul ? "Cumulative Cost" : "Cost",
+            )
+            for player_idx in player_indices
+                color = get(player_colors, player_idx, :gray)
+                if has_robust
+                    plot_executed_trajs!(ax, robust_entries, player_idx, color, tuple_idx; linestyle=:solid, cumulative=cumul)
+                end
+                if has_non_robust
+                    plot_executed_trajs!(ax, non_robust_entries, player_idx, color, tuple_idx; linestyle=:dash, cumulative=cumul)
+                end
             end
         end
 
-        # Row 2: Stochastic incurred cost (with believed covariance)
-        exec_row_stoch = num_rows
-        ax_exec_stoch = Axis(fig[exec_row_stoch, 1:num_cols],
-            title = "Executed (Stochastic - With Believed Covariance)",
-            xlabel = "Execution Step",
-            ylabel = "Exec Stoch",
-        )
-        for player_idx in player_indices
-            color = get(player_colors, player_idx, :gray)
-            if has_robust
-                plot_executed!(ax_exec_stoch, robust_entries, player_idx, color, 1; linestyle=:solid)
-            end
-            if has_non_robust
-                plot_executed!(ax_exec_stoch, non_robust_entries, player_idx, color, 1; linestyle=:dash)
-            end
-        end
-
-        safe_config = replace(config, r"[^a-zA-Z0-9_]" => "_")
-        filename = joinpath(directory, "senate_yarnball_$(safe_config).png")
-        save(filename, fig)
-        save(joinpath(directory, "senate_yarnball_$(safe_config).pdf"), fig)
-        println("Saved yarnball plot to $filename")
+        exec_filename = joinpath(directory, "senate_executed_$(safe_config).png")
+        save(exec_filename, fig_exec)
+        save(joinpath(directory, "senate_executed_$(safe_config).pdf"), fig_exec)
+        println("Saved executed costs plot to $exec_filename")
     end
 
     return nothing
@@ -1151,6 +1157,47 @@ function analyze_senate_trajectory_data(;
         plot_senate_spatial_trajectories(; directory=output_directory)
     else
         println("Failed to load trajectory data from solution files")
+    end
+end
+
+"""
+    analyze_nature_control_sweep(; multipliers, directory, output_base)
+
+Analyze nature control sweep results, split by nature multiplier value.
+Each multiplier gets its own output subfolder.
+"""
+function analyze_nature_control_sweep(;
+    multipliers=[1, 5, 25, 125, 625, 3125],
+    directory="./exp/senate/outputs/merged/nature_control_sweep",
+    output_base="./exp/senate/outputs/analysis/nature_control_sweep")
+
+    for m in multipliers
+        println("\n===== Analyzing nature_multiplier=$m =====")
+        analyze_senate_trajectory_data(
+            directory=directory,
+            file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type"),
+            output_directory=joinpath(output_base, "multiplier_$(m)")
+        )
+    end
+end
+
+"""
+    analyze_planning_horizon_sweep(; horizons, directory, output_base)
+
+Analyze planning horizon sweep results, split by planning horizon value.
+"""
+function analyze_planning_horizon_sweep(;
+    horizons=[2, 5],
+    directory="./exp/senate/outputs/merged/planning_horizon_sweep",
+    output_base="./exp/senate/outputs/analysis/planning_horizon_sweep")
+
+    for h in horizons
+        println("\n===== Analyzing planning_horizon=$h =====")
+        analyze_senate_trajectory_data(
+            directory=directory,
+            file_pattern=Regex("planning_horizon_$(h)_mass_results"),
+            output_directory=joinpath(output_base, "horizon_$(h)")
+        )
     end
 end
 
