@@ -20,7 +20,8 @@ export SenateTrajectoryAnalysisEntry, SenateTrajectoryAnalysisTracker, SENATE_TR
     get_senate_trajectory_summary, create_senate_trajectory_analysis_plots,
     compare_robust_vs_nonrobust_senate_actions, create_senate_yarnball_plot,
     analyze_senate_trajectory_data, plot_senate_spatial_trajectories,
-    analyze_nature_control_sweep, analyze_planning_horizon_sweep
+    analyze_nature_control_sweep, analyze_planning_horizon_sweep,
+    create_merged_executed_costs_plot, create_sweep_summary_plot
 
 """
     SenateTrajectoryAnalysisEntry
@@ -544,6 +545,82 @@ function extract_senate_executed_controls(entry::SenateTrajectoryAnalysisEntry)
 end
 
 # ========================================================================================
+# SHARED HELPER FUNCTIONS (used by multiple plotting functions)
+# ========================================================================================
+
+"""Filter player indices based on hide_p1 flag."""
+filter_player_indices(indices; hide_p1::Bool=false) = hide_p1 ? filter(p -> p != 1, indices) : indices
+
+"""Compute mean and std across a list of trajectories."""
+function get_component_stats(data_list)
+    if isempty(data_list)
+        return Float64[], Float64[], Float64[]
+    end
+    max_len = maximum(length(d) for d in data_list)
+    means = Float64[]
+    stds = Float64[]
+    for t in 1:max_len
+        vals = [d[t] for d in data_list if length(d) >= t]
+        if !isempty(vals)
+            push!(means, mean(vals))
+            push!(stds, length(vals) > 1 ? std(vals) : 0.0)
+        else
+            push!(means, NaN)
+            push!(stds, NaN)
+        end
+    end
+    return 1:length(means), means, stds
+end
+
+"""Compute mean and std of control norms across multiple trials for a given player."""
+function compute_control_norms_stats(controls_all, player_idx, min_t)
+    all_norms = Vector{Vector{Float64}}()
+    for controls in controls_all
+        if haskey(controls, player_idx) && length(controls[player_idx]) >= min_t
+            norms = [norm(u) for u in controls[player_idx][1:min_t]]
+            push!(all_norms, norms)
+        end
+    end
+    if isempty(all_norms)
+        return Float64[], Float64[], Float64[]
+    end
+
+    means = Float64[]
+    stds = Float64[]
+    for t in 1:min_t
+        vals = [n[t] for n in all_norms if length(n) >= t]
+        push!(means, mean(vals))
+        push!(stds, length(vals) > 1 ? std(vals) : 0.0)
+    end
+    return 1:min_t, means, stds
+end
+
+"""Extract executed cost trajectories from entries for a specific player."""
+function extract_executed_trajectories(entries, player_idx, tuple_index; cumulative=false)
+    trajectories = Vector{Vector{Float64}}()
+    for entry in entries
+        if !isempty(entry.incurred_cost_history) && haskey(entry.incurred_cost_history, player_idx)
+            cost_hist = entry.incurred_cost_history[player_idx]
+            traj = Float64[]
+            for step in cost_hist
+                if step isa Tuple && length(step) >= tuple_index
+                    push!(traj, Float64(step[tuple_index]))
+                elseif step isa Number
+                    push!(traj, Float64(step))
+                end
+            end
+            if !isempty(traj)
+                push!(trajectories, cumulative ? cumsum(traj) : traj)
+            end
+        end
+    end
+    return trajectories
+end
+
+# Color palette for sweep overlay plots (colorblind-friendly)
+const SWEEP_COLORS = [:blue, :red, :green, :purple, :orange, :cyan, :magenta, :brown]
+
+# ========================================================================================
 # VISUALIZATION FUNCTIONS
 # ========================================================================================
 
@@ -552,7 +629,7 @@ end
 
 Get summary statistics and create analysis plots for senate experiments.
 """
-function get_senate_trajectory_summary(; directory="./exp/senate/outputs/analysis")
+function get_senate_trajectory_summary(; directory="./exp/senate/outputs/analysis", hide_p1::Bool=false)
     if isempty(SENATE_TRAJECTORY_TRACKER.entries)
         println("No senate trajectory analysis data available")
         return nothing
@@ -597,8 +674,8 @@ function get_senate_trajectory_summary(; directory="./exp/senate/outputs/analysi
     end
 
     # Create comparison plots
-    compare_robust_vs_nonrobust_senate_actions(SENATE_TRAJECTORY_TRACKER.entries; directory=directory)
-    create_senate_yarnball_plot(merged_planned_costs, merged_config_entries; directory=directory)
+    compare_robust_vs_nonrobust_senate_actions(SENATE_TRAJECTORY_TRACKER.entries; directory=directory, hide_p1=hide_p1)
+    create_senate_yarnball_plot(merged_planned_costs, merged_config_entries; directory=directory, hide_p1=hide_p1)
 
     return all_planned_costs
 end
@@ -608,7 +685,7 @@ end
 
 Create comparison plots for robust vs non-robust senate experiments.
 """
-function compare_robust_vs_nonrobust_senate_actions(all_entries; directory="./exp/senate/outputs/analysis")
+function compare_robust_vs_nonrobust_senate_actions(all_entries; directory="./exp/senate/outputs/analysis", hide_p1::Bool=false)
     robust_entries = [e for e in all_entries if e.robust]
     non_robust_entries = [e for e in all_entries if !e.robust]
 
@@ -619,7 +696,7 @@ function compare_robust_vs_nonrobust_senate_actions(all_entries; directory="./ex
 
     println("Comparing $(length(robust_entries)) robust vs $(length(non_robust_entries)) non-robust entries")
 
-    create_senate_action_difference_plots(robust_entries, non_robust_entries; directory=directory)
+    create_senate_action_difference_plots(robust_entries, non_robust_entries; directory=directory, hide_p1=hide_p1)
 end
 
 """
@@ -627,7 +704,7 @@ end
 
 Create plots comparing executed controls between robust and non-robust strategies.
 """
-function create_senate_action_difference_plots(robust_entries, non_robust_entries; directory="./exp/senate/outputs/analysis")
+function create_senate_action_difference_plots(robust_entries, non_robust_entries; directory="./exp/senate/outputs/analysis", hide_p1::Bool=false)
     if isempty(robust_entries) && isempty(non_robust_entries)
         return nothing
     end
@@ -667,41 +744,20 @@ function create_senate_action_difference_plots(robust_entries, non_robust_entrie
         ylabel = "Control Norm (L2)"
     )
 
-    # Helper function
-    function compute_control_norms_stats(controls_all, player_idx, min_t)
-        all_norms = Vector{Vector{Float64}}()
-        for controls in controls_all
-            if haskey(controls, player_idx) && length(controls[player_idx]) >= min_t
-                norms = [norm(u) for u in controls[player_idx][1:min_t]]
-                push!(all_norms, norms)
-            end
-        end
-        if isempty(all_norms)
-            return Float64[], Float64[], Float64[]
+    if !hide_p1
+        # Plot P1 robust
+        ts, means, stds = compute_control_norms_stats(robust_controls_all, 1, min_time_steps)
+        if !isempty(ts)
+            band!(ax_norm, collect(ts), means .- stds, means .+ stds, color=(color_p1_robust, 0.2))
+            lines!(ax_norm, collect(ts), means, color=color_p1_robust, linewidth=2, label="P1 (Robust)")
         end
 
-        means = Float64[]
-        stds = Float64[]
-        for t in 1:min_t
-            vals = [n[t] for n in all_norms if length(n) >= t]
-            push!(means, mean(vals))
-            push!(stds, length(vals) > 1 ? std(vals) : 0.0)
+        # Plot P1 non-robust
+        ts, means, stds = compute_control_norms_stats(non_robust_controls_all, 1, min_time_steps)
+        if !isempty(ts)
+            band!(ax_norm, collect(ts), means .- stds, means .+ stds, color=(color_p1_non_robust, 0.2))
+            lines!(ax_norm, collect(ts), means, color=color_p1_non_robust, linewidth=2, linestyle=:dash, label="P1 (Non-Robust)")
         end
-        return 1:min_t, means, stds
-    end
-
-    # Plot P1 robust
-    ts, means, stds = compute_control_norms_stats(robust_controls_all, 1, min_time_steps)
-    if !isempty(ts)
-        band!(ax_norm, collect(ts), means .- stds, means .+ stds, color=(color_p1_robust, 0.2))
-        lines!(ax_norm, collect(ts), means, color=color_p1_robust, linewidth=2, label="P1 (Robust)")
-    end
-
-    # Plot P1 non-robust
-    ts, means, stds = compute_control_norms_stats(non_robust_controls_all, 1, min_time_steps)
-    if !isempty(ts)
-        band!(ax_norm, collect(ts), means .- stds, means .+ stds, color=(color_p1_non_robust, 0.2))
-        lines!(ax_norm, collect(ts), means, color=color_p1_non_robust, linewidth=2, linestyle=:dash, label="P1 (Non-Robust)")
     end
 
     # Plot P2 robust
@@ -781,7 +837,7 @@ end
 
 Create yarnball plots showing cost components over planning horizons for senate games.
 """
-function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict{String, Vector{SenateTrajectoryAnalysisEntry}}; directory="./exp/senate/outputs/analysis")
+function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict{String, Vector{SenateTrajectoryAnalysisEntry}}; directory="./exp/senate/outputs/analysis", hide_p1::Bool=false)
     println("Generating senate yarnball plots for cost components...")
 
     for (config, scenario_costs) in all_planned_costs
@@ -839,7 +895,7 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
         end
 
         component_names = sort(collect(all_components), by=string)
-        player_indices = sort(collect(player_indices))
+        player_indices = filter_player_indices(sort(collect(player_indices)); hide_p1=hide_p1)
 
         if isempty(component_names) || isempty(player_indices)
             continue
@@ -873,27 +929,6 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
 
         colgap!(fig.layout, 10)
         rowgap!(fig.layout, 10)
-
-        # Helper to compute stats
-        function get_component_stats(data_list)
-            if isempty(data_list)
-                return Float64[], Float64[], Float64[]
-            end
-            max_len = maximum(length(d) for d in data_list)
-            means = Float64[]
-            stds = Float64[]
-            for t in 1:max_len
-                vals = [d[t] for d in data_list if length(d) >= t]
-                if !isempty(vals)
-                    push!(means, mean(vals))
-                    push!(stds, length(vals) > 1 ? std(vals) : 0.0)
-                else
-                    push!(means, NaN)
-                    push!(stds, NaN)
-                end
-            end
-            return 1:length(means), means, stds
-        end
 
         # Helper to plot a set of trials onto an axis
         function plot_trials!(ax, trial_costs_list, player_idx, component, color, rh_step; linestyle=:solid)
@@ -974,29 +1009,6 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
         println("Saved yarnball plot to $filename")
 
         # ===== Separate figure: Executed & Cumulative costs =====
-        # Helper to extract incurred cost trajectories from entries
-        # tuple_index: 1 = stochastic (with believed cov), 2 = deterministic (center only)
-        function extract_executed_trajectories(entries, player_idx, tuple_index; cumulative=false)
-            trajectories = Vector{Vector{Float64}}()
-            for entry in entries
-                if !isempty(entry.incurred_cost_history) && haskey(entry.incurred_cost_history, player_idx)
-                    cost_hist = entry.incurred_cost_history[player_idx]
-                    traj = Float64[]
-                    for step in cost_hist
-                        if step isa Tuple && length(step) >= tuple_index
-                            push!(traj, Float64(step[tuple_index]))
-                        elseif step isa Number
-                            push!(traj, Float64(step))
-                        end
-                    end
-                    if !isempty(traj)
-                        push!(trajectories, cumulative ? cumsum(traj) : traj)
-                    end
-                end
-            end
-            return trajectories
-        end
-
         function plot_executed_trajs!(ax, entries, player_idx, color, tuple_index; linestyle=:solid, cumulative=false)
             trajectories = extract_executed_trajectories(entries, player_idx, tuple_index; cumulative=cumulative)
             if !isempty(trajectories)
@@ -1053,7 +1065,7 @@ end
 
 Plot the opinion-space trajectories from senate experiments.
 """
-function plot_senate_spatial_trajectories(; directory="./exp/senate/outputs/analysis")
+function plot_senate_spatial_trajectories(; directory="./exp/senate/outputs/analysis", hide_p1::Bool=false)
     if isempty(SENATE_TRAJECTORY_TRACKER.entries)
         println("No trajectory data loaded")
         return nothing
@@ -1148,13 +1160,14 @@ analyze_senate_trajectory_data(
 function analyze_senate_trajectory_data(;
     directory="./exp/senate/outputs/merged/drift_test",
     file_pattern=r"",
-    output_directory="./exp/senate/outputs/analysis")
+    output_directory="./exp/senate/outputs/analysis",
+    hide_p1::Bool=false)
 
     println("\n=== ANALYZING SENATE TRAJECTORY DATA ===")
 
     if load_and_analyze_senate_solution_files(; directory=directory, file_pattern=file_pattern)
-        get_senate_trajectory_summary(; directory=output_directory)
-        plot_senate_spatial_trajectories(; directory=output_directory)
+        get_senate_trajectory_summary(; directory=output_directory, hide_p1=hide_p1)
+        plot_senate_spatial_trajectories(; directory=output_directory, hide_p1=hide_p1)
     else
         println("Failed to load trajectory data from solution files")
     end
@@ -1169,16 +1182,34 @@ Each multiplier gets its own output subfolder.
 function analyze_nature_control_sweep(;
     multipliers=[1, 5, 25, 125, 625, 3125],
     directory="./exp/senate/outputs/merged/nature_control_sweep",
-    output_base="./exp/senate/outputs/analysis/nature_control_sweep")
+    output_base="./exp/senate/outputs/analysis/nature_control_sweep",
+    hide_p1::Bool=false)
+
+    sweep_collected = Dict{Any, NamedTuple}()
 
     for m in multipliers
         println("\n===== Analyzing nature_multiplier=$m =====")
         analyze_senate_trajectory_data(
             directory=directory,
             file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type"),
-            output_directory=joinpath(output_base, "multiplier_$(m)")
+            output_directory=joinpath(output_base, "multiplier_$(m)"),
+            hide_p1=hide_p1
+        )
+        # Snapshot entries before next iteration clears them
+        entries = copy(SENATE_TRAJECTORY_TRACKER.entries)
+        sweep_collected[m] = (
+            robust_entries = [e for e in entries if e.robust],
+            non_robust_entries = [e for e in entries if !e.robust]
         )
     end
+
+    # Create merged overlay plots
+    merged_dir = joinpath(output_base, "merged")
+    mkpath(merged_dir)
+    create_merged_executed_costs_plot(sweep_collected, "Nature Multiplier";
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier")
+    create_sweep_summary_plot(sweep_collected, "Nature Multiplier";
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier", xscale=:log10)
 end
 
 """
@@ -1189,16 +1220,244 @@ Analyze planning horizon sweep results, split by planning horizon value.
 function analyze_planning_horizon_sweep(;
     horizons=[2, 5],
     directory="./exp/senate/outputs/merged/planning_horizon_sweep",
-    output_base="./exp/senate/outputs/analysis/planning_horizon_sweep")
+    output_base="./exp/senate/outputs/analysis/planning_horizon_sweep",
+    hide_p1::Bool=false)
+
+    sweep_collected = Dict{Any, NamedTuple}()
 
     for h in horizons
         println("\n===== Analyzing planning_horizon=$h =====")
         analyze_senate_trajectory_data(
             directory=directory,
             file_pattern=Regex("planning_horizon_$(h)_mass_results"),
-            output_directory=joinpath(output_base, "horizon_$(h)")
+            output_directory=joinpath(output_base, "horizon_$(h)"),
+            hide_p1=hide_p1
+        )
+        # Snapshot entries before next iteration clears them
+        entries = copy(SENATE_TRAJECTORY_TRACKER.entries)
+        sweep_collected[h] = (
+            robust_entries = [e for e in entries if e.robust],
+            non_robust_entries = [e for e in entries if !e.robust]
         )
     end
+
+    # Create merged overlay plots
+    merged_dir = joinpath(output_base, "merged")
+    mkpath(merged_dir)
+    create_merged_executed_costs_plot(sweep_collected, "Planning Horizon";
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="planning_horizon")
+    create_sweep_summary_plot(sweep_collected, "Planning Horizon";
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="planning_horizon")
+end
+
+# ========================================================================================
+# MERGED SWEEP OVERLAY PLOTS
+# ========================================================================================
+
+"""
+    create_merged_executed_costs_plot(sweep_collected, sweep_label; directory, hide_p1, sweep_name)
+
+Create overlay plot of executed costs across all sweep values.
+Color encodes sweep value, linestyle encodes robust vs non-robust.
+
+`sweep_collected`: Dict{Any, NamedTuple} mapping sweep_value => (robust_entries=..., non_robust_entries=...)
+`sweep_label`: Human-readable label for the sweep variable (e.g. "Nature Multiplier")
+"""
+function create_merged_executed_costs_plot(
+    sweep_collected::Dict,
+    sweep_label::String;
+    directory::String="./exp/senate/outputs/analysis",
+    hide_p1::Bool=false,
+    sweep_name::String="sweep"
+)
+    if isempty(sweep_collected)
+        println("No sweep data to plot")
+        return
+    end
+
+    mkpath(directory)
+    sweep_values = sort(collect(keys(sweep_collected)))
+
+    # Determine player indices from the data
+    all_player_indices = Set{Int}()
+    for (_, data) in sweep_collected
+        for entry in vcat(data.robust_entries, data.non_robust_entries)
+            if !isempty(entry.incurred_cost_history)
+                union!(all_player_indices, keys(entry.incurred_cost_history))
+            end
+        end
+    end
+    player_indices = filter_player_indices(sort(collect(all_player_indices)); hide_p1=hide_p1)
+
+    if isempty(player_indices)
+        println("No player data available for merged plot")
+        return
+    end
+
+    player_colors = Dict(1 => :blue, 2 => :red, 3 => :green)
+
+    # 2 rows per player: per-step and cumulative deterministic
+    num_players = length(player_indices)
+    fig = Figure(size=(1400, 500 * num_players))
+    Label(fig[0, :], text = "Merged Executed Costs by $sweep_label", fontsize = 20)
+
+    plot_configs = [
+        ("Per-Step Deterministic", 2, false),
+        ("Cumulative Deterministic", 2, true),
+    ]
+
+    for (p_idx, player_idx) in enumerate(player_indices)
+        for (col, (title, tuple_idx, cumul)) in enumerate(plot_configs)
+            ax = Axis(fig[p_idx, col],
+                title = p_idx == 1 ? title : "",
+                xlabel = "Execution Step",
+                ylabel = cumul ? "Cumulative Cost" : "Cost",
+            )
+            if col == 1
+                ax.ylabel = "P$(player_idx) - " * (cumul ? "Cumulative Cost" : "Cost")
+            end
+
+            for (sv_idx, sv) in enumerate(sweep_values)
+                color = SWEEP_COLORS[mod1(sv_idx, length(SWEEP_COLORS))]
+                data = sweep_collected[sv]
+
+                # Robust entries
+                if !isempty(data.robust_entries)
+                    trajectories = extract_executed_trajectories(data.robust_entries, player_idx, tuple_idx; cumulative=cumul)
+                    if !isempty(trajectories)
+                        ts, means, stds = get_component_stats(trajectories)
+                        valid_idx = findall(.!isnan.(means))
+                        if !isempty(valid_idx)
+                            lines!(ax, ts[valid_idx], means[valid_idx], color=color, linewidth=2, linestyle=:solid,
+                                label="$sv (R)")
+                        end
+                    end
+                end
+
+                # Non-robust entries
+                if !isempty(data.non_robust_entries)
+                    trajectories = extract_executed_trajectories(data.non_robust_entries, player_idx, tuple_idx; cumulative=cumul)
+                    if !isempty(trajectories)
+                        ts, means, stds = get_component_stats(trajectories)
+                        valid_idx = findall(.!isnan.(means))
+                        if !isempty(valid_idx)
+                            lines!(ax, ts[valid_idx], means[valid_idx], color=color, linewidth=2, linestyle=:dash,
+                                label="$sv (NR)")
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    # Build legend: color per sweep value + linestyle for robust/non-robust
+    legend_elements = []
+    legend_labels = String[]
+    for (sv_idx, sv) in enumerate(sweep_values)
+        color = SWEEP_COLORS[mod1(sv_idx, length(SWEEP_COLORS))]
+        push!(legend_elements, LineElement(color=color, linewidth=2))
+        push!(legend_labels, "$sweep_label = $sv")
+    end
+    push!(legend_elements, LineElement(color=:black, linewidth=2, linestyle=:solid))
+    push!(legend_labels, "Robust")
+    push!(legend_elements, LineElement(color=:black, linewidth=2, linestyle=:dash))
+    push!(legend_labels, "Non-Robust")
+    Legend(fig[:, end+1], legend_elements, legend_labels, framevisible=true)
+
+    filename = joinpath(directory, "merged_executed_costs_$(sweep_name).png")
+    save(filename, fig)
+    save(joinpath(directory, "merged_executed_costs_$(sweep_name).pdf"), fig)
+    println("Saved merged executed costs plot to $filename")
+end
+
+"""
+    create_sweep_summary_plot(sweep_collected, sweep_label; directory, hide_p1, sweep_name, xscale)
+
+Create summary plot: x = sweep value, y = mean final cumulative deterministic cost.
+One line per player x robustness combination, with error bars for std across trials.
+"""
+function create_sweep_summary_plot(
+    sweep_collected::Dict,
+    sweep_label::String;
+    directory::String="./exp/senate/outputs/analysis",
+    hide_p1::Bool=false,
+    sweep_name::String="sweep",
+    xscale=:identity
+)
+    if isempty(sweep_collected)
+        println("No sweep data for summary plot")
+        return
+    end
+
+    mkpath(directory)
+    sweep_values = sort(collect(keys(sweep_collected)))
+    xs = Float64.(sweep_values)
+
+    # Determine player indices
+    all_player_indices = Set{Int}()
+    for (_, data) in sweep_collected
+        for entry in vcat(data.robust_entries, data.non_robust_entries)
+            if !isempty(entry.incurred_cost_history)
+                union!(all_player_indices, keys(entry.incurred_cost_history))
+            end
+        end
+    end
+    player_indices = filter_player_indices(sort(collect(all_player_indices)); hide_p1=hide_p1)
+
+    if isempty(player_indices)
+        return
+    end
+
+    player_colors = Dict(1 => :blue, 2 => :red, 3 => :green)
+
+    fig = Figure(size=(900, 600))
+    ax = Axis(fig[1, 1],
+        title = "Final Cumulative Cost vs $sweep_label",
+        xlabel = sweep_label,
+        ylabel = "Mean Final Cumulative Cost",
+        xscale = xscale
+    )
+
+    for player_idx in player_indices
+        color = get(player_colors, player_idx, :gray)
+
+        for (robustness_label, linestyle, entry_key) in [("Robust", :solid, :robust_entries), ("Non-Robust", :dash, :non_robust_entries)]
+            means_y = Float64[]
+            stds_y = Float64[]
+            valid_xs = Float64[]
+
+            for (sv_idx, sv) in enumerate(sweep_values)
+                data = sweep_collected[sv]
+                entries = getfield(data, entry_key)
+                if isempty(entries)
+                    continue
+                end
+
+                # Get final cumulative deterministic cost for each trial
+                trajectories = extract_executed_trajectories(entries, player_idx, 2; cumulative=true)
+                final_costs = [traj[end] for traj in trajectories if !isempty(traj)]
+
+                if !isempty(final_costs)
+                    push!(valid_xs, Float64(sv))
+                    push!(means_y, mean(final_costs))
+                    push!(stds_y, length(final_costs) > 1 ? std(final_costs) : 0.0)
+                end
+            end
+
+            if !isempty(valid_xs)
+                errorbars!(ax, valid_xs, means_y, stds_y, color=(color, 0.4))
+                scatterlines!(ax, valid_xs, means_y, color=color, linewidth=2, linestyle=linestyle,
+                    markersize=8, label="P$(player_idx) $robustness_label")
+            end
+        end
+    end
+
+    axislegend(ax, position=:lt)
+
+    filename = joinpath(directory, "sweep_summary_$(sweep_name).png")
+    save(filename, fig)
+    save(joinpath(directory, "sweep_summary_$(sweep_name).pdf"), fig)
+    println("Saved sweep summary plot to $filename")
 end
 
 end  # module

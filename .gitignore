@@ -6,5 +6,6 @@
 .vscode
 exp/senate/LocalPreferences.toml
 exp/senate/Manifest.toml
+Robust_Belief_Game
 Manifest.toml
 Project.toml
