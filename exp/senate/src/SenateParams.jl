@@ -128,7 +128,7 @@ function dims(params::SenateParams)
         control_dims_per_activist=params.control_dims_per_activist,
         belief_dims_per_activist=params.belief_dims_per_activist,
         sensor_dims_per_activist=params.sensor_dims_per_activist,
-        
+            
         total_states_dim=vcat([params.player_configs[i].state_dims_per_activist for i in sort(collect(keys(params.player_configs)))]...),
         total_controls_dim=vcat([sum(params.player_configs[i].control_dims_per_activist) for i in sort(collect(keys(params.player_configs)))]...),
         nature_controls_dim=sum([sum(params.player_configs[i].control_dims_per_activist) for i in sort(collect(keys(params.player_configs))) if params.player_configs[i].type == robust]),

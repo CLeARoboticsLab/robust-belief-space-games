@@ -6,6 +6,8 @@ using LinearAlgebra
 using BlockArrays
 using Printf
 using CairoMakie
+using Distributions
+using Random
 using RobustBeliefGame
 
 using Senate
@@ -21,7 +23,10 @@ export SenateTrajectoryAnalysisEntry, SenateTrajectoryAnalysisTracker, SENATE_TR
     compare_robust_vs_nonrobust_senate_actions, create_senate_yarnball_plot,
     analyze_senate_trajectory_data, plot_senate_spatial_trajectories,
     analyze_nature_control_sweep, analyze_planning_horizon_sweep,
-    create_merged_executed_costs_plot, create_sweep_summary_plot
+    create_merged_executed_costs_plot, create_sweep_summary_plot,
+    compute_senate_significance_report,
+    analyze_drift_mismatch_sweep, analyze_robustness_comparison_sweep,
+    analyze_control_planning_sweep
 
 """
     SenateTrajectoryAnalysisEntry
@@ -1166,6 +1171,13 @@ function analyze_senate_trajectory_data(;
     println("\n=== ANALYZING SENATE TRAJECTORY DATA ===")
 
     if load_and_analyze_senate_solution_files(; directory=directory, file_pattern=file_pattern)
+        # Run significance analysis before plotting (this also filters outliers from the tracker)
+        r_entries = [e for e in SENATE_TRAJECTORY_TRACKER.entries if e.robust]
+        nr_entries = [e for e in SENATE_TRAJECTORY_TRACKER.entries if !e.robust]
+        if !isempty(r_entries) && !isempty(nr_entries)
+            compute_senate_significance_report(r_entries, nr_entries; directory=output_directory)
+        end
+
         get_senate_trajectory_summary(; directory=output_directory, hide_p1=hide_p1)
         plot_senate_spatial_trajectories(; directory=output_directory, hide_p1=hide_p1)
     else
@@ -1209,7 +1221,7 @@ function analyze_nature_control_sweep(;
     create_merged_executed_costs_plot(sweep_collected, "Nature Multiplier";
         directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier")
     create_sweep_summary_plot(sweep_collected, "Nature Multiplier";
-        directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier", xscale=:log10)
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier", xscale=log10)
 end
 
 """
@@ -1248,6 +1260,115 @@ function analyze_planning_horizon_sweep(;
         directory=merged_dir, hide_p1=hide_p1, sweep_name="planning_horizon")
     create_sweep_summary_plot(sweep_collected, "Planning Horizon";
         directory=merged_dir, hide_p1=hide_p1, sweep_name="planning_horizon")
+end
+
+"""
+    analyze_drift_mismatch_sweep(; gt_values, directory, output_base, hide_p1)
+
+Analyze drift mismatch sweep results, split by ground-truth drift scale.
+Each gt value has its own subdirectory (gt_1.0, gt_2.0, etc.).
+"""
+function analyze_drift_mismatch_sweep(;
+    gt_values=[1.0, 2.0, 4.0],
+    directory="./exp/senate/outputs/merged/drift_mismatch_sweep",
+    output_base="./exp/senate/outputs/analysis/drift_mismatch_sweep",
+    hide_p1::Bool=false)
+
+    sweep_collected = Dict{Any, NamedTuple}()
+
+    for gt in gt_values
+        println("\n===== Analyzing gt_drift=$gt =====")
+        analyze_senate_trajectory_data(
+            directory=joinpath(directory, "gt_$(gt)"),
+            output_directory=joinpath(output_base, "gt_$(gt)"),
+            hide_p1=hide_p1
+        )
+        entries = copy(SENATE_TRAJECTORY_TRACKER.entries)
+        sweep_collected[gt] = (
+            robust_entries = [e for e in entries if e.robust],
+            non_robust_entries = [e for e in entries if !e.robust]
+        )
+    end
+
+    merged_dir = joinpath(output_base, "merged")
+    mkpath(merged_dir)
+    create_merged_executed_costs_plot(sweep_collected, "GT Drift Scale";
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="drift_mismatch")
+    create_sweep_summary_plot(sweep_collected, "GT Drift Scale";
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="drift_mismatch")
+end
+
+"""
+    analyze_robustness_comparison_sweep(; p1_types, directory, output_base, hide_p1)
+
+Analyze robustness comparison sweep results, split by P1 type.
+For each P1 type, compares robust P2 vs non-robust P2.
+"""
+function analyze_robustness_comparison_sweep(;
+    p1_types=["robust", "non_robust"],
+    directory="./exp/senate/outputs/merged/robustness_comparison_sweep",
+    output_base="./exp/senate/outputs/analysis/robustness_comparison_sweep",
+    hide_p1::Bool=false)
+
+    sweep_collected = Dict{Any, NamedTuple}()
+
+    for p1t in p1_types
+        println("\n===== Analyzing p1_type=$p1t =====")
+        analyze_senate_trajectory_data(
+            directory=directory,
+            file_pattern=Regex("p1_type_$(p1t)_"),
+            output_directory=joinpath(output_base, "p1_$(p1t)"),
+            hide_p1=hide_p1
+        )
+        entries = copy(SENATE_TRAJECTORY_TRACKER.entries)
+        sweep_collected[p1t] = (
+            robust_entries = [e for e in entries if e.robust],
+            non_robust_entries = [e for e in entries if !e.robust]
+        )
+    end
+
+    merged_dir = joinpath(output_base, "merged")
+    mkpath(merged_dir)
+    create_merged_executed_costs_plot(sweep_collected, "P1 Type";
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="robustness_comparison")
+    create_sweep_summary_plot(sweep_collected, "P1 Type";
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="robustness_comparison")
+end
+
+"""
+    analyze_control_planning_sweep(; horizons, directory, output_base, hide_p1)
+
+Analyze control+planning sweep results, split by planning horizon value.
+"""
+function analyze_control_planning_sweep(;
+    horizons=[2, 5, 8, 12],
+    directory="./exp/senate/outputs/merged/control_planning_sweep",
+    output_base="./exp/senate/outputs/analysis/control_planning_sweep",
+    hide_p1::Bool=false)
+
+    sweep_collected = Dict{Any, NamedTuple}()
+
+    for h in horizons
+        println("\n===== Analyzing planning_horizon=$h =====")
+        analyze_senate_trajectory_data(
+            directory=directory,
+            file_pattern=Regex("planning_horizon_$(h)_mass_results"),
+            output_directory=joinpath(output_base, "horizon_$(h)"),
+            hide_p1=hide_p1
+        )
+        entries = copy(SENATE_TRAJECTORY_TRACKER.entries)
+        sweep_collected[h] = (
+            robust_entries = [e for e in entries if e.robust],
+            non_robust_entries = [e for e in entries if !e.robust]
+        )
+    end
+
+    merged_dir = joinpath(output_base, "merged")
+    mkpath(merged_dir)
+    create_merged_executed_costs_plot(sweep_collected, "Planning Horizon";
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="control_planning")
+    create_sweep_summary_plot(sweep_collected, "Planning Horizon";
+        directory=merged_dir, hide_p1=hide_p1, sweep_name="control_planning")
 end
 
 # ========================================================================================
@@ -1382,7 +1503,7 @@ function create_sweep_summary_plot(
     directory::String="./exp/senate/outputs/analysis",
     hide_p1::Bool=false,
     sweep_name::String="sweep",
-    xscale=:identity
+    xscale=identity
 )
     if isempty(sweep_collected)
         println("No sweep data for summary plot")
@@ -1458,6 +1579,227 @@ function create_sweep_summary_plot(
     save(filename, fig)
     save(joinpath(directory, "sweep_summary_$(sweep_name).pdf"), fig)
     println("Saved sweep summary plot to $filename")
+end
+
+# ========================================================================================
+# STATISTICAL SIGNIFICANCE ANALYSIS
+# ========================================================================================
+
+"""
+    compute_senate_significance_report(robust_entries, non_robust_entries; player_idx, directory, label)
+
+Compute statistical significance of cost differences between robust and non-robust P2.
+Performs IQR-based outlier removal, generates Q-Q plots, and runs Welch's t-test,
+Mann-Whitney U test, and Bootstrap test. Writes results to `significance_report.txt`.
+
+Returns the set of scenario names that were kept after outlier removal (for downstream filtering).
+"""
+function compute_senate_significance_report(
+    robust_entries::Vector{SenateTrajectoryAnalysisEntry},
+    non_robust_entries::Vector{SenateTrajectoryAnalysisEntry};
+    player_idx::Int=2,
+    directory::String="./exp/senate/outputs/analysis",
+    label::String="P2"
+)
+    mkpath(directory)
+
+    # --- Sub-step A: Extract per-trial scalar costs ---
+    function get_final_costs(entries, pidx)
+        costs = Tuple{Float64, String}[]
+        for entry in entries
+            trajs = extract_executed_trajectories([entry], pidx, 2; cumulative=true)
+            if !isempty(trajs) && !isempty(trajs[1])
+                push!(costs, (trajs[1][end], entry.scenario_name))
+            end
+        end
+        return costs
+    end
+
+    robust_cost_entries = get_final_costs(robust_entries, player_idx)
+    non_robust_cost_entries = get_final_costs(non_robust_entries, player_idx)
+
+    if length(robust_cost_entries) < 2 || length(non_robust_cost_entries) < 2
+        println("Insufficient data for significance analysis (robust=$(length(robust_cost_entries)), non-robust=$(length(non_robust_cost_entries)))")
+        return Set{String}()
+    end
+
+    # --- Sub-step B: IQR-based outlier removal ---
+    function remove_iqr_outliers(cost_entries)
+        costs = [e[1] for e in cost_entries]
+        q1 = quantile(costs, 0.25)
+        q3 = quantile(costs, 0.75)
+        iqr = q3 - q1
+        lower = q1 - 1.5 * iqr
+        upper = q3 + 1.5 * iqr
+        filtered = [e for e in cost_entries if lower <= e[1] <= upper]
+        n_removed = length(cost_entries) - length(filtered)
+        return filtered, n_removed
+    end
+
+    filtered_r_entries, n_r_removed = remove_iqr_outliers(robust_cost_entries)
+    filtered_nr_entries, n_nr_removed = remove_iqr_outliers(non_robust_cost_entries)
+
+    println("Outlier removal (IQR): Robust removed $n_r_removed/$(length(robust_cost_entries)), Non-Robust removed $n_nr_removed/$(length(non_robust_cost_entries))")
+
+    robust_costs = [e[1] for e in filtered_r_entries]
+    non_robust_costs = [e[1] for e in filtered_nr_entries]
+
+    # Collect kept scenario names
+    kept_names = Set{String}()
+    for e in filtered_r_entries
+        push!(kept_names, e[2])
+    end
+    for e in filtered_nr_entries
+        push!(kept_names, e[2])
+    end
+
+    # --- Sub-step C: Q-Q plot ---
+    if length(robust_costs) > 1 && length(non_robust_costs) > 1
+        fig_qq = Figure(size=(1000, 500))
+        Label(fig_qq[0, :], text="Q-Q Plots: Normality Assessment ($label, Outliers removed: R=$n_r_removed, NR=$n_nr_removed)", fontsize=16)
+
+        ax_qq = Axis(fig_qq[1, 1],
+            title="Cost Distribution (n_R=$(length(robust_costs)), n_NR=$(length(non_robust_costs)))",
+            xlabel="Theoretical Quantiles",
+            ylabel="Sample Quantiles")
+
+        # Robust Q-Q points
+        if std(robust_costs) > 0
+            n_r = length(robust_costs)
+            sorted_r = sort(robust_costs)
+            theoretical_q_r = [quantile(Normal(0, 1), (i - 0.5) / n_r) for i in 1:n_r]
+            standardized_r = (sorted_r .- mean(robust_costs)) ./ std(robust_costs)
+            scatter!(ax_qq, theoretical_q_r, standardized_r, color=:blue, markersize=8, label="Robust")
+        end
+
+        # Non-robust Q-Q points
+        if std(non_robust_costs) > 0
+            n_nr = length(non_robust_costs)
+            sorted_nr = sort(non_robust_costs)
+            theoretical_q_nr = [quantile(Normal(0, 1), (i - 0.5) / n_nr) for i in 1:n_nr]
+            standardized_nr = (sorted_nr .- mean(non_robust_costs)) ./ std(non_robust_costs)
+            scatter!(ax_qq, theoretical_q_nr, standardized_nr, color=:red, markersize=8, label="Non-Robust")
+        end
+
+        lines!(ax_qq, [-3, 3], [-3, 3], color=:black, linestyle=:dash, linewidth=2)
+        axislegend(ax_qq, position=:lt)
+
+        qq_path = joinpath(directory, "qq_plots.png")
+        save(qq_path, fig_qq)
+        save(joinpath(directory, "qq_plots.pdf"), fig_qq)
+        println("Saved Q-Q plot to $qq_path")
+    end
+
+    # --- Sub-step D: Statistical significance tests ---
+    n_r = length(robust_costs)
+    n_nr = length(non_robust_costs)
+
+    open(joinpath(directory, "significance_report.txt"), "w") do io
+        println(io, "Statistical Significance Report ($label Final Cumulative Deterministic Cost)")
+        println(io, "="^70 * "\n")
+
+        if n_r > 1 && n_nr > 1
+            mean_r = mean(robust_costs)
+            std_r = std(robust_costs)
+            mean_nr = mean(non_robust_costs)
+            std_nr = std(non_robust_costs)
+
+            println(io, "DESCRIPTIVE STATISTICS")
+            println(io, "-"^50)
+            println(io, "Outliers removed (IQR): Robust=$n_r_removed, Non-Robust=$n_nr_removed")
+            println(io, "Robust (n=$n_r):     Mean = $(round(mean_r, digits=4)), Std = $(round(std_r, digits=4))")
+            println(io, "Non-Robust (n=$n_nr): Mean = $(round(mean_nr, digits=4)), Std = $(round(std_nr, digits=4))")
+            println(io, "Difference (Robust - Non-Robust): $(round(mean_r - mean_nr, digits=4))\n")
+
+            # Welch's t-test
+            println(io, "WELCH'S T-TEST")
+            println(io, "-"^50)
+            se_diff = sqrt((std_r^2 / n_r) + (std_nr^2 / n_nr))
+            t_stat = (mean_r - mean_nr) / se_diff
+
+            df_num = ((std_r^2 / n_r) + (std_nr^2 / n_nr))^2
+            df_den = ((std_r^2 / n_r)^2 / (n_r - 1)) + ((std_nr^2 / n_nr)^2 / (n_nr - 1))
+            df = df_num / df_den
+
+            p_val_t = 2 * (1 - cdf(TDist(df), abs(t_stat)))
+
+            println(io, "T-Statistic: $(round(t_stat, digits=4))")
+            println(io, "Degrees of Freedom: $(round(df, digits=2))")
+            println(io, "P-Value: $(round(p_val_t, digits=5))")
+            println(io, "Significant (p < 0.05): $(p_val_t < 0.05 ? "YES" : "NO")\n")
+
+            # Mann-Whitney U test
+            println(io, "MANN-WHITNEY U TEST")
+            println(io, "-"^50)
+            combined = vcat(robust_costs, non_robust_costs)
+            ranks = sortperm(sortperm(combined))
+            R_r = sum(ranks[1:n_r])
+            U_r = R_r - n_r * (n_r + 1) / 2
+            U_nr = n_r * n_nr - U_r
+            U = min(U_r, U_nr)
+            mu_U = n_r * n_nr / 2
+            sigma_U = sqrt(n_r * n_nr * (n_r + n_nr + 1) / 12)
+            z_score = (U - mu_U) / sigma_U
+            p_val_mw = 2 * (1 - cdf(Normal(0, 1), abs(z_score)))
+
+            println(io, "U-Statistic: $(round(U, digits=2))")
+            println(io, "Z-Score: $(round(z_score, digits=4))")
+            println(io, "P-Value: $(round(p_val_mw, digits=5))")
+            println(io, "Significant (p < 0.05): $(p_val_mw < 0.05 ? "YES" : "NO")\n")
+
+            # Bootstrap test
+            println(io, "BOOTSTRAP TEST (Resampling)")
+            println(io, "-"^50)
+
+            n_bootstrap = 10000
+            observed_diff = mean_r - mean_nr
+            bootstrap_diffs = Float64[]
+
+            Random.seed!(42)
+            for _ in 1:n_bootstrap
+                boot_r = [robust_costs[rand(1:n_r)] for _ in 1:n_r]
+                boot_nr = [non_robust_costs[rand(1:n_nr)] for _ in 1:n_nr]
+                push!(bootstrap_diffs, mean(boot_r) - mean(boot_nr))
+            end
+
+            ci_lower = quantile(bootstrap_diffs, 0.025)
+            ci_upper = quantile(bootstrap_diffs, 0.975)
+
+            # Permutation p-value under null
+            pooled = vcat(robust_costs, non_robust_costs)
+            null_diffs = Float64[]
+            for _ in 1:n_bootstrap
+                boot_sample = [pooled[rand(1:length(pooled))] for _ in 1:length(pooled)]
+                boot_r = boot_sample[1:n_r]
+                boot_nr = boot_sample[n_r+1:end]
+                push!(null_diffs, mean(boot_r) - mean(boot_nr))
+            end
+
+            p_val_boot = sum(abs.(null_diffs) .>= abs(observed_diff)) / n_bootstrap
+
+            println(io, "Bootstrap Iterations: $n_bootstrap")
+            println(io, "Observed Difference: $(round(observed_diff, digits=4))")
+            println(io, "95% CI: [$(round(ci_lower, digits=4)), $(round(ci_upper, digits=4))]")
+            println(io, "P-Value: $(round(p_val_boot, digits=5))")
+            println(io, "Significant (p < 0.05): $(p_val_boot < 0.05 ? "YES" : "NO")\n")
+        else
+            println(io, "Insufficient data for statistical tests (n_robust=$n_r, n_non_robust=$n_nr).")
+            println(io, "Need at least 2 samples each.")
+        end
+    end
+    println("Saved significance report to $(joinpath(directory, "significance_report.txt"))")
+
+    # --- Sub-step E: Filter tracker entries to kept scenarios ---
+    if !isempty(kept_names)
+        n_before = length(SENATE_TRAJECTORY_TRACKER.entries)
+        filter!(e -> e.scenario_name in kept_names, SENATE_TRAJECTORY_TRACKER.entries)
+        n_after = length(SENATE_TRAJECTORY_TRACKER.entries)
+        if n_before != n_after
+            println("Filtered SENATE_TRAJECTORY_TRACKER: $n_before -> $n_after entries (removed $(n_before - n_after) outlier trials)")
+        end
+    end
+
+    return kept_names
 end
 
 end  # module
