@@ -26,7 +26,8 @@ export SenateTrajectoryAnalysisEntry, SenateTrajectoryAnalysisTracker, SENATE_TR
     create_merged_executed_costs_plot, create_sweep_summary_plot,
     compute_senate_significance_report,
     analyze_drift_mismatch_sweep, analyze_robustness_comparison_sweep,
-    analyze_control_planning_sweep
+    analyze_control_planning_sweep,
+    create_sweep_violin_plot
 
 """
     SenateTrajectoryAnalysisEntry
@@ -1222,6 +1223,8 @@ function analyze_nature_control_sweep(;
         directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier")
     create_sweep_summary_plot(sweep_collected, "Nature Multiplier";
         directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier", xscale=log10)
+    create_sweep_violin_plot(sweep_collected, "Nature Multiplier";
+        directory=merged_dir, sweep_name="nature_multiplier")
 end
 
 """
@@ -1260,6 +1263,8 @@ function analyze_planning_horizon_sweep(;
         directory=merged_dir, hide_p1=hide_p1, sweep_name="planning_horizon")
     create_sweep_summary_plot(sweep_collected, "Planning Horizon";
         directory=merged_dir, hide_p1=hide_p1, sweep_name="planning_horizon")
+    create_sweep_violin_plot(sweep_collected, "Planning Horizon";
+        directory=merged_dir, sweep_name="planning_horizon")
 end
 
 """
@@ -1296,6 +1301,8 @@ function analyze_drift_mismatch_sweep(;
         directory=merged_dir, hide_p1=hide_p1, sweep_name="drift_mismatch")
     create_sweep_summary_plot(sweep_collected, "GT Drift Scale";
         directory=merged_dir, hide_p1=hide_p1, sweep_name="drift_mismatch")
+    create_sweep_violin_plot(sweep_collected, "GT Drift Scale";
+        directory=merged_dir, sweep_name="drift_mismatch")
 end
 
 """
@@ -1333,6 +1340,8 @@ function analyze_robustness_comparison_sweep(;
         directory=merged_dir, hide_p1=hide_p1, sweep_name="robustness_comparison")
     create_sweep_summary_plot(sweep_collected, "P1 Type";
         directory=merged_dir, hide_p1=hide_p1, sweep_name="robustness_comparison")
+    create_sweep_violin_plot(sweep_collected, "P1 Type";
+        directory=merged_dir, sweep_name="robustness_comparison")
 end
 
 """
@@ -1369,6 +1378,8 @@ function analyze_control_planning_sweep(;
         directory=merged_dir, hide_p1=hide_p1, sweep_name="control_planning")
     create_sweep_summary_plot(sweep_collected, "Planning Horizon";
         directory=merged_dir, hide_p1=hide_p1, sweep_name="control_planning")
+    create_sweep_violin_plot(sweep_collected, "Planning Horizon";
+        directory=merged_dir, sweep_name="control_planning")
 end
 
 # ========================================================================================
@@ -1582,6 +1593,161 @@ function create_sweep_summary_plot(
 end
 
 # ========================================================================================
+# VIOLIN PLOTS
+# ========================================================================================
+
+"""
+    create_sweep_violin_plot(sweep_collected, sweep_label; directory, sweep_name, player_idx)
+
+Create violin plot of P2 final cumulative deterministic cost across sweep values.
+Robust P2 gets one violin per sweep value (colored blue→green→yellow→orange→red);
+non-robust P2 entries are pooled into a single gray "NR" baseline on the far right.
+
+Style: transparent background, scattered data points, white dash for mean,
+horizontal white dashed line for baseline mean, light gray text/ticks.
+"""
+function create_sweep_violin_plot(
+    sweep_collected::Dict,
+    sweep_label::String;
+    directory::String="./exp/senate/outputs/analysis",
+    sweep_name::String="sweep",
+    player_idx::Int=2
+)
+    if isempty(sweep_collected)
+        println("No sweep data for violin plot")
+        return
+    end
+
+    mkpath(directory)
+    sweep_values = sort(collect(keys(sweep_collected)))
+    n_sv = length(sweep_values)
+
+    # --- Color ramp: blue → green → yellow → orange → red ---
+    function sweep_color(idx, n)
+        t = n <= 1 ? 0.0 : (idx - 1) / (n - 1)
+        # 5-stop gradient: blue(0) → green(0.25) → yellow(0.5) → orange(0.75) → red(1)
+        stops = [
+            (0.0,  RGBAf(0.2, 0.4, 1.0, 0.45)),
+            (0.25, RGBAf(0.2, 0.8, 0.4, 0.45)),
+            (0.5,  RGBAf(0.9, 0.9, 0.2, 0.45)),
+            (0.75, RGBAf(1.0, 0.6, 0.2, 0.45)),
+            (1.0,  RGBAf(0.9, 0.2, 0.2, 0.45)),
+        ]
+        # Find bounding stops and lerp
+        for i in 1:length(stops)-1
+            t0, c0 = stops[i]
+            t1, c1 = stops[i+1]
+            if t <= t1
+                s = (t - t0) / (t1 - t0)
+                return RGBAf(
+                    c0.r + s * (c1.r - c0.r),
+                    c0.g + s * (c1.g - c0.g),
+                    c0.b + s * (c1.b - c0.b),
+                    c0.alpha + s * (c1.alpha - c0.alpha))
+            end
+        end
+        return stops[end][2]
+    end
+    nr_color = RGBAf(0.6, 0.6, 0.6, 0.45)
+    text_color = :black
+
+    # --- IQR outlier filter ---
+    function iqr_filter(costs::Vector{Float64})
+        length(costs) < 4 && return costs
+        q1 = quantile(costs, 0.25)
+        q3 = quantile(costs, 0.75)
+        iqr = q3 - q1
+        return filter(c -> q1 - 1.5 * iqr <= c <= q3 + 1.5 * iqr, costs)
+    end
+
+    # --- Extract final cumulative P2 costs ---
+    function final_costs(entries)
+        trajs = extract_executed_trajectories(entries, player_idx, 2; cumulative=true)
+        return Float64[t[end] for t in trajs if !isempty(t)]
+    end
+
+    # Collect per-group data: (position, costs, color)
+    groups = Vector{NamedTuple{(:pos, :costs, :color, :label), Tuple{Int, Vector{Float64}, RGBAf, String}}}()
+    tick_positions = Int[]
+    tick_labels = String[]
+
+    for (idx, sv) in enumerate(sweep_values)
+        data = sweep_collected[sv]
+        costs = iqr_filter(final_costs(data.robust_entries))
+        push!(groups, (pos=idx, costs=costs, color=sweep_color(idx, n_sv), label=string(sv)))
+        push!(tick_positions, idx)
+        push!(tick_labels, string(sv))
+    end
+
+    # Non-robust pooled
+    nr_position = n_sv + 1
+    all_nr_costs = Float64[]
+    for sv in sweep_values
+        append!(all_nr_costs, final_costs(sweep_collected[sv].non_robust_entries))
+    end
+    all_nr_costs = iqr_filter(all_nr_costs)
+    if !isempty(all_nr_costs)
+        push!(groups, (pos=nr_position, costs=all_nr_costs, color=nr_color, label="NR"))
+        push!(tick_positions, nr_position)
+        push!(tick_labels, "NR")
+    end
+
+    if all(isempty(g.costs) for g in groups)
+        println("No cost data for violin plot")
+        return
+    end
+
+    # --- Figure with transparent background ---
+    fig = Figure(size=(max(700, 120 * length(tick_positions)), 500),
+        backgroundcolor=:transparent)
+    ax = Axis(fig[1, 1],
+        backgroundcolor=:transparent,
+        xlabel = sweep_label,
+        ylabel = "Final Cumulative Cost",
+        xticks = (tick_positions, tick_labels),
+        xticklabelrotation = π/4,
+        xlabelsize = 35, ylabelsize = 35,
+        xticklabelsize = 27, yticklabelsize = 27,
+        xlabelcolor = text_color, ylabelcolor = text_color,
+        xticklabelcolor = text_color, yticklabelcolor = text_color,
+        xtickcolor = text_color, ytickcolor = text_color,
+        bottomspinecolor = text_color, leftspinecolor = text_color,
+        topspinevisible = false, rightspinevisible = false,
+    )
+
+    # --- Draw each violin + scatter + mean ---
+    nr_mean = !isempty(all_nr_costs) ? mean(all_nr_costs) : nothing
+
+    for g in groups
+        isempty(g.costs) && continue
+
+        # Violin
+        violin!(ax, fill(g.pos, length(g.costs)), g.costs,
+            color=g.color, strokewidth=1, strokecolor=RGBAf(0,0,0,0.4), width=0.6)
+
+        # Jittered scatter points
+        jitter = 0.1 .* (rand(length(g.costs)) .- 0.5)
+        scatter!(ax, fill(g.pos, length(g.costs)) .+ jitter, g.costs,
+            color=RGBAf(0,0,0,0.25), markersize=3)
+
+        # Mean: white horizontal dash
+        m = mean(g.costs)
+        linesegments!(ax, [Point2f(g.pos - 0.2, m), Point2f(g.pos + 0.2, m)],
+            color=:black, linewidth=2.5)
+    end
+
+    # Horizontal dashed line at baseline (NR) mean
+    if !isnothing(nr_mean)
+        hlines!(ax, [nr_mean], color=RGBAf(0,0,0,0.5), linewidth=1.5, linestyle=:dash)
+    end
+
+    filename = joinpath(directory, "violin_$(sweep_name)")
+    save(filename * ".png", fig, px_per_unit=3)
+    save(filename * ".pdf", fig)
+    println("Saved violin plot to $(filename).png")
+end
+
+# ========================================================================================
 # STATISTICAL SIGNIFICANCE ANALYSIS
 # ========================================================================================
 
@@ -1725,7 +1891,7 @@ function compute_senate_significance_report(
 
             println(io, "T-Statistic: $(round(t_stat, digits=4))")
             println(io, "Degrees of Freedom: $(round(df, digits=2))")
-            println(io, "P-Value: $(round(p_val_t, digits=5))")
+            println(io, "P-Value: $(@sprintf("%.4e", p_val_t))")
             println(io, "Significant (p < 0.05): $(p_val_t < 0.05 ? "YES" : "NO")\n")
 
             # Mann-Whitney U test
@@ -1744,7 +1910,7 @@ function compute_senate_significance_report(
 
             println(io, "U-Statistic: $(round(U, digits=2))")
             println(io, "Z-Score: $(round(z_score, digits=4))")
-            println(io, "P-Value: $(round(p_val_mw, digits=5))")
+            println(io, "P-Value: $(@sprintf("%.4e", p_val_mw))")
             println(io, "Significant (p < 0.05): $(p_val_mw < 0.05 ? "YES" : "NO")\n")
 
             # Bootstrap test
@@ -1780,7 +1946,7 @@ function compute_senate_significance_report(
             println(io, "Bootstrap Iterations: $n_bootstrap")
             println(io, "Observed Difference: $(round(observed_diff, digits=4))")
             println(io, "95% CI: [$(round(ci_lower, digits=4)), $(round(ci_upper, digits=4))]")
-            println(io, "P-Value: $(round(p_val_boot, digits=5))")
+            println(io, "P-Value: $(@sprintf("%.4e", p_val_boot))")
             println(io, "Significant (p < 0.05): $(p_val_boot < 0.05 ? "YES" : "NO")\n")
         else
             println(io, "Insufficient data for statistical tests (n_robust=$n_r, n_non_robust=$n_nr).")

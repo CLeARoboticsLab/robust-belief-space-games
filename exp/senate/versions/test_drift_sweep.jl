@@ -266,7 +266,7 @@ function run_robustness_comparison_sweep(; cores=10, override=false, num_seeds=1
     )
 end
 
-function run_nature_control_sweep(; cores=10, override=false, num_seeds=100)
+function run_nature_control_sweep(; cores=8, override=false, num_seeds=500)
     experiment_name = "nature_control_sweep"
     output_dir = joinpath(@__DIR__, "..", "outputs", experiment_name)
     if !isdir(output_dir)
@@ -280,7 +280,7 @@ function run_nature_control_sweep(; cores=10, override=false, num_seeds=100)
     run_parallel_sweep(
         p1_type=non_robust,
         p2_type=[non_robust, robust],
-        p2_nature_multiplier=[1, 5, 25, 125, 625, 3125],
+        p2_nature_multiplier=[1, 2, 5, 10, 25, 50, 125, 250, 625, 1250, 3125, 6250],
         # Cost model templates for obstacles
         p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
         p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
