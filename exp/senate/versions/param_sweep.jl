@@ -27,6 +27,7 @@ function run_parallel_sweep(;
     override=false,
     save_file_prefix="exp/senate",
     num_seeds=100,
+    offset=0,
     kwargs...
 )
     # Only expand these specific parameters
@@ -44,7 +45,7 @@ function run_parallel_sweep(;
     end
 
     # Add random_seed for Monte Carlo
-    array_params[:random_seed] = collect(1:num_seeds)
+    array_params[:random_seed] = collect((1+offset):(num_seeds+offset))
 
     # Generate all combinations
     if isempty(array_params)

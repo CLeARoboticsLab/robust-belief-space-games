@@ -3,11 +3,7 @@ using BlockArrays
 using LinearAlgebra
 using Distributions
 using Hockey
-
-# Include the runner module if not already defined
-if !@isdefined(ExperimentRunner)
-    @eval include("../src/ExperimentRunner.jl")
-end
+include(joinpath(@__DIR__, "..", "src", "ExperimentRunner.jl"))  
 using .ExperimentRunner
 
 """
