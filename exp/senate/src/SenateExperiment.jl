@@ -53,6 +53,8 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false, 
     warm_starts = Dict{Int, Any}(idx => nothing for idx in player_indices)
     plan_cost_history = Dict(idx => Any[] for idx in player_indices)
     incurred_cost_history = Dict(idx => Any[] for idx in player_indices)
+    nature_diagnostics_history = Dict(idx => Any[] for idx in player_indices)
+    belief_error_history = Vector{Vector{Float64}}()
 
     random_seed = params.random_seed + trial_number - 1  # Different seed per trial
     Random.seed!(random_seed)
@@ -123,6 +125,9 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false, 
             nominal_beliefs, nominal_controls, _, plan_cost = solve(game; debug=false, warm_start=warm_starts[player_idx])
 
             push!(solution_history[player_idx], (; beliefs=nominal_beliefs, controls=nominal_controls))
+            if !isnothing(plan_cost.nature_diagnostics)
+                push!(nature_diagnostics_history[player_idx], plan_cost.nature_diagnostics)
+            end
             
             # --- Warm Start Logic ---
             if length(nominal_beliefs) > 1
@@ -185,6 +190,10 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false, 
         push!(observation_history, observations)
         
         current_beliefs = ekf_update_with_observations(current_beliefs, merged_controls, EKF_game, observations)
+
+        # Track belief estimation error (||belief_mean - gt_state||) per senator per player
+        push!(belief_error_history, [norm(b.belief_mean - current_gt_state.blocks[1 + (i-1) % params.num_senators])
+            for (i, b) in enumerate(current_beliefs.beliefs)])
     end
 
     # Add terminal cost at the end
@@ -209,7 +218,9 @@ function run_receding_horizon_trial(params::SenateParams; override::Bool=false, 
             observation_history=observation_history,
             solution_history=solution_history[idx],
             cost_history=plan_cost_history[idx],
-            incurred_cost_history=incurred_cost_history[idx]
+            incurred_cost_history=incurred_cost_history[idx],
+            nature_diagnostics_history=nature_diagnostics_history[idx],
+            belief_error_history=belief_error_history,
         ) for idx in player_indices
     )
     return solutions_dict, params

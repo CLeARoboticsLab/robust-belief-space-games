@@ -27,7 +27,8 @@ export SenateTrajectoryAnalysisEntry, SenateTrajectoryAnalysisTracker, SENATE_TR
     compute_senate_significance_report,
     analyze_drift_mismatch_sweep, analyze_robustness_comparison_sweep,
     analyze_control_planning_sweep,
-    create_sweep_violin_plot
+    create_sweep_violin_plot,
+    extract_nature_diagnostics_for_sweep, plot_nature_diagnostics_sweep
 
 """
     SenateTrajectoryAnalysisEntry
@@ -45,6 +46,10 @@ struct SenateTrajectoryAnalysisEntry
     cost_history::Any
     incurred_cost_history::Any
     params::Union{SenateParams, Nothing}
+
+    # Nature diagnostics (from robust solves)
+    nature_diagnostics_history::Any  # Dict{Int, Vector} or nothing
+    belief_error_history::Any  # Vector{Vector{Float64}} or nothing
 
     # Additional metadata
     robust::Bool  # Whether player 2 is robust
@@ -195,6 +200,8 @@ function process_single_senate_solution(solutions_dict, params, scenario_name::S
     solution_history = Dict{Int, Any}()
     cost_history = Dict{Int, Any}()
     incurred_cost_history = Dict{Int, Any}()
+    nature_diagnostics_history = Dict{Int, Any}()
+    belief_error_history = nothing
 
     for (player_idx, player_data) in solutions_dict
         if player_data isa NamedTuple || (player_data isa Dict && haskey(player_data, :gt_state_history))
@@ -203,6 +210,12 @@ function process_single_senate_solution(solutions_dict, params, scenario_name::S
             solution_history[player_idx] = get(player_data, :solution_history, [])
             cost_history[player_idx] = get(player_data, :cost_history, [])
             incurred_cost_history[player_idx] = get(player_data, :incurred_cost_history, [])
+            nature_diagnostics_history[player_idx] = get(player_data, :nature_diagnostics_history, nothing)
+            # belief_error_history is shared across players (same for all)
+            be = get(player_data, :belief_error_history, nothing)
+            if !isnothing(be)
+                belief_error_history = be
+            end
         end
     end
 
@@ -256,6 +269,8 @@ function process_single_senate_solution(solutions_dict, params, scenario_name::S
         cost_history,
         incurred_cost_history,
         params,
+        nature_diagnostics_history,
+        belief_error_history,
         is_robust,
         config_name,
     )
@@ -1225,6 +1240,13 @@ function analyze_nature_control_sweep(;
         directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier", xscale=log10)
     create_sweep_violin_plot(sweep_collected, "Nature Multiplier";
         directory=merged_dir, sweep_name="nature_multiplier")
+
+    # Nature diagnostics analysis
+    diagnostics = extract_nature_diagnostics_for_sweep(sweep_collected)
+    if !isempty(diagnostics)
+        plot_nature_diagnostics_sweep(diagnostics, sweep_collected;
+            directory=merged_dir, sweep_name="nature_multiplier")
+    end
 end
 
 """
@@ -1966,6 +1988,272 @@ function compute_senate_significance_report(
     end
 
     return kept_names
+end
+
+# ========================================================================================
+# NATURE DIAGNOSTICS ANALYSIS
+# ========================================================================================
+
+"""
+    extract_nature_diagnostics_for_sweep(sweep_collected; player_idx=2)
+
+Extract nature diagnostic quantities across a sweep of nature multiplier values.
+Returns Dict mapping sweep_value => NamedTuple of per-trial diagnostic time series.
+"""
+function extract_nature_diagnostics_for_sweep(sweep_collected; player_idx::Int=2)
+    result = Dict{Any, NamedTuple}()
+
+    for (sv, data) in sweep_collected
+        robust_entries = data.robust_entries
+
+        all_control_norms = Vector{Vector{Float64}}()
+        all_Q_traces = Vector{Vector{Float64}}()
+        all_Q_min_eigvals = Vector{Vector{Float64}}()
+        all_ff_norms = Vector{Vector{Float64}}()
+        all_fb_gains = Vector{Vector{Float64}}()
+        all_V_bb_traces = Vector{Vector{Vector{Float64}}}()  # per trial → per timestep → per player
+        all_belief_errors = Vector{Vector{Float64}}()
+
+        for entry in robust_entries
+            # Access nature diagnostics from the entry struct
+            ndh = entry.nature_diagnostics_history
+            if isnothing(ndh)
+                continue
+            end
+            diag_hist = get(ndh, player_idx, nothing)
+            if isnothing(diag_hist) || isempty(diag_hist)
+                continue
+            end
+
+            ctrl_norms = Float64[]
+            q_traces = Float64[]
+            q_min_eigs = Float64[]
+            ff_norms = Float64[]
+            fb_gains = Float64[]
+            vbb_traces = Vector{Float64}[]
+
+            for rh_step_diags in diag_hist
+                if !isempty(rh_step_diags)
+                    d = rh_step_diags[1]  # First planning step (the one executed)
+                    push!(ctrl_norms, d.nature_control_norm)
+                    push!(q_traces, d.Q_uu_nature_trace)
+                    push!(q_min_eigs, minimum(d.Q_uu_nature_eigvals))
+                    push!(ff_norms, d.nature_feedforward_norm)
+                    push!(fb_gains, d.nature_feedback_gain_norm)
+                    push!(vbb_traces, d.V_bb_traces)
+                end
+            end
+
+            if !isempty(ctrl_norms)
+                push!(all_control_norms, ctrl_norms)
+                push!(all_Q_traces, q_traces)
+                push!(all_Q_min_eigvals, q_min_eigs)
+                push!(all_ff_norms, ff_norms)
+                push!(all_fb_gains, fb_gains)
+                push!(all_V_bb_traces, vbb_traces)
+            end
+
+            be_hist = entry.belief_error_history
+            if !isnothing(be_hist) && !isempty(be_hist)
+                push!(all_belief_errors, [mean(be) for be in be_hist])
+            end
+        end
+
+        result[sv] = (
+            nature_control_norms = all_control_norms,
+            Q_uu_traces = all_Q_traces,
+            Q_uu_min_eigvals = all_Q_min_eigvals,
+            nature_feedforward_norms = all_ff_norms,
+            nature_feedback_gains = all_fb_gains,
+            V_bb_traces = all_V_bb_traces,
+            belief_errors = all_belief_errors,
+        )
+    end
+
+    return result
+end
+
+"""
+    plot_nature_diagnostics_sweep(diagnostics_by_multiplier; directory, sweep_name)
+
+Create multi-panel diagnostic plot for nature player analysis across sweep values.
+Panels: (a) ||u_nature|| vs λ, (b) tr(Q_uu) - λ·dim vs λ, (c) tr(V_bb) vs λ,
+        (d) belief error vs λ, (e) P2 cost vs λ.
+"""
+function plot_nature_diagnostics_sweep(
+    diagnostics_by_multiplier::Dict,
+    sweep_collected::Dict;
+    directory::String="./exp/senate/outputs/analysis",
+    sweep_name::String="nature_diagnostics"
+)
+    sweep_values = sort(collect(keys(diagnostics_by_multiplier)))
+    n_sv = length(sweep_values)
+    if n_sv == 0
+        println("No diagnostics data to plot.")
+        return
+    end
+
+    mkpath(directory)
+
+    xs = Float64.(sweep_values)
+    text_color = :black
+
+    fig = Figure(size=(1800, 1200), backgroundcolor=:transparent)
+
+    # --- Panel (a): Nature control magnitude ---
+    ax_a = Axis(fig[1, 1]; xlabel="Nature Multiplier λ", ylabel="Mean ‖u_nature‖",
+        title="Nature Control Magnitude", xscale=log10,
+        xlabelsize=16, ylabelsize=16, titlesize=18,
+        xlabelcolor=text_color, ylabelcolor=text_color, titlecolor=text_color,
+        xticklabelcolor=text_color, yticklabelcolor=text_color,
+        backgroundcolor=:transparent)
+
+    means_a = Float64[]
+    stds_a = Float64[]
+    for sv in sweep_values
+        d = diagnostics_by_multiplier[sv]
+        trial_means = [mean(cn) for cn in d.nature_control_norms]
+        push!(means_a, isempty(trial_means) ? NaN : mean(trial_means))
+        push!(stds_a, isempty(trial_means) ? 0.0 : std(trial_means) / sqrt(length(trial_means)))
+    end
+    errorbars!(ax_a, xs, means_a, stds_a; color=:steelblue, whiskerwidth=6)
+    scatterlines!(ax_a, xs, means_a; color=:steelblue, markersize=8)
+
+    # --- Panel (b): Intrinsic curvature (Q_uu - λ·I) ---
+    ax_b = Axis(fig[1, 2]; xlabel="Nature Multiplier λ", ylabel="Mean tr(Q_uu) − λ·dim",
+        title="Intrinsic Curvature", xscale=log10,
+        xlabelsize=16, ylabelsize=16, titlesize=18,
+        xlabelcolor=text_color, ylabelcolor=text_color, titlecolor=text_color,
+        xticklabelcolor=text_color, yticklabelcolor=text_color,
+        backgroundcolor=:transparent)
+
+    means_b = Float64[]
+    stds_b = Float64[]
+    for sv in sweep_values
+        d = diagnostics_by_multiplier[sv]
+        # nature_controls_dim can be inferred from Q_uu trace minus λ contribution
+        # Q_uu_nature ≈ λ·I + C, so tr(Q_uu) - λ·dim ≈ tr(C)
+        # We need the dimension; get it from the first available entry
+        dim_nature = 6  # default for senate (3 senators × 2D)
+        if !isempty(d.Q_uu_traces) && !isempty(d.Q_uu_traces[1])
+            # Infer from eigenvalues length if available
+        end
+        trial_curvatures = [mean(qt) - Float64(sv) * dim_nature for qt in d.Q_uu_traces]
+        push!(means_b, isempty(trial_curvatures) ? NaN : mean(trial_curvatures))
+        push!(stds_b, isempty(trial_curvatures) ? 0.0 : std(trial_curvatures) / sqrt(length(trial_curvatures)))
+    end
+    errorbars!(ax_b, xs, means_b, stds_b; color=:coral, whiskerwidth=6)
+    scatterlines!(ax_b, xs, means_b; color=:coral, markersize=8)
+
+    # --- Panel (c): V_bb traces per player ---
+    ax_c = Axis(fig[2, 1]; xlabel="Nature Multiplier λ", ylabel="Mean tr(V_bb)",
+        title="Value Hessian (All Players)", xscale=log10,
+        xlabelsize=16, ylabelsize=16, titlesize=18,
+        xlabelcolor=text_color, ylabelcolor=text_color, titlecolor=text_color,
+        xticklabelcolor=text_color, yticklabelcolor=text_color,
+        backgroundcolor=:transparent)
+
+    # Determine number of players from first available data
+    n_total_players = 3  # default: p1, p2, nature
+    for sv in sweep_values
+        d = diagnostics_by_multiplier[sv]
+        if !isempty(d.V_bb_traces) && !isempty(d.V_bb_traces[1]) && !isempty(d.V_bb_traces[1][1])
+            n_total_players = length(d.V_bb_traces[1][1])
+            break
+        end
+    end
+
+    player_colors = [:steelblue, :coral, :gray50]
+    player_labels = ["P1", "P2 (Robust)", "Nature"]
+    for pi in 1:min(n_total_players, 3)
+        means_c = Float64[]
+        stds_c = Float64[]
+        for sv in sweep_values
+            d = diagnostics_by_multiplier[sv]
+            trial_vbb = Float64[]
+            for trial_vbb_ts in d.V_bb_traces
+                if !isempty(trial_vbb_ts)
+                    player_traces = [ts[pi] for ts in trial_vbb_ts if length(ts) >= pi]
+                    if !isempty(player_traces)
+                        push!(trial_vbb, mean(player_traces))
+                    end
+                end
+            end
+            push!(means_c, isempty(trial_vbb) ? NaN : mean(trial_vbb))
+            push!(stds_c, isempty(trial_vbb) ? 0.0 : std(trial_vbb) / sqrt(length(trial_vbb)))
+        end
+        errorbars!(ax_c, xs, means_c, stds_c; color=player_colors[pi], whiskerwidth=6)
+        scatterlines!(ax_c, xs, means_c; color=player_colors[pi], markersize=8, label=player_labels[pi])
+    end
+    axislegend(ax_c; position=:rt, labelcolor=text_color, framecolor=text_color)
+
+    # --- Panel (d): Belief error ---
+    ax_d = Axis(fig[2, 2]; xlabel="Nature Multiplier λ", ylabel="Mean Belief Error",
+        title="Realized Estimation Error", xscale=log10,
+        xlabelsize=16, ylabelsize=16, titlesize=18,
+        xlabelcolor=text_color, ylabelcolor=text_color, titlecolor=text_color,
+        xticklabelcolor=text_color, yticklabelcolor=text_color,
+        backgroundcolor=:transparent)
+
+    means_d = Float64[]
+    stds_d = Float64[]
+    for sv in sweep_values
+        d = diagnostics_by_multiplier[sv]
+        trial_means_be = [mean(be) for be in d.belief_errors]
+        push!(means_d, isempty(trial_means_be) ? NaN : mean(trial_means_be))
+        push!(stds_d, isempty(trial_means_be) ? 0.0 : std(trial_means_be) / sqrt(length(trial_means_be)))
+    end
+    errorbars!(ax_d, xs, means_d, stds_d; color=:forestgreen, whiskerwidth=6)
+    scatterlines!(ax_d, xs, means_d; color=:forestgreen, markersize=8)
+
+    # --- Panel (e): P2 cost overlay ---
+    ax_e = Axis(fig[3, 1:2]; xlabel="Nature Multiplier λ", ylabel="Mean P2 Cost",
+        title="P2 Final Cumulative Cost (with Optimal λ*)", xscale=log10,
+        xlabelsize=16, ylabelsize=16, titlesize=18,
+        xlabelcolor=text_color, ylabelcolor=text_color, titlecolor=text_color,
+        xticklabelcolor=text_color, yticklabelcolor=text_color,
+        backgroundcolor=:transparent)
+
+    means_e = Float64[]
+    stds_e = Float64[]
+    for sv in sweep_values
+        if haskey(sweep_collected, sv)
+            entries = sweep_collected[sv].robust_entries
+            costs = Float64[]
+            for entry in entries
+                try
+                    trajs = extract_executed_trajectories([entry], 2, 2; cumulative=true)
+                    if !isempty(trajs) && !isempty(trajs[1])
+                        push!(costs, trajs[1][end])
+                    end
+                catch
+                end
+            end
+            push!(means_e, isempty(costs) ? NaN : mean(costs))
+            push!(stds_e, isempty(costs) ? 0.0 : std(costs) / sqrt(length(costs)))
+        else
+            push!(means_e, NaN)
+            push!(stds_e, 0.0)
+        end
+    end
+    errorbars!(ax_e, xs, means_e, stds_e; color=:purple, whiskerwidth=6)
+    scatterlines!(ax_e, xs, means_e; color=:purple, markersize=8)
+
+    # Mark empirical optimum
+    valid_idx = findall(!isnan, means_e)
+    if !isempty(valid_idx)
+        best_idx = valid_idx[argmin(means_e[valid_idx])]
+        vlines!(ax_e, [xs[best_idx]]; color=:red, linestyle=:dash, linewidth=1.5)
+        text!(ax_e, xs[best_idx], means_e[best_idx]; text="λ*=$(sweep_values[best_idx])",
+            color=:red, fontsize=14, align=(:left, :bottom), offset=(5, 5))
+    end
+
+    # Save
+    save(joinpath(directory, "nature_diagnostics_$(sweep_name).png"), fig; px_per_unit=3)
+    save(joinpath(directory, "nature_diagnostics_$(sweep_name).pdf"), fig)
+    println("Saved nature diagnostics plot to $(joinpath(directory, "nature_diagnostics_$(sweep_name).png"))")
+
+    return fig
 end
 
 end  # module

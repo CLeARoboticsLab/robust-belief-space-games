@@ -62,7 +62,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         #     end
         # end
         #endregion
-        feedback_terms, feed_forward_norms, new_kkt_error_norms, Q_suite = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
+        feedback_terms, feed_forward_norms, new_kkt_error_norms, Q_suite, _ = backward_pass(game, nominal_beliefs, nominal_controls, regularizations, iterations; kkt_component=:control)
         candidate_beliefs, candidate_controls, new_cost, step_accepted, candidate_kkt_error = line_search(game, nominal_beliefs, nominal_controls, feedback_terms, kkt_error_norms, regularizations)
 
         if save_intermediate_solutions
@@ -124,14 +124,54 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         println("error mean: ", round(mean(norm.(kkt_error_norms)), digits=7))
     end
     
-    final_cost = (;terminal=calculate_terminal_costs(game, nominal_beliefs), 
-    non_terminal = calculate_non_terminal_costs(game, nominal_beliefs, nominal_controls), 
-    total = calculate_costs(game, nominal_beliefs, nominal_controls))
+    # --- Nature diagnostics extraction (post-convergence, no effect on solution) ---
+    nature_diagnostics = nothing
+    if length(game.robust_players) > 0
+        _, _, _, final_Q_suite, final_V_bb = backward_pass(
+            game, nominal_beliefs, nominal_controls, regularizations, iterations;
+            kkt_component=:control)
+
+        n_players = length(game.environments)
+        player_total = sum(game.dims.total_controls_dim)
+
+        nature_diagnostics = map(1:game.horizon-1) do t
+            nature_control = Vector{Float64}(nominal_controls[t].blocks[end])
+
+            ff, fb = calculate_feedback_terms(
+                final_Q_suite[t].Qh_uu, final_Q_suite[t].Qh_ub, final_Q_suite[t].Qh_u)
+            nature_ff = Vector{Float64}(ff[player_total+1:end])
+            nature_fb_norm = norm(fb[player_total+1:end, :])
+
+            Q_uu_nn = Matrix{Float64}(final_Q_suite[t].Qh_uu[player_total+1:end, player_total+1:end])
+
+            V_bb_all = [Matrix{Float64}(final_V_bb[t][ii]) for ii in 1:(n_players + 1)]
+            V_bb_traces = [tr(v) for v in V_bb_all]
+            V_bb_max_eigvals = [maximum(eigvals(Symmetric(v))) for v in V_bb_all]
+
+            (; nature_control,
+               nature_control_norm = norm(nature_control),
+               nature_feedforward = nature_ff,
+               nature_feedforward_norm = norm(nature_ff),
+               nature_feedback_gain_norm = nature_fb_norm,
+               Q_uu_nature_block = Q_uu_nn,
+               Q_uu_nature_trace = tr(Q_uu_nn),
+               Q_uu_nature_eigvals = eigvals(Symmetric(Q_uu_nn)),
+               V_bb_all,
+               V_bb_traces,
+               V_bb_max_eigvals,
+            )
+        end
+    end
+
+    final_cost = (;terminal=calculate_terminal_costs(game, nominal_beliefs),
+    non_terminal = calculate_non_terminal_costs(game, nominal_beliefs, nominal_controls),
+    total = calculate_costs(game, nominal_beliefs, nominal_controls),
+    nature_diagnostics = nature_diagnostics)
 
     if save_intermediate_solutions
         return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], kkt_error_history[2:end], cond
     end
-    
+
     return nominal_beliefs, nominal_controls, kkt_error_norms, final_cost
 end
 
@@ -156,6 +196,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
     feed_forward_norms = Vector{Float64}()
     stationarity_errors = Vector{Vector{T}}()
     Q_suite = Vector{Any}()
+    V_bb_history = Vector{Vector{Matrix{Float64}}}()
 
     # Initialize gradient helpers
     x_val = vec(nominal_beliefs[end])
@@ -292,6 +333,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
         push!(feed_forward_norms, norm(feed_forward))
         push!(stationarity_errors, stationarity_error)
         push!(Q_suite, (;Qh_uu, Qh_ub, Qh_u, Qh_b))
+        push!(V_bb_history, [copy(Matrix{Float64}(v)) for v in V_bb])
 
         for ii in 1:(n_players+is_robust)
             belief_offset = num_belief_blocks
@@ -323,7 +365,7 @@ function backward_pass(game::BeliefGame, nominal_beliefs::Vector{Beliefs}, nomin
                             Q_ub' * feed_back, clip_norm) # Q_ub
         end
     end
-    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms), reverse!(stationarity_errors), reverse!(Q_suite)
+    return reverse!(joint_feedback_strategies), reverse!(feed_forward_norms), reverse!(stationarity_errors), reverse!(Q_suite), reverse!(V_bb_history)
 end
 
 function calculate_feedback_terms(Qh_uu, Qh_ub, Qh_u)
@@ -382,7 +424,7 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
         b, u = rollout_strategy(game, strategy)
 
         # Compute KKT error using control stationarity only
-        _, _, candidate_stationarity_errors, _ = backward_pass(game, b, u, regularizations, 0; kkt_component=:control)
+        _, _, candidate_stationarity_errors, _, _ = backward_pass(game, b, u, regularizations, 0; kkt_component=:control)
         # ∇ᵤL = mapreduce(vcat, 1:game.horizon-1) do t
         #     stationarity_error = candidate_stationarity_errors[t]
         #     lagrange_multiplier = lagrange_multipliers[t]
