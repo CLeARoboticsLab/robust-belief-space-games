@@ -21,6 +21,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         global DEBUG_FILE = debug_file
         open(DEBUG_FILE, "w") do f end
     end
+    _t_start = time_ns()
     if isnothing(warm_start)
         dummy_strategy = get_dummy_strategy(game)
         nominal_beliefs, nominal_controls = rollout_strategy(game, dummy_strategy)
@@ -113,6 +114,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
         end
         iterations += 1
     end
+    _solve_time = (time_ns() - _t_start) / 1e9
 
     println("Converged in $improvement_iterations / $iterations iterations")
     
@@ -166,7 +168,10 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
     final_cost = (;terminal=calculate_terminal_costs(game, nominal_beliefs),
     non_terminal = calculate_non_terminal_costs(game, nominal_beliefs, nominal_controls),
     total = calculate_costs(game, nominal_beliefs, nominal_controls),
-    nature_diagnostics = nature_diagnostics)
+    nature_diagnostics = nature_diagnostics,
+    solve_time = _solve_time,
+    solver_iterations = iterations,
+    solver_improvement_iterations = improvement_iterations)
 
     if save_intermediate_solutions
         return nominal_beliefs, nominal_controls, intermediate_solutions, feed_forward_norms_history[2:end], kkt_error_history[2:end], cond
