@@ -28,7 +28,13 @@ export SenateTrajectoryAnalysisEntry, SenateTrajectoryAnalysisTracker, SENATE_TR
     analyze_drift_mismatch_sweep, analyze_robustness_comparison_sweep,
     analyze_control_planning_sweep,
     create_sweep_violin_plot,
-    extract_nature_diagnostics_for_sweep, plot_nature_diagnostics_sweep
+    create_sweep_mean_trajectory_plot,
+    extract_nature_diagnostics_for_sweep, plot_nature_diagnostics_sweep,
+    build_seed_matched_pairs, compute_trajectory_divergence, compute_divergence_statistics,
+    compute_paired_cost_decomposition,
+    create_seed_matched_trajectory_plot, create_trajectory_divergence_plot,
+    create_cost_decomposition_comparison_plot, create_paired_scatter_plot,
+    create_sweep_paired_analysis, write_paired_analysis_report
 
 """
     SenateTrajectoryAnalysisEntry
@@ -38,6 +44,7 @@ Stores trajectory analysis data for a single senate scenario execution.
 struct SenateTrajectoryAnalysisEntry
     scenario_name::String
     trial_number::Int
+    random_seed::Int
 
     # Raw trajectory data from solution file
     gt_state_history::Any
@@ -260,9 +267,23 @@ function process_single_senate_solution(solutions_dict, params, scenario_name::S
         trial_num = parse(Int, trial_match.captures[1])
     end
 
+    # Extract random seed (fallback chain)
+    seed = -1
+    if !isnothing(params) && hasproperty(params, :random_seed)
+        seed = params.random_seed
+    elseif !isnothing(combo_params) && combo_params isa Dict && haskey(combo_params, :random_seed)
+        seed = combo_params[:random_seed]
+    else
+        seed_match = match(r"seed_(\d+)", scenario_name)
+        if !isnothing(seed_match)
+            seed = parse(Int, seed_match.captures[1])
+        end
+    end
+
     entry = SenateTrajectoryAnalysisEntry(
         scenario_name,
         trial_num,
+        seed,
         gt_state_history,
         observation_history,
         solution_history,
@@ -387,14 +408,15 @@ function compute_senate_cost_components(beliefs, controls, config::PlayerConfig;
         end
     end
 
-    # Compute obstacle cost if applicable
+    # Compute obstacle cost if applicable (matches obstacle_cost_v4 at zero covariance)
     obstacle_cost = 0.0
     if !isempty(config.obstacle_centers) && config.obstacle_weights[1] > 0
-        # Use simplified obstacle cost computation
         for belief_mean in belief_blocks
-            for (center, weight) in zip(config.obstacle_centers, config.obstacle_weights)
+            for (center, weight, sigmoid_scale, sigmoid_offset) in zip(
+                config.obstacle_centers, config.obstacle_weights,
+                config.obstacle_sigmoid_scales, config.obstacle_sigmoid_offsets)
                 dist = norm(belief_mean - center)
-                obstacle_cost += weight * exp(-dist)  # Simplified
+                obstacle_cost += weight / (1 + exp(sigmoid_scale * (dist - sigmoid_offset)))
             end
         end
     end
@@ -1024,6 +1046,11 @@ function create_senate_yarnball_plot(all_planned_costs, all_config_entries::Dict
         end
 
         safe_config = replace(config, r"[^a-zA-Z0-9_]" => "_")
+        # Truncate to avoid Windows MAX_PATH (260 char) limit
+        max_name_len = 260 - length(directory) - 20
+        if length(safe_config) > max_name_len
+            safe_config = safe_config[1:max_name_len]
+        end
         filename = joinpath(directory, "senate_yarnball_$(safe_config).png")
         save(filename, fig)
         save(joinpath(directory, "senate_yarnball_$(safe_config).pdf"), fig)
@@ -1142,6 +1169,11 @@ function plot_senate_spatial_trajectories(; directory="./exp/senate/outputs/anal
         Legend(fig[1, 2], legend_elements, legend_labels, "Legend")
 
         safe_config = replace(config, r"[^a-zA-Z0-9_]" => "_")
+        # Truncate to avoid Windows MAX_PATH (260 char) limit
+        max_name_len = 260 - length(directory) - 20  # leave room for path separators + extension
+        if length(safe_config) > max_name_len
+            safe_config = safe_config[1:max_name_len]
+        end
         filename = joinpath(directory, "senate_trajectories_$(safe_config).png")
         save(filename, fig)
         println("Saved trajectory plot to $filename")
@@ -1191,26 +1223,41 @@ function analyze_senate_trajectory_data(;
         r_entries = [e for e in SENATE_TRAJECTORY_TRACKER.entries if e.robust]
         nr_entries = [e for e in SENATE_TRAJECTORY_TRACKER.entries if !e.robust]
         if !isempty(r_entries) && !isempty(nr_entries)
-            compute_senate_significance_report(r_entries, nr_entries; directory=output_directory)
+            try
+                compute_senate_significance_report(r_entries, nr_entries; directory=output_directory)
+            catch e
+                println("Warning: significance report failed: $e")
+            end
         end
 
-        get_senate_trajectory_summary(; directory=output_directory, hide_p1=hide_p1)
-        plot_senate_spatial_trajectories(; directory=output_directory, hide_p1=hide_p1)
+        try
+            get_senate_trajectory_summary(; directory=output_directory, hide_p1=hide_p1)
+        catch e
+            println("Warning: trajectory summary plots failed: $e")
+        end
+        try
+            plot_senate_spatial_trajectories(; directory=output_directory, hide_p1=hide_p1)
+        catch e
+            println("Warning: spatial trajectory plots failed: $e")
+        end
     else
         println("Failed to load trajectory data from solution files")
     end
 end
 
 """
-    analyze_nature_control_sweep(; multipliers, directory, output_base)
+    analyze_nature_control_sweep(; multipliers, directory, output_base, no_drift=false)
 
 Analyze nature control sweep results, split by nature multiplier value.
 Each multiplier gets its own output subfolder.
+
+If `no_drift=true`, defaults change to use the `nature_control_sweep_no_drift` data.
 """
 function analyze_nature_control_sweep(;
-    multipliers=[1, 5, 25, 125, 625, 3125],
-    directory="./exp/senate/outputs/merged/nature_control_sweep",
-    output_base="./exp/senate/outputs/analysis/nature_control_sweep",
+    no_drift::Bool=false,
+    multipliers=[1, 2, 5, 10, 25, 50, 125, 250, 625, 1250, 3125, 6250],
+    directory=no_drift ? "./exp/senate/outputs/merged/nature_control_sweep_no_drift" : "./exp/senate/outputs/merged/nature_control_sweep",
+    output_base=no_drift ? "./exp/senate/outputs/analysis/nature_control_sweep_no_drift" : "./exp/senate/outputs/analysis/nature_control_sweep",
     hide_p1::Bool=false)
 
     sweep_collected = Dict{Any, NamedTuple}()
@@ -1234,18 +1281,30 @@ function analyze_nature_control_sweep(;
     # Create merged overlay plots
     merged_dir = joinpath(output_base, "merged")
     mkpath(merged_dir)
-    create_merged_executed_costs_plot(sweep_collected, "Nature Multiplier";
-        directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier")
-    create_sweep_summary_plot(sweep_collected, "Nature Multiplier";
-        directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier", xscale=log10)
-    create_sweep_violin_plot(sweep_collected, "Nature Multiplier";
-        directory=merged_dir, sweep_name="nature_multiplier")
-
-    # Nature diagnostics analysis
-    diagnostics = extract_nature_diagnostics_for_sweep(sweep_collected)
-    if !isempty(diagnostics)
-        plot_nature_diagnostics_sweep(diagnostics, sweep_collected;
-            directory=merged_dir, sweep_name="nature_multiplier")
+    for (plot_name, plot_fn) in [
+        ("merged executed costs", () -> create_merged_executed_costs_plot(sweep_collected, "Nature Multiplier";
+            directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier")),
+        ("sweep summary", () -> create_sweep_summary_plot(sweep_collected, "Nature Multiplier";
+            directory=merged_dir, hide_p1=hide_p1, sweep_name="nature_multiplier", xscale=log10)),
+        ("sweep violin", () -> create_sweep_violin_plot(sweep_collected, "Nature Multiplier";
+            directory=merged_dir, sweep_name="nature_multiplier")),
+        ("nature diagnostics", () -> begin
+            diagnostics = extract_nature_diagnostics_for_sweep(sweep_collected)
+            if !isempty(diagnostics)
+                plot_nature_diagnostics_sweep(diagnostics, sweep_collected;
+                    directory=merged_dir, sweep_name="nature_multiplier")
+            end
+        end),
+        ("paired trajectory analysis", () -> create_sweep_paired_analysis(sweep_collected, "Nature Multiplier";
+            directory=merged_dir, sweep_name="nature_multiplier")),
+        ("mean trajectories", () -> create_sweep_mean_trajectory_plot(sweep_collected, "Nature Multiplier";
+            directory=merged_dir, sweep_name="nature_multiplier")),
+    ]
+        try
+            plot_fn()
+        catch e
+            println("Warning: $plot_name failed: $e")
+        end
     end
 end
 
@@ -1287,6 +1346,10 @@ function analyze_planning_horizon_sweep(;
         directory=merged_dir, hide_p1=hide_p1, sweep_name="planning_horizon")
     create_sweep_violin_plot(sweep_collected, "Planning Horizon";
         directory=merged_dir, sweep_name="planning_horizon")
+
+    # Paired trajectory analysis
+    create_sweep_paired_analysis(sweep_collected, "Planning Horizon";
+        directory=merged_dir, sweep_name="planning_horizon")
 end
 
 """
@@ -1324,6 +1387,10 @@ function analyze_drift_mismatch_sweep(;
     create_sweep_summary_plot(sweep_collected, "GT Drift Scale";
         directory=merged_dir, hide_p1=hide_p1, sweep_name="drift_mismatch")
     create_sweep_violin_plot(sweep_collected, "GT Drift Scale";
+        directory=merged_dir, sweep_name="drift_mismatch")
+
+    # Paired trajectory analysis
+    create_sweep_paired_analysis(sweep_collected, "GT Drift Scale";
         directory=merged_dir, sweep_name="drift_mismatch")
 end
 
@@ -1364,6 +1431,10 @@ function analyze_robustness_comparison_sweep(;
         directory=merged_dir, hide_p1=hide_p1, sweep_name="robustness_comparison")
     create_sweep_violin_plot(sweep_collected, "P1 Type";
         directory=merged_dir, sweep_name="robustness_comparison")
+
+    # Paired trajectory analysis
+    create_sweep_paired_analysis(sweep_collected, "P1 Type";
+        directory=merged_dir, sweep_name="robustness_comparison")
 end
 
 """
@@ -1401,6 +1472,10 @@ function analyze_control_planning_sweep(;
     create_sweep_summary_plot(sweep_collected, "Planning Horizon";
         directory=merged_dir, hide_p1=hide_p1, sweep_name="control_planning")
     create_sweep_violin_plot(sweep_collected, "Planning Horizon";
+        directory=merged_dir, sweep_name="control_planning")
+
+    # Paired trajectory analysis
+    create_sweep_paired_analysis(sweep_collected, "Planning Horizon";
         directory=merged_dir, sweep_name="control_planning")
 end
 
@@ -1649,11 +1724,11 @@ function create_sweep_violin_plot(
         t = n <= 1 ? 0.0 : (idx - 1) / (n - 1)
         # 5-stop gradient: blue(0) → green(0.25) → yellow(0.5) → orange(0.75) → red(1)
         stops = [
-            (0.0,  RGBAf(0.2, 0.4, 1.0, 0.45)),
-            (0.25, RGBAf(0.2, 0.8, 0.4, 0.45)),
-            (0.5,  RGBAf(0.9, 0.9, 0.2, 0.45)),
-            (0.75, RGBAf(1.0, 0.6, 0.2, 0.45)),
-            (1.0,  RGBAf(0.9, 0.2, 0.2, 0.45)),
+            (0.0,  RGBf(0.2, 0.4, 1.0)),
+            (0.25, RGBf(0.2, 0.8, 0.4)),
+            (0.5,  RGBf(0.9, 0.9, 0.2)),
+            (0.75, RGBf(1.0, 0.6, 0.2)),
+            (1.0,  RGBf(0.9, 0.2, 0.2)),
         ]
         # Find bounding stops and lerp
         for i in 1:length(stops)-1
@@ -1661,16 +1736,15 @@ function create_sweep_violin_plot(
             t1, c1 = stops[i+1]
             if t <= t1
                 s = (t - t0) / (t1 - t0)
-                return RGBAf(
+                return RGBf(
                     c0.r + s * (c1.r - c0.r),
                     c0.g + s * (c1.g - c0.g),
-                    c0.b + s * (c1.b - c0.b),
-                    c0.alpha + s * (c1.alpha - c0.alpha))
+                    c0.b + s * (c1.b - c0.b))
             end
         end
         return stops[end][2]
     end
-    nr_color = RGBAf(0.6, 0.6, 0.6, 0.45)
+    nr_color = RGBf(0.6, 0.6, 0.6)
     text_color = :black
 
     # --- IQR outlier filter ---
@@ -1720,22 +1794,35 @@ function create_sweep_violin_plot(
     end
 
     # --- Figure with transparent background ---
-    fig = Figure(size=(max(700, 120 * length(tick_positions)), 500),
-        backgroundcolor=:transparent)
+    update_theme!(fonts = (; regular = "Palatino Linotype",
+                             bold = "Palatino Linotype",
+                             italic = "Palatino Linotype"))
+    fig = Figure(size=(max(700, 120 * length(tick_positions)), 650),
+        backgroundcolor=:transparent, fontsize=22)
+
+    # Build descriptive axis labels
+    x_label = if sweep_name == "nature_multiplier"
+        "Nature's Relative Control Effort Cost"
+    else
+        sweep_label
+    end
+
     ax = Axis(fig[1, 1],
         backgroundcolor=:transparent,
-        xlabel = sweep_label,
-        ylabel = "Final Cumulative Cost",
+        xlabel = x_label,
+        ylabel = "Total Cost (Robust Activist)",
+        xlabelsize = 40, ylabelsize = 40,
+        xticklabelsize = 32, yticklabelsize = 32,
         xticks = (tick_positions, tick_labels),
-        xticklabelrotation = π/4,
-        xlabelsize = 35, ylabelsize = 35,
-        xticklabelsize = 27, yticklabelsize = 27,
+        xticklabelrotation = π/12,
         xlabelcolor = text_color, ylabelcolor = text_color,
         xticklabelcolor = text_color, yticklabelcolor = text_color,
         xtickcolor = text_color, ytickcolor = text_color,
         bottomspinecolor = text_color, leftspinecolor = text_color,
         topspinevisible = false, rightspinevisible = false,
+        xgridvisible = false, ygridvisible = false,
     )
+    xlims!(ax, 0.4, length(tick_positions) + 0.6)
 
     # --- Draw each violin + scatter + mean ---
     nr_mean = !isempty(all_nr_costs) ? mean(all_nr_costs) : nothing
@@ -1743,19 +1830,19 @@ function create_sweep_violin_plot(
     for g in groups
         isempty(g.costs) && continue
 
-        # Violin
+        # Violin (no outline)
         violin!(ax, fill(g.pos, length(g.costs)), g.costs,
-            color=g.color, strokewidth=1, strokecolor=RGBAf(0,0,0,0.4), width=0.6)
+            color=(g.color, 0.6), width=0.9)
 
-        # Jittered scatter points
-        jitter = 0.1 .* (rand(length(g.costs)) .- 0.5)
+        # Jittered scatter points (color matches violin)
+        jitter = randn(length(g.costs)) .* 0.06
         scatter!(ax, fill(g.pos, length(g.costs)) .+ jitter, g.costs,
-            color=RGBAf(0,0,0,0.25), markersize=3)
+            color=(g.color, 0.4), markersize=8)
 
-        # Mean: white horizontal dash
+        # Mean bar
         m = mean(g.costs)
-        linesegments!(ax, [Point2f(g.pos - 0.2, m), Point2f(g.pos + 0.2, m)],
-            color=:black, linewidth=2.5)
+        lines!(ax, [g.pos - 0.15, g.pos + 0.15], [m, m],
+            color=:black, linewidth=2)
     end
 
     # Horizontal dashed line at baseline (NR) mean
@@ -1767,6 +1854,214 @@ function create_sweep_violin_plot(
     save(filename * ".png", fig, px_per_unit=3)
     save(filename * ".pdf", fig)
     println("Saved violin plot to $(filename).png")
+end
+
+# ========================================================================================
+# MERGED MEAN TRAJECTORY PLOT
+# ========================================================================================
+
+"""
+    create_sweep_mean_trajectory_plot(sweep_collected, sweep_label; directory, sweep_name)
+
+Create a single-panel opinion-space trajectory plot showing mean trajectories across sweep values.
+All senators overlaid on one axis. Each sweep value gets its own color (same ramp as violin plot).
+Robust = solid, NR = dashed (gray). Senator starting positions, player goals (ellipsoid centers),
+and obstacles are annotated.
+"""
+function create_sweep_mean_trajectory_plot(
+    sweep_collected::Dict,
+    sweep_label::String;
+    directory::String="./exp/senate/outputs/analysis",
+    sweep_name::String="sweep"
+)
+    if isempty(sweep_collected)
+        println("No sweep data for mean trajectory plot")
+        return
+    end
+
+    mkpath(directory)
+    sweep_values = sort(collect(keys(sweep_collected)))
+    n_sv = length(sweep_values)
+
+    # --- Color ramp (same as violin) ---
+    function sweep_color(idx, n)
+        t = n <= 1 ? 0.0 : (idx - 1) / (n - 1)
+        stops = [
+            (0.0,  RGBf(0.2, 0.4, 1.0)),
+            (0.25, RGBf(0.2, 0.8, 0.4)),
+            (0.5,  RGBf(0.9, 0.9, 0.2)),
+            (0.75, RGBf(1.0, 0.6, 0.2)),
+            (1.0,  RGBf(0.9, 0.2, 0.2)),
+        ]
+        for i in 1:length(stops)-1
+            t0, c0 = stops[i]
+            t1, c1 = stops[i+1]
+            if t <= t1
+                s = (t - t0) / (t1 - t0)
+                return RGBf(
+                    c0.r + s * (c1.r - c0.r),
+                    c0.g + s * (c1.g - c0.g),
+                    c0.b + s * (c1.b - c0.b))
+            end
+        end
+        return stops[end][2]
+    end
+
+    senator_colors = [:blue, :green, :orange, :purple, :brown]
+
+    # --- Extract mean trajectories per senator ---
+    function compute_mean_trajectories(entries)
+        isempty(entries) && return Dict{Int, Tuple{Vector{Float64}, Vector{Float64}}}()
+        valid = [e for e in entries if !isempty(e.gt_state_history)]
+        isempty(valid) && return Dict{Int, Tuple{Vector{Float64}, Vector{Float64}}}()
+
+        num_senators = length(valid[1].gt_state_history[1].blocks)
+        min_T = minimum(length(e.gt_state_history) for e in valid)
+
+        result = Dict{Int, Tuple{Vector{Float64}, Vector{Float64}}}()
+        for s in 1:num_senators
+            all_xs = [Float64[state.blocks[s][1] for state in e.gt_state_history[1:min_T]] for e in valid]
+            all_ys = [Float64[state.blocks[s][2] for state in e.gt_state_history[1:min_T]] for e in valid]
+            mean_xs = [mean(xs[t] for xs in all_xs) for t in 1:min_T]
+            mean_ys = [mean(ys[t] for ys in all_ys) for t in 1:min_T]
+            result[s] = (mean_xs, mean_ys)
+        end
+        return result
+    end
+
+    # --- Find first valid entry for metadata ---
+    first_entry = nothing
+    for sv in sweep_values
+        for e in sweep_collected[sv].robust_entries
+            if !isempty(e.gt_state_history)
+                first_entry = e
+                break
+            end
+        end
+        !isnothing(first_entry) && break
+    end
+    if isnothing(first_entry)
+        for sv in sweep_values
+            for e in sweep_collected[sv].non_robust_entries
+                if !isempty(e.gt_state_history)
+                    first_entry = e
+                    break
+                end
+            end
+            !isnothing(first_entry) && break
+        end
+    end
+    if isnothing(first_entry)
+        println("No trajectory data for mean trajectory plot")
+        return
+    end
+    num_senators = length(first_entry.gt_state_history[1].blocks)
+
+    # --- Set up figure (three panels side by side) ---
+    update_theme!(fonts = (; regular = "Palatino Linotype",
+                             bold = "Palatino Linotype",
+                             italic = "Palatino Linotype"))
+    fig = Figure(size=(1800, 700), backgroundcolor=:transparent, fontsize=36)
+
+    axes = [Axis(fig[1, s],
+        backgroundcolor=:transparent,
+        xlabel = "Opinion Dimension 1",
+        ylabel = s == 1 ? "Opinion Dimension 2" : "",
+        title = "Senator $s",
+        aspect = DataAspect(),
+        topspinevisible = false, rightspinevisible = false,
+        xgridvisible = false, ygridvisible = false,
+        yticklabelsvisible = s == 1,
+        ylabelvisible = s == 1,
+    ) for s in 1:num_senators]
+
+    # --- Precompute NR baseline trajectories (pooled across sweep values) ---
+    all_nr_entries = SenateTrajectoryAnalysisEntry[]
+    for sv in sweep_values
+        append!(all_nr_entries, sweep_collected[sv].non_robust_entries)
+    end
+    nr_trajs = compute_mean_trajectories(all_nr_entries)
+
+    # Use first axis for legend entries
+    legend_ax = axes[1]
+
+    # --- Draw annotations, NR baseline, and sweep trajectories per senator ---
+    for s in 1:num_senators
+        ax = axes[s]
+
+        # Draw obstacle and goal annotations
+        if !isnothing(first_entry.params)
+            params = first_entry.params
+            player_indices = sort(collect(keys(params.player_configs)))
+            player_markers = [:star5, :diamond]
+            player_labels = ["P1 Goal", "P2 Goal"]
+
+            for (pi, pidx) in enumerate(player_indices)
+                config = params.player_configs[pidx]
+                for center in config.ellipsoid_centers
+                    if length(center) >= 2
+                        scatter!(ax, [center[1]], [center[2]],
+                            marker=player_markers[mod1(pi, 2)],
+                            markersize=36, color=:transparent,
+                            strokewidth=4, strokecolor=:black,
+                            label=s == 1 ? player_labels[mod1(pi, 2)] : nothing)
+                    end
+                end
+                if !isempty(config.obstacle_centers) && config.obstacle_weights[1] > 0
+                    for center in config.obstacle_centers
+                        if length(center) >= 2
+                            scatter!(ax, [center[1]], [center[2]],
+                                marker=:xcross, markersize=32,
+                                color=RGBAf(0.8, 0.0, 0.0, 0.6), strokewidth=4,
+                                label=(s == 1 && pi == 1) ? "Obstacle" : nothing)
+                        end
+                    end
+                end
+            end
+
+            # Senator initial position (this senator only)
+            block = params.ground_truth_initial_states.blocks[s]
+            scatter!(ax, [block[1]], [block[2]],
+                marker=:circle, markersize=24,
+                color=(senator_colors[mod1(s, length(senator_colors))], 0.5),
+                strokewidth=3, strokecolor=:black,
+                label=s == 1 ? "Start" : nothing)
+        end
+
+        # NR baseline for this senator
+        if haskey(nr_trajs, s)
+            xs, ys = nr_trajs[s]
+            lines!(ax, xs, ys, color=RGBAf(0.4, 0.4, 0.4, 0.8),
+                linewidth=5, linestyle=:dash,
+                label=s == 1 ? "NR" : nothing)
+            scatter!(ax, [xs[end]], [ys[end]], color=:gray,
+                marker=:rect, markersize=16)
+        end
+
+        # Sweep values for this senator
+        for (idx, sv) in enumerate(sweep_values)
+            data = sweep_collected[sv]
+            r_trajs = compute_mean_trajectories(data.robust_entries)
+            col = sweep_color(idx, n_sv)
+
+            if haskey(r_trajs, s)
+                xs, ys = r_trajs[s]
+                lines!(ax, xs, ys, color=(col, 0.85), linewidth=5,
+                    label=s == 1 ? string(sv) : nothing)
+                scatter!(ax, [xs[end]], [ys[end]], color=col,
+                    marker=:rect, markersize=12)
+            end
+        end
+    end
+
+    # --- Legend (bottom, horizontal) ---
+    Legend(fig[2, :], legend_ax, sweep_label, orientation=:horizontal,
+        nbanks=2, framevisible=false, fontsize=28)
+
+    filename = joinpath(directory, "mean_trajectories_$(sweep_name)")
+    save(filename * ".png", fig, px_per_unit=3)
+    save(filename * ".pdf", fig)
+    println("Saved mean trajectory plot to $(filename).png")
 end
 
 # ========================================================================================
@@ -1843,39 +2138,43 @@ function compute_senate_significance_report(
 
     # --- Sub-step C: Q-Q plot ---
     if length(robust_costs) > 1 && length(non_robust_costs) > 1
-        fig_qq = Figure(size=(1000, 500))
-        Label(fig_qq[0, :], text="Q-Q Plots: Normality Assessment ($label, Outliers removed: R=$n_r_removed, NR=$n_nr_removed)", fontsize=16)
+        try
+            qq_title = "Q-Q Plots: Normality Assessment ($label, Outliers removed: R=$n_r_removed, NR=$n_nr_removed)"
+            fig_qq = Figure(size=(1000, 500), figure_padding=20)
 
-        ax_qq = Axis(fig_qq[1, 1],
-            title="Cost Distribution (n_R=$(length(robust_costs)), n_NR=$(length(non_robust_costs)))",
-            xlabel="Theoretical Quantiles",
-            ylabel="Sample Quantiles")
+            ax_qq = Axis(fig_qq[1, 1],
+                title=qq_title * "\nCost Distribution (n_R=$(length(robust_costs)), n_NR=$(length(non_robust_costs)))",
+                xlabel="Theoretical Quantiles",
+                ylabel="Sample Quantiles")
 
-        # Robust Q-Q points
-        if std(robust_costs) > 0
-            n_r = length(robust_costs)
-            sorted_r = sort(robust_costs)
-            theoretical_q_r = [quantile(Normal(0, 1), (i - 0.5) / n_r) for i in 1:n_r]
-            standardized_r = (sorted_r .- mean(robust_costs)) ./ std(robust_costs)
-            scatter!(ax_qq, theoretical_q_r, standardized_r, color=:blue, markersize=8, label="Robust")
+            # Robust Q-Q points
+            if std(robust_costs) > 0
+                n_r = length(robust_costs)
+                sorted_r = sort(robust_costs)
+                theoretical_q_r = [quantile(Normal(0, 1), (i - 0.5) / n_r) for i in 1:n_r]
+                standardized_r = (sorted_r .- mean(robust_costs)) ./ std(robust_costs)
+                scatter!(ax_qq, theoretical_q_r, standardized_r, color=:blue, markersize=8, label="Robust")
+            end
+
+            # Non-robust Q-Q points
+            if std(non_robust_costs) > 0
+                n_nr = length(non_robust_costs)
+                sorted_nr = sort(non_robust_costs)
+                theoretical_q_nr = [quantile(Normal(0, 1), (i - 0.5) / n_nr) for i in 1:n_nr]
+                standardized_nr = (sorted_nr .- mean(non_robust_costs)) ./ std(non_robust_costs)
+                scatter!(ax_qq, theoretical_q_nr, standardized_nr, color=:red, markersize=8, label="Non-Robust")
+            end
+
+            lines!(ax_qq, [-3, 3], [-3, 3], color=:black, linestyle=:dash, linewidth=2)
+            axislegend(ax_qq, position=:lt)
+
+            qq_path = joinpath(directory, "qq_plots.png")
+            save(qq_path, fig_qq)
+            save(joinpath(directory, "qq_plots.pdf"), fig_qq)
+            println("Saved Q-Q plot to $qq_path")
+        catch e
+            println("Warning: Q-Q plot failed (Makie issue): $e")
         end
-
-        # Non-robust Q-Q points
-        if std(non_robust_costs) > 0
-            n_nr = length(non_robust_costs)
-            sorted_nr = sort(non_robust_costs)
-            theoretical_q_nr = [quantile(Normal(0, 1), (i - 0.5) / n_nr) for i in 1:n_nr]
-            standardized_nr = (sorted_nr .- mean(non_robust_costs)) ./ std(non_robust_costs)
-            scatter!(ax_qq, theoretical_q_nr, standardized_nr, color=:red, markersize=8, label="Non-Robust")
-        end
-
-        lines!(ax_qq, [-3, 3], [-3, 3], color=:black, linestyle=:dash, linewidth=2)
-        axislegend(ax_qq, position=:lt)
-
-        qq_path = joinpath(directory, "qq_plots.png")
-        save(qq_path, fig_qq)
-        save(joinpath(directory, "qq_plots.pdf"), fig_qq)
-        println("Saved Q-Q plot to $qq_path")
     end
 
     # --- Sub-step D: Statistical significance tests ---
@@ -1909,11 +2208,12 @@ function compute_senate_significance_report(
             df_den = ((std_r^2 / n_r)^2 / (n_r - 1)) + ((std_nr^2 / n_nr)^2 / (n_nr - 1))
             df = df_num / df_den
 
-            p_val_t = 2 * (1 - cdf(TDist(df), abs(t_stat)))
+            p_val_t = 2 * ccdf(TDist(df), abs(t_stat))
+            log10_p_t = p_val_t > 0 ? log10(p_val_t) : -Inf
 
             println(io, "T-Statistic: $(round(t_stat, digits=4))")
             println(io, "Degrees of Freedom: $(round(df, digits=2))")
-            println(io, "P-Value: $(@sprintf("%.4e", p_val_t))")
+            println(io, "P-Value: $(@sprintf("%.4e", p_val_t))$(isfinite(log10_p_t) && log10_p_t < -4 ? "  (log10 p = $(round(log10_p_t, digits=2)))" : "")")
             println(io, "Significant (p < 0.05): $(p_val_t < 0.05 ? "YES" : "NO")\n")
 
             # Mann-Whitney U test
@@ -1928,11 +2228,12 @@ function compute_senate_significance_report(
             mu_U = n_r * n_nr / 2
             sigma_U = sqrt(n_r * n_nr * (n_r + n_nr + 1) / 12)
             z_score = (U - mu_U) / sigma_U
-            p_val_mw = 2 * (1 - cdf(Normal(0, 1), abs(z_score)))
+            p_val_mw = 2 * ccdf(Normal(0, 1), abs(z_score))
+            log10_p_mw = p_val_mw > 0 ? log10(p_val_mw) : -Inf
 
             println(io, "U-Statistic: $(round(U, digits=2))")
             println(io, "Z-Score: $(round(z_score, digits=4))")
-            println(io, "P-Value: $(@sprintf("%.4e", p_val_mw))")
+            println(io, "P-Value: $(@sprintf("%.4e", p_val_mw))$(isfinite(log10_p_mw) && log10_p_mw < -4 ? "  (log10 p = $(round(log10_p_mw, digits=2)))" : "")")
             println(io, "Significant (p < 0.05): $(p_val_mw < 0.05 ? "YES" : "NO")\n")
 
             # Bootstrap test
@@ -1968,7 +2269,11 @@ function compute_senate_significance_report(
             println(io, "Bootstrap Iterations: $n_bootstrap")
             println(io, "Observed Difference: $(round(observed_diff, digits=4))")
             println(io, "95% CI: [$(round(ci_lower, digits=4)), $(round(ci_upper, digits=4))]")
-            println(io, "P-Value: $(@sprintf("%.4e", p_val_boot))")
+            if p_val_boot == 0.0
+                println(io, "P-Value: < $(@sprintf("%.1e", 1.0/n_bootstrap))  (0 of $n_bootstrap permutations exceeded observed)")
+            else
+                println(io, "P-Value: $(@sprintf("%.4e", p_val_boot))")
+            end
             println(io, "Significant (p < 0.05): $(p_val_boot < 0.05 ? "YES" : "NO")\n")
         else
             println(io, "Insufficient data for statistical tests (n_robust=$n_r, n_non_robust=$n_nr).")
@@ -2254,6 +2559,669 @@ function plot_nature_diagnostics_sweep(
     println("Saved nature diagnostics plot to $(joinpath(directory, "nature_diagnostics_$(sweep_name).png"))")
 
     return fig
+end
+
+# ========================================================================================
+# PAIRED TRAJECTORY ANALYSIS (Seed-Matched Robust vs Non-Robust)
+# ========================================================================================
+
+"""
+    build_seed_matched_pairs(robust_entries, non_robust_entries)
+
+Match robust and non-robust entries by random_seed for paired comparison.
+Returns vector of (seed, robust, non_robust) named tuples for common seeds.
+"""
+function build_seed_matched_pairs(robust_entries::Vector{SenateTrajectoryAnalysisEntry},
+                                   non_robust_entries::Vector{SenateTrajectoryAnalysisEntry})
+    robust_by_seed = Dict{Int, SenateTrajectoryAnalysisEntry}()
+    for e in robust_entries
+        if e.random_seed >= 0
+            robust_by_seed[e.random_seed] = e
+        end
+    end
+
+    nonrobust_by_seed = Dict{Int, SenateTrajectoryAnalysisEntry}()
+    for e in non_robust_entries
+        if e.random_seed >= 0
+            nonrobust_by_seed[e.random_seed] = e
+        end
+    end
+
+    common_seeds = sort(collect(intersect(keys(robust_by_seed), keys(nonrobust_by_seed))))
+    pairs = [(seed=s, robust=robust_by_seed[s], non_robust=nonrobust_by_seed[s]) for s in common_seeds]
+
+    println("Seed matching: $(length(pairs)) pairs from $(length(robust_entries)) robust + $(length(non_robust_entries)) non-robust entries")
+    return pairs
+end
+
+"""
+    compute_trajectory_divergence(pairs)
+
+For each seed-matched pair, compute per-timestep per-senator trajectory divergence.
+Returns vector of (seed, divergences) where divergences[t][s] = ||gt_robust[t].blocks[s] - gt_nonrobust[t].blocks[s]||.
+"""
+function compute_trajectory_divergence(pairs)
+    result = []
+    for pair in pairs
+        gt_r = pair.robust.gt_state_history
+        gt_nr = pair.non_robust.gt_state_history
+        T = min(length(gt_r), length(gt_nr))
+        num_senators = length(gt_r[1].blocks)
+
+        divergences = Vector{Vector{Float64}}()
+        for t in 1:T
+            senator_divs = Float64[]
+            for s in 1:num_senators
+                push!(senator_divs, norm(gt_r[t].blocks[s] - gt_nr[t].blocks[s]))
+            end
+            push!(divergences, senator_divs)
+        end
+        push!(result, (seed=pair.seed, divergences=divergences))
+    end
+    return result
+end
+
+"""
+    compute_divergence_statistics(divergence_data)
+
+Aggregate divergence data across seed-matched pairs.
+Returns named tuple with time series stats and final-timestep distribution.
+"""
+function compute_divergence_statistics(divergence_data)
+    if isempty(divergence_data)
+        return (mean_timeseries=Float64[], std_timeseries=Float64[],
+                senator_mean_timeseries=Vector{Float64}[], senator_std_timeseries=Vector{Float64}[],
+                final_divergences=Float64[], fraction_above_threshold=0.0)
+    end
+
+    T = minimum(length(d.divergences) for d in divergence_data)
+    num_senators = length(divergence_data[1].divergences[1])
+
+    # Per-senator time series
+    senator_means = [Float64[] for _ in 1:num_senators]
+    senator_stds = [Float64[] for _ in 1:num_senators]
+    avg_means = Float64[]
+    avg_stds = Float64[]
+
+    for t in 1:T
+        for s in 1:num_senators
+            vals = [d.divergences[t][s] for d in divergence_data]
+            push!(senator_means[s], mean(vals))
+            push!(senator_stds[s], length(vals) > 1 ? std(vals) : 0.0)
+        end
+        avg_vals = [mean(d.divergences[t]) for d in divergence_data]
+        push!(avg_means, mean(avg_vals))
+        push!(avg_stds, length(avg_vals) > 1 ? std(avg_vals) : 0.0)
+    end
+
+    # Final timestep distribution (average across senators)
+    final_divs = [mean(d.divergences[T]) for d in divergence_data]
+    threshold = 0.01
+    frac_above = count(d -> d > threshold, final_divs) / length(final_divs)
+
+    return (mean_timeseries=avg_means, std_timeseries=avg_stds,
+            senator_mean_timeseries=senator_means, senator_std_timeseries=senator_stds,
+            final_divergences=final_divs, fraction_above_threshold=frac_above)
+end
+
+"""
+    compute_paired_cost_decomposition(pairs; player_idx=2)
+
+For each seed-matched pair, decompose cumulative costs into components using
+existing `compute_senate_cost_components`. Returns per-pair component totals and deltas.
+"""
+function compute_paired_cost_decomposition(pairs; player_idx::Int=2)
+    results = []
+    for pair in pairs
+        r_components = _decompose_entry_costs(pair.robust, player_idx)
+        nr_components = _decompose_entry_costs(pair.non_robust, player_idx)
+        if isnothing(r_components) || isnothing(nr_components)
+            continue
+        end
+        push!(results, (
+            seed=pair.seed,
+            robust=r_components,
+            non_robust=nr_components,
+            delta=(
+                preference=r_components.preference - nr_components.preference,
+                control=r_components.control - nr_components.control,
+                covariance=r_components.covariance - nr_components.covariance,
+                obstacle=r_components.obstacle - nr_components.obstacle,
+                total=r_components.total - nr_components.total,
+            )
+        ))
+    end
+    return results
+end
+
+"""Decompose an entry's incurred costs into cumulative components."""
+function _decompose_entry_costs(entry::SenateTrajectoryAnalysisEntry, player_idx::Int)
+    if isnothing(entry.params) || isempty(entry.gt_state_history)
+        return nothing
+    end
+
+    config = get(entry.params.player_configs, player_idx, nothing)
+    if isnothing(config)
+        return nothing
+    end
+
+    executed_controls = extract_senate_executed_controls(entry)
+    player_controls = get(executed_controls, player_idx, nothing)
+
+    cum_preference = 0.0
+    cum_control = 0.0
+    cum_covariance = 0.0
+    cum_obstacle = 0.0
+
+    T = length(entry.gt_state_history)
+    for t in 1:T
+        gt_state = entry.gt_state_history[t]
+        is_terminal = (t == T) || isnothing(player_controls) || t > length(player_controls)
+
+        # Build deterministic beliefs (zero covariance) from GT state
+        beliefs = Beliefs([
+            Belief(block, zeros(length(block), length(block)))
+            for _ in sort(collect(keys(entry.params.player_configs)))
+            for block in gt_state.blocks
+        ])
+
+        if is_terminal
+            components = compute_senate_cost_components(beliefs, nothing, config; is_terminal=true)
+            cum_preference += components.preference
+            cum_covariance += components.covariance
+            cum_obstacle += components.obstacle
+        else
+            # Reconstruct merged controls as BlockVector
+            merged_ctrl_vec = Float64[]
+            ctrl_block_sizes = Int[]
+            for pidx in sort(collect(keys(executed_controls)))
+                if t <= length(executed_controls[pidx])
+                    append!(merged_ctrl_vec, executed_controls[pidx][t])
+                    push!(ctrl_block_sizes, length(executed_controls[pidx][t]))
+                end
+            end
+            if isempty(merged_ctrl_vec)
+                continue
+            end
+            merged_controls = BlockVector(merged_ctrl_vec, ctrl_block_sizes)
+
+            components = compute_senate_cost_components(beliefs, merged_controls, config; is_terminal=false)
+            cum_preference += components.preference
+            cum_control += components.control
+            cum_covariance += components.covariance
+            cum_obstacle += components.obstacle
+        end
+    end
+
+    return (preference=cum_preference, control=cum_control, covariance=cum_covariance,
+            obstacle=cum_obstacle, total=cum_preference + cum_control + cum_covariance + cum_obstacle)
+end
+
+# ========================================================================================
+# PAIRED ANALYSIS VISUALIZATIONS
+# ========================================================================================
+
+"""
+    create_seed_matched_trajectory_plot(pairs, divergence_data; directory, num_seeds=3)
+
+Lead visualization: 2D spatial trajectory plots for representative seed-matched pairs.
+Shows robust (solid) vs non-robust (dashed) senator trajectories on the opinion plane.
+"""
+function create_seed_matched_trajectory_plot(pairs, divergence_data;
+    directory::String="./exp/senate/outputs/analysis",
+    num_seeds::Int=3)
+
+    if isempty(pairs) || isempty(divergence_data)
+        println("No pairs for seed-matched trajectory plot")
+        return nothing
+    end
+    mkpath(directory)
+
+    # Pick seeds: top by final divergence + 1 median
+    final_divs = [(mean(d.divergences[end]), d.seed) for d in divergence_data]
+    sort!(final_divs, by=x -> x[1], rev=true)
+    selected_seeds = [fd[2] for fd in final_divs[1:min(num_seeds, length(final_divs))]]
+
+    # Add median seed if room
+    if length(final_divs) > num_seeds
+        median_idx = div(length(final_divs), 2)
+        median_seed = final_divs[median_idx][2]
+        if !(median_seed in selected_seeds)
+            push!(selected_seeds, median_seed)
+        end
+    end
+
+    pair_lookup = Dict(p.seed => p for p in pairs)
+    selected_pairs = [pair_lookup[s] for s in selected_seeds if haskey(pair_lookup, s)]
+
+    if isempty(selected_pairs)
+        return nothing
+    end
+
+    num_plots = length(selected_pairs)
+    fig = Figure(size=(450 * num_plots, 400))
+    senator_colors = [:blue, :green, :orange, :purple, :brown]
+
+    for (col, pair) in enumerate(selected_pairs)
+        ax = Axis(fig[1, col],
+            title="Seed $(pair.seed)",
+            xlabel="Opinion Dim 1",
+            ylabel=col == 1 ? "Opinion Dim 2" : "",
+            aspect=DataAspect()
+        )
+
+        # Draw obstacle regions if available
+        config = nothing
+        if !isnothing(pair.robust.params)
+            config = get(pair.robust.params.player_configs, 2, nothing)
+        end
+        if !isnothing(config) && !isempty(config.obstacle_centers) && config.obstacle_weights[1] > 0
+            for (center, offset) in zip(config.obstacle_centers, config.obstacle_sigmoid_offsets)
+                if length(center) >= 2
+                    # Draw obstacle as a circle at sigmoid offset radius
+                    θ = range(0, 2π, length=64)
+                    r = abs(offset)
+                    obs_x = center[1] .+ r .* cos.(θ)
+                    obs_y = center[2] .+ r .* sin.(θ)
+                    poly!(ax, Point2f.(zip(obs_x, obs_y)), color=(:red, 0.1), strokecolor=(:red, 0.4), strokewidth=1)
+                end
+            end
+        end
+
+        # Draw goal ellipsoids
+        if !isnothing(config) && !isempty(config.ellipsoid_centers)
+            for center in config.ellipsoid_centers
+                if length(center) >= 2
+                    scatter!(ax, [center[1]], [center[2]], marker=:star5, markersize=15, color=(:gold, 0.7))
+                end
+            end
+        end
+
+        num_senators = length(pair.robust.gt_state_history[1].blocks)
+
+        for (entry, linestyle, alpha) in [(pair.robust, :solid, 0.9), (pair.non_robust, :dash, 0.7)]
+            for s in 1:num_senators
+                xs = [state.blocks[s][1] for state in entry.gt_state_history]
+                ys = [state.blocks[s][2] for state in entry.gt_state_history]
+                color = senator_colors[mod1(s, length(senator_colors))]
+                lines!(ax, xs, ys, color=(color, alpha), linestyle=linestyle, linewidth=2)
+                scatter!(ax, [xs[1]], [ys[1]], color=color, marker=:circle, markersize=8)
+                scatter!(ax, [xs[end]], [ys[end]], color=color, marker=:star5, markersize=10)
+            end
+        end
+    end
+
+    # Legend
+    legend_elements = vcat(
+        [LineElement(color=senator_colors[s], linewidth=2) for s in 1:min(3, length(senator_colors))],
+        [LineElement(color=:black, linestyle=:solid, linewidth=2),
+         LineElement(color=:black, linestyle=:dash, linewidth=2)]
+    )
+    legend_labels = vcat(
+        ["Senator $s" for s in 1:min(3, length(senator_colors))],
+        ["Robust P2", "Non-Robust P2"]
+    )
+    Legend(fig[2, 1:num_plots], legend_elements, legend_labels, orientation=:horizontal, tellwidth=false)
+
+    filename = joinpath(directory, "seed_matched_trajectories.png")
+    save(filename, fig; px_per_unit=3)
+    save(joinpath(directory, "seed_matched_trajectories.pdf"), fig)
+    println("Saved seed-matched trajectory plot to $filename")
+    return fig
+end
+
+"""
+    create_trajectory_divergence_plot(divergence_stats; directory)
+
+Top: mean divergence over time with std band per senator.
+Bottom: histogram of final-timestep divergence.
+"""
+function create_trajectory_divergence_plot(divergence_stats;
+    directory::String="./exp/senate/outputs/analysis")
+
+    mkpath(directory)
+    senator_colors = [:blue, :green, :orange, :purple, :brown]
+
+    fig = Figure(size=(800, 700))
+
+    # Top: time series
+    ax1 = Axis(fig[1, 1],
+        title="Trajectory Divergence Over Time",
+        xlabel="Timestep",
+        ylabel="Mean ||GT_robust - GT_nonrobust||"
+    )
+
+    T = length(divergence_stats.mean_timeseries)
+    ts = 1:T
+
+    # Per-senator lines
+    for (s, (sm, ss)) in enumerate(zip(divergence_stats.senator_mean_timeseries, divergence_stats.senator_std_timeseries))
+        color = senator_colors[mod1(s, length(senator_colors))]
+        band!(ax1, collect(ts), sm .- ss, sm .+ ss, color=(color, 0.15))
+        lines!(ax1, collect(ts), sm, color=color, linewidth=2, label="Senator $s")
+    end
+
+    # Average
+    band!(ax1, collect(ts), divergence_stats.mean_timeseries .- divergence_stats.std_timeseries,
+          divergence_stats.mean_timeseries .+ divergence_stats.std_timeseries, color=(:black, 0.1))
+    lines!(ax1, collect(ts), divergence_stats.mean_timeseries, color=:black, linewidth=2.5, linestyle=:dash, label="Average")
+    axislegend(ax1, position=:lt)
+
+    # Bottom: histogram of final divergences
+    ax2 = Axis(fig[2, 1],
+        title="Final Divergence Distribution ($(length(divergence_stats.final_divergences)) seeds)",
+        xlabel="Mean Final Divergence",
+        ylabel="Count"
+    )
+    hist!(ax2, divergence_stats.final_divergences, bins=30, color=(:steelblue, 0.7))
+    vlines!(ax2, [mean(divergence_stats.final_divergences)], color=:red, linewidth=2, linestyle=:dash)
+    text!(ax2, mean(divergence_stats.final_divergences), 0,
+        text=@sprintf("μ=%.4f", mean(divergence_stats.final_divergences)),
+        color=:red, fontsize=14, align=(:left, :bottom), offset=(5, 5))
+
+    filename = joinpath(directory, "trajectory_divergence.png")
+    save(filename, fig; px_per_unit=3)
+    save(joinpath(directory, "trajectory_divergence.pdf"), fig)
+    println("Saved divergence plot to $filename")
+    return fig
+end
+
+"""
+    create_cost_decomposition_comparison_plot(decomposition; directory)
+
+Grouped bar chart comparing cumulative cost components (robust vs non-robust).
+"""
+function create_cost_decomposition_comparison_plot(decomposition;
+    directory::String="./exp/senate/outputs/analysis")
+
+    if isempty(decomposition)
+        println("No decomposition data for comparison plot")
+        return nothing
+    end
+    mkpath(directory)
+
+    # Aggregate means and stds
+    components = [:preference, :control, :covariance, :obstacle]
+    component_labels = ["Preference", "Control", "Covariance", "Obstacle"]
+
+    robust_means = Float64[]
+    robust_stds = Float64[]
+    nonrobust_means = Float64[]
+    nonrobust_stds = Float64[]
+
+    for comp in components
+        r_vals = [getfield(d.robust, comp) for d in decomposition]
+        nr_vals = [getfield(d.non_robust, comp) for d in decomposition]
+        push!(robust_means, mean(r_vals))
+        push!(robust_stds, length(r_vals) > 1 ? std(r_vals) : 0.0)
+        push!(nonrobust_means, mean(nr_vals))
+        push!(nonrobust_stds, length(nr_vals) > 1 ? std(nr_vals) : 0.0)
+    end
+
+    fig = Figure(size=(800, 500))
+    ax = Axis(fig[1, 1],
+        title="Cost Component Decomposition (P2)",
+        ylabel="Cumulative Cost",
+        xticks=(1:length(components), component_labels)
+    )
+
+    barwidth = 0.35
+    xs = 1:length(components)
+
+    barplot!(ax, collect(xs) .- barwidth/2, nonrobust_means, width=barwidth,
+        color=(:red, 0.6), label="Non-Robust P2")
+    barplot!(ax, collect(xs) .+ barwidth/2, robust_means, width=barwidth,
+        color=(:blue, 0.6), label="Robust P2")
+    errorbars!(ax, collect(xs) .- barwidth/2, nonrobust_means, nonrobust_stds, color=:red, whiskerwidth=8)
+    errorbars!(ax, collect(xs) .+ barwidth/2, robust_means, robust_stds, color=:blue, whiskerwidth=8)
+
+    axislegend(ax, position=:rt)
+
+    filename = joinpath(directory, "cost_decomposition_comparison.png")
+    save(filename, fig; px_per_unit=3)
+    save(joinpath(directory, "cost_decomposition_comparison.pdf"), fig)
+    println("Saved cost decomposition plot to $filename")
+    return fig
+end
+
+"""
+    create_paired_scatter_plot(decomposition; directory)
+
+Scatter plot of robust vs non-robust total cost per seed. Points below diagonal = robustness wins.
+"""
+function create_paired_scatter_plot(decomposition;
+    directory::String="./exp/senate/outputs/analysis")
+
+    if isempty(decomposition)
+        println("No decomposition data for scatter plot")
+        return nothing
+    end
+    mkpath(directory)
+
+    robust_costs = [d.robust.total for d in decomposition]
+    nonrobust_costs = [d.non_robust.total for d in decomposition]
+
+    fig = Figure(size=(600, 600))
+    ax = Axis(fig[1, 1],
+        title="Paired Cost Comparison (P2, $(length(decomposition)) seeds)",
+        xlabel="Non-Robust P2 Total Cost",
+        ylabel="Robust P2 Total Cost",
+        aspect=DataAspect()
+    )
+
+    scatter!(ax, nonrobust_costs, robust_costs, color=(:steelblue, 0.5), markersize=6)
+
+    # y=x diagonal
+    all_costs = vcat(robust_costs, nonrobust_costs)
+    lo, hi = minimum(all_costs), maximum(all_costs)
+    margin = 0.05 * (hi - lo)
+    lines!(ax, [lo - margin, hi + margin], [lo - margin, hi + margin],
+        color=:black, linestyle=:dash, linewidth=1.5)
+
+    # Stats
+    n_below = count(robust_costs .< nonrobust_costs)
+    deltas = robust_costs .- nonrobust_costs
+    mean_delta = mean(deltas)
+    std_delta = std(deltas)
+    cohens_d = std_delta > 0 ? mean_delta / std_delta : 0.0
+
+    annotation = @sprintf("%d/%d below diagonal\nΔμ=%.3f, d=%.3f",
+        n_below, length(decomposition), mean_delta, cohens_d)
+    text!(ax, lo, hi, text=annotation, fontsize=12, align=(:left, :top), offset=(10, -10))
+
+    filename = joinpath(directory, "paired_scatter.png")
+    save(filename, fig; px_per_unit=3)
+    save(joinpath(directory, "paired_scatter.pdf"), fig)
+    println("Saved paired scatter plot to $filename")
+    return fig
+end
+
+"""
+    write_paired_analysis_report(pairs, divergence_stats, decomposition; directory)
+
+Write text report with paired statistical tests and summary statistics.
+"""
+function write_paired_analysis_report(pairs, divergence_stats, decomposition;
+    directory::String="./exp/senate/outputs/analysis")
+
+    mkpath(directory)
+    filename = joinpath(directory, "paired_analysis_report.txt")
+
+    open(filename, "w") do io
+        println(io, "=" ^ 60)
+        println(io, "PAIRED TRAJECTORY ANALYSIS REPORT")
+        println(io, "=" ^ 60)
+        println(io)
+
+        # Pair counts
+        println(io, "Seed-matched pairs: $(length(pairs))")
+        println(io)
+
+        # Divergence statistics
+        println(io, "--- TRAJECTORY DIVERGENCE ---")
+        if !isempty(divergence_stats.final_divergences)
+            fd = divergence_stats.final_divergences
+            println(io, @sprintf("  Mean final divergence: %.6f ± %.6f", mean(fd), std(fd)))
+            println(io, @sprintf("  Median final divergence: %.6f", median(fd)))
+            println(io, @sprintf("  Fraction above 0.01 threshold: %.1f%%", 100 * divergence_stats.fraction_above_threshold))
+            println(io, @sprintf("  Min/Max final divergence: %.6f / %.6f", minimum(fd), maximum(fd)))
+
+            # Wilcoxon signed-rank test approximation (sign test as fallback)
+            n_positive = count(d -> d > 0, fd)
+            n_total = length(fd)
+            # Under H0 (median=0), n_positive ~ Binomial(n_total, 0.5)
+            # Two-sided p-value using normal approximation
+            z_sign = (n_positive - n_total / 2) / sqrt(n_total / 4)
+            println(io, @sprintf("  Sign test: %d/%d positive, z=%.2f", n_positive, n_total, z_sign))
+        end
+        println(io)
+
+        # Cost decomposition
+        println(io, "--- COST DECOMPOSITION (P2) ---")
+        if !isempty(decomposition)
+            for comp in [:preference, :control, :covariance, :obstacle, :total]
+                r_vals = [getfield(d.robust, comp) for d in decomposition]
+                nr_vals = [getfield(d.non_robust, comp) for d in decomposition]
+                delta_vals = [getfield(d.delta, comp) for d in decomposition]
+                println(io, @sprintf("  %-12s  Robust: %8.3f ± %6.3f  Non-Robust: %8.3f ± %6.3f  Δ: %+.3f ± %.3f",
+                    string(comp), mean(r_vals), std(r_vals), mean(nr_vals), std(nr_vals),
+                    mean(delta_vals), std(delta_vals)))
+            end
+            println(io)
+
+            # Paired effect size on total cost
+            total_deltas = [d.delta.total for d in decomposition]
+            m = mean(total_deltas)
+            s = std(total_deltas)
+            d_cohen = s > 0 ? m / s : 0.0
+            n_better = count(d -> d < 0, total_deltas)
+            println(io, @sprintf("  Cohen's d (total): %.4f", d_cohen))
+            println(io, @sprintf("  Seeds where robust is cheaper: %d/%d (%.1f%%)",
+                n_better, length(total_deltas), 100 * n_better / length(total_deltas)))
+
+            # Sign test on total cost
+            z = (n_better - length(total_deltas) / 2) / sqrt(length(total_deltas) / 4)
+            println(io, @sprintf("  Sign test (total cost): z=%.2f", z))
+        end
+        println(io)
+        println(io, "=" ^ 60)
+    end
+
+    println("Saved paired analysis report to $filename")
+end
+
+# ========================================================================================
+# SWEEP-LEVEL PAIRED ANALYSIS
+# ========================================================================================
+
+"""
+    create_sweep_paired_analysis(sweep_collected, sweep_label; directory, sweep_name)
+
+Top-level paired analysis for a sweep. For each sweep value, builds seed-matched pairs,
+computes divergence and cost decomposition, and generates all paired analysis plots.
+Also creates cross-sweep summary plots.
+"""
+function create_sweep_paired_analysis(sweep_collected::Dict, sweep_label::String;
+    directory::String="./exp/senate/outputs/analysis",
+    sweep_name::String="sweep")
+
+    if isempty(sweep_collected)
+        println("No sweep data for paired analysis")
+        return
+    end
+    mkpath(directory)
+
+    sweep_values = sort(collect(keys(sweep_collected)))
+    sweep_divergence_means = Float64[]
+    sweep_divergence_stds = Float64[]
+    sweep_cost_deltas = Dict{Symbol, Vector{Float64}}()
+    for comp in [:preference, :control, :covariance, :obstacle, :total]
+        sweep_cost_deltas[comp] = Float64[]
+    end
+    valid_xs = Float64[]
+
+    for sv in sweep_values
+        data = sweep_collected[sv]
+        pairs = build_seed_matched_pairs(data.robust_entries, data.non_robust_entries)
+        if isempty(pairs)
+            continue
+        end
+
+        sv_dir = joinpath(directory, "paired_$(sweep_name)_$(sv)")
+        mkpath(sv_dir)
+
+        # Divergence
+        div_data = compute_trajectory_divergence(pairs)
+        div_stats = compute_divergence_statistics(div_data)
+
+        # Cost decomposition
+        decomp = compute_paired_cost_decomposition(pairs)
+
+        # Per-value plots
+        create_seed_matched_trajectory_plot(pairs, div_data; directory=sv_dir)
+        create_trajectory_divergence_plot(div_stats; directory=sv_dir)
+        create_cost_decomposition_comparison_plot(decomp; directory=sv_dir)
+        create_paired_scatter_plot(decomp; directory=sv_dir)
+        write_paired_analysis_report(pairs, div_stats, decomp; directory=sv_dir)
+
+        # Collect for cross-sweep summary
+        push!(valid_xs, Float64(sv))
+        push!(sweep_divergence_means, isempty(div_stats.final_divergences) ? NaN : mean(div_stats.final_divergences))
+        push!(sweep_divergence_stds, isempty(div_stats.final_divergences) ? 0.0 :
+            (length(div_stats.final_divergences) > 1 ? std(div_stats.final_divergences) : 0.0))
+
+        if !isempty(decomp)
+            for comp in [:preference, :control, :covariance, :obstacle, :total]
+                delta_vals = [getfield(d.delta, comp) for d in decomp]
+                push!(sweep_cost_deltas[comp], mean(delta_vals))
+            end
+        else
+            for comp in [:preference, :control, :covariance, :obstacle, :total]
+                push!(sweep_cost_deltas[comp], NaN)
+            end
+        end
+    end
+
+    if isempty(valid_xs)
+        return
+    end
+
+    # Cross-sweep divergence summary
+    fig_div = Figure(size=(700, 400))
+    ax_div = Axis(fig_div[1, 1],
+        title="Mean Final Divergence vs $sweep_label",
+        xlabel=sweep_label,
+        ylabel="Mean Final Trajectory Divergence"
+    )
+    errorbars!(ax_div, valid_xs, sweep_divergence_means, sweep_divergence_stds, color=(:steelblue, 0.5), whiskerwidth=8)
+    scatterlines!(ax_div, valid_xs, sweep_divergence_means, color=:steelblue, markersize=10, linewidth=2)
+
+    save(joinpath(directory, "sweep_divergence_$(sweep_name).png"), fig_div; px_per_unit=3)
+    save(joinpath(directory, "sweep_divergence_$(sweep_name).pdf"), fig_div)
+    println("Saved sweep divergence summary to $(joinpath(directory, "sweep_divergence_$(sweep_name).png"))")
+
+    # Cross-sweep cost delta summary
+    fig_cost = Figure(size=(700, 400))
+    ax_cost = Axis(fig_cost[1, 1],
+        title="Cost Component Deltas (Robust - Non-Robust) vs $sweep_label",
+        xlabel=sweep_label,
+        ylabel="Mean Δ Cost (Robust - Non-Robust)"
+    )
+    comp_colors = Dict(:preference => :blue, :control => :red, :obstacle => :orange, :total => :black)
+    for (comp, color) in comp_colors
+        vals = sweep_cost_deltas[comp]
+        valid = findall(!isnan, vals)
+        if !isempty(valid)
+            scatterlines!(ax_cost, valid_xs[valid], vals[valid], color=color, markersize=8,
+                linewidth=2, label=string(comp))
+        end
+    end
+    hlines!(ax_cost, [0.0], color=:gray, linestyle=:dash, linewidth=1)
+    axislegend(ax_cost, position=:lt)
+
+    save(joinpath(directory, "sweep_cost_deltas_$(sweep_name).png"), fig_cost; px_per_unit=3)
+    save(joinpath(directory, "sweep_cost_deltas_$(sweep_name).pdf"), fig_cost)
+    println("Saved sweep cost delta summary to $(joinpath(directory, "sweep_cost_deltas_$(sweep_name).png"))")
 end
 
 end  # module
