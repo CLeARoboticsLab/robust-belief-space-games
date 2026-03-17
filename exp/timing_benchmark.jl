@@ -19,7 +19,7 @@ using BlockArrays
 # Load senate experiment infrastructure
 include(joinpath(@__DIR__, "senate", "versions", "assymetric_experiment.jl"))
 
-const N_TRIALS = 10
+const N_TRIALS = 5
 
 # ═════════════════════════════════════════════════════════════
 # Senate benchmark
@@ -90,8 +90,8 @@ function bench_senate_config(label, make_params_fn; n_trials)
         t, i = extract_p2_timing(sol)
         append!(all_timings, t)
         append!(all_iters, i)
-        @printf("    Trial %2d/%d  mean=%.4fs/solve\n", trial, n_trials, mean(t))
-    end
+        @printf("    Trial %2d/%d  mean=%.4fs/solve  mean_iter=%.2f  total_iter=%d\n",
+        trial, n_trials, mean(t), mean(i), sum(i))    end
     return (
         timings   = all_timings,
         iters     = all_iters,
@@ -150,7 +150,7 @@ end
 
 include(joinpath(@__DIR__, "hockey", "src", "Hockey.jl"))
 
-const HOCKEY_NATURE_COSTS = [10.0, 100.0, 200.0, 300.0, 500.0, 1000.0, 2000.0, 3000.0, 5000.0, 10000.0]
+const HOCKEY_NATURE_COSTS = [10.0]#, 100.0, 200.0, 300.0, 500.0, 1000.0, 2000.0, 3000.0, 5000.0, 10000.0]
 
 function make_hockey_params(; p2_robust::Bool, seed::Int, nature_cost::Float64=300.0)
     params = Hockey.HockeyParams(
