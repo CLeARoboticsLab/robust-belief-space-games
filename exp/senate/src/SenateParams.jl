@@ -8,6 +8,9 @@ end
 Base.@kwdef mutable struct PlayerConfig
     player_idx::Int = -1
     type::PlayerType = non_robust
+    # For nature configs, the player_idx of the robust player nature is adversary for.
+    # Unused (-1) for non-nature configs.
+    nature_target_player_idx::Int = -1
     
     # Player game params
     ellipsoid_centers::Vector{Vector{Float64}} = [[0.0, 0.0]]

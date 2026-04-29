@@ -145,7 +145,7 @@ function run_drift_exp_v2(override=false;)
 
     obstacle_centers = [[1.7, 1.7]]
     obstacle_weights = [1.0]
-    
+
     run_asymmetric_experiment(
         p1_type=[non_robust],
         p2_type=[non_robust, robust],
@@ -169,6 +169,53 @@ function run_drift_exp_v2(override=false;)
 
     println("\n\n" * "="^60)
     println("COMPLETED ALL EXPERIMENTS")
+    println("="^60)
+end
+
+function run_robust_vs_robust_drift_exp(override=false;)
+    senator_ground_truths = [
+        mortar([[0.75, 0.75], [1.75, 1.0], [1.0, 1.75]]),
+    ]
+
+    nature_multiplier_values = [0.1]
+
+    p2_belief_drift = [7.0]
+
+    dynamics_types = [:default]
+
+    dt_values = [0.75]
+
+    obstacle_centers = [[1.7, 1.7]]
+    obstacle_weights = [1.0]
+
+    run_asymmetric_experiment(
+        p1_type=[robust],
+        p2_type=[robust],
+        p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+        p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+        p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p1_obstacle_centers = obstacle_centers,
+        p2_obstacle_centers = obstacle_centers,
+        p1_obstacle_weights = obstacle_weights,
+        p2_obstacle_weights = obstacle_weights,
+        p1_ellipsoidal_cost_weight = 0.5,
+        p2_ellipsoidal_cost_weight = 0.5,
+        p1_obstacle_cost_function = obstacle_cost,
+        p2_obstacle_cost_function = obstacle_cost,
+        dynamics_model_template=dynamics_types,
+        p2_believes_p1_drift_sensor_scale=p2_belief_drift,
+        p1_nature_multiplier=nature_multiplier_values,
+        p2_nature_multiplier=nature_multiplier_values,
+        ground_truth_initial_states=senator_ground_truths,
+        horizon=10,
+        experiment_name_prefix="rvr_drift",
+        override=override,
+        dt=dt_values,
+    )
+
+    println("\n\n" * "="^60)
+    println("COMPLETED R-vs-R DRIFT EXPERIMENT")
     println("="^60)
 end
 

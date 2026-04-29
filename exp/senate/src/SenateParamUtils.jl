@@ -84,6 +84,7 @@ function DefaultNaturePlayerConfig(;base_player_config::PlayerConfig, player_idx
     config.other_player_configs = Dict{Int, PlayerConfig}()
     config.player_idx = player_idx
     config.type = nature
+    config.nature_target_player_idx = base_player_config.player_idx
     config.ellipsoidal_cost_weight = base_player_config.ellipsoidal_cost_weight
     config.control_cost_weight = base_player_config.control_cost_weight * base_player_config.nature_multiplier
     config.terminal_cost_weight = base_player_config.terminal_cost_weight
