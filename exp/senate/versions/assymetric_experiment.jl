@@ -868,7 +868,7 @@ function run_asymmetric_experiment(;
     function generate_exp_name(combo, prefix)
         exp_name = prefix
         for (key, value) in combo
-            kstr = String(key)   
+            kstr = String(key)
             abbr = abbrev_key(kstr)
             exp_name *= "_$(abbr)_$(value)"
         end

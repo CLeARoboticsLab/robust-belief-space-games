@@ -378,9 +378,9 @@ function run_rvr_nature_control_sweep(; cores=8, override=false, num_seeds=100, 
 
     for mult in multipliers
         run_parallel_sweep(
-            p1_type=[robust],
+            p1_type=robust,
             p2_type=[robust],
-            p1_nature_multiplier=[mult],
+            p1_nature_multiplier=mult,
             p2_nature_multiplier=[mult],
             p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
             p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
@@ -430,9 +430,9 @@ function run_rvr_nature_control_sweep_no_drift(; cores=8, override=false, num_se
 
     for mult in multipliers
         run_parallel_sweep(
-            p1_type=[robust],
+            p1_type=robust,
             p2_type=[robust],
-            p1_nature_multiplier=[mult],
+            p1_nature_multiplier=mult,
             p2_nature_multiplier=[mult],
             p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
             p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
