@@ -363,3 +363,107 @@ function run_nature_control_sweep_no_drift(; cores=8, override=false, num_seeds=
         override=override
     )
 end
+
+function run_rvr_nature_control_sweep(; cores=8, override=false, num_seeds=100, offset=1000,
+                                       multipliers=[1, 2, 5, 10, 25, 50, 125, 250, 625, 1250, 3125, 6250])
+    experiment_name = "rvr_nature_control_sweep"
+    output_dir = joinpath(@__DIR__, "..", "outputs", experiment_name)
+    if !isdir(output_dir)
+        print("Creating output directory at $output_dir... press y to continue\n")
+        if readline() != "y"
+            error("User did not confirm directory creation")
+        end
+        mkpath(output_dir)
+    end
+
+    for mult in multipliers
+        run_parallel_sweep(
+            p1_type=[robust],
+            p2_type=[robust],
+            p1_nature_multiplier=mult,
+            p2_nature_multiplier=mult,
+            p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+            p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+            p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+            p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+            p1_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+            p2_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+            p1_obstacle_weights=[8.0],
+            p2_obstacle_weights=[8.0],
+            p1_ellipsoidal_cost_weight=[0.5],
+            p2_ellipsoidal_cost_weight=[0.5],
+            p1_control_cost_weight=[2.0],
+            p2_control_cost_weight=[2.0],
+            gt_drift_sensor_scale=[1.0],
+            p1_believes_self_drift_sensor_scale=[1.0],
+            p2_believes_p1_drift_sensor_scale=[0.0],
+            process_noise_covariance=0.001 * I(6),
+            sensor_noise_covariance=0.001 * I(6),
+            dynamics_model_template=:default,
+            dt=0.75,
+            horizon=10,
+            ground_truth_initial_states=[mortar([[1.0, 1.0], [2.0, 0.5], [0.5, 2.0]])],
+            experiment_name_prefix="$(experiment_name)/mult_$(mult)",
+            num_seeds=num_seeds,
+            offset=offset,
+            cores=cores,
+            override=override,
+        )
+    end
+
+    println("\n\n" * "="^60)
+    println("COMPLETED R-vs-R NATURE CONTROL SWEEP ($(length(multipliers)) multipliers)")
+    println("="^60)
+end
+
+function run_rvr_nature_control_sweep_no_drift(; cores=8, override=false, num_seeds=100, offset=1000,
+                                                multipliers=[1, 2, 5, 10, 25, 50, 125, 250, 625, 1250, 3125, 6250])
+    experiment_name = "rvr_nature_control_sweep_no_drift"
+    output_dir = joinpath(@__DIR__, "..", "outputs", experiment_name)
+    if !isdir(output_dir)
+        print("Creating output directory at $output_dir... press y to continue\n")
+        if readline() != "y"
+            error("User did not confirm directory creation")
+        end
+        mkpath(output_dir)
+    end
+
+    for mult in multipliers
+        run_parallel_sweep(
+            p1_type=[robust],
+            p2_type=[robust],
+            p1_nature_multiplier=mult,
+            p2_nature_multiplier=mult,
+            p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+            p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+            p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+            p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+            p1_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+            p2_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+            p1_obstacle_weights=[8.0],
+            p2_obstacle_weights=[8.0],
+            p1_ellipsoidal_cost_weight=[0.5],
+            p2_ellipsoidal_cost_weight=[0.5],
+            p1_control_cost_weight=[2.0],
+            p2_control_cost_weight=[2.0],
+            gt_drift_sensor_scale=[0.0],
+            p1_believes_self_drift_sensor_scale=[0.0],
+            p2_believes_p1_drift_sensor_scale=[0.0],
+            process_noise_covariance=0.001 * I(6),
+            sensor_noise_covariance=0.001 * I(6),
+            dynamics_model_template=:default,
+            dt=0.75,
+            horizon=10,
+            ground_truth_initial_states=[mortar([[1.0, 1.0], [2.0, 0.5], [0.5, 2.0]])],
+            experiment_name_prefix="$(experiment_name)/mult_$(mult)",
+            num_seeds=num_seeds,
+            offset=offset,
+            cores=cores,
+            override=override,
+        )
+    end
+
+    println("\n\n" * "="^60)
+    println("COMPLETED R-vs-R NATURE CONTROL SWEEP NO-DRIFT ($(length(multipliers)) multipliers)")
+    println("="^60)
+end

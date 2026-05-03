@@ -31,7 +31,7 @@ function run_parallel_sweep(;
     kwargs...
 )
     # Only expand these specific parameters
-    expandable_keys = Set([:p1_type, :p2_type, :planning_horizon, :p2_nature_multiplier, :p2_believes_p1_drift_sensor_scale])
+    expandable_keys = Set([:p1_type, :p2_type, :planning_horizon, :p1_nature_multiplier, :p2_nature_multiplier, :p2_believes_p1_drift_sensor_scale])
 
     array_params = Dict{Symbol,Vector}()
     fixed_params = Dict{Symbol,Any}()
