@@ -30,8 +30,16 @@ function setup_workers(num_procs; save_file_prefix="exp/senate")
         addprocs(num_procs - current_procs; exeflags="--project=$(Base.active_project())")
     end
 
-    # Ensure code is loaded on all workers
-    @everywhere eval(quote
+    # Resolve assymetric_experiment.jl to an absolute path at the master so the
+    # include below works regardless of each worker's cwd or source-path state.
+    # (Previously this was a `./exp/senate/versions/...` relative path, which
+    # broke when workers' include base wasn't the repo root — e.g. when the
+    # entry point lived under exp/senate/versions/.)
+    asym_path = abspath(joinpath(@__DIR__, "..", "versions", "assymetric_experiment.jl"))
+
+    # Build the setup expression on the master so the absolute path is baked in
+    # via `$asym_path` interpolation, then evaluate it on every proc.
+    setup_expr = quote
         using Senate
         using BlockArrays
         using LinearAlgebra
@@ -40,7 +48,7 @@ function setup_workers(num_procs; save_file_prefix="exp/senate")
 
         # Load assymetric_experiment.jl (includes base_experiment.jl)
         if !@isdefined(run_asymmetric_experiment)
-            include("./exp/senate/versions/assymetric_experiment.jl")
+            include($asym_path)
         end
 
         function run_single_experiment_wrapper(args)
@@ -58,7 +66,9 @@ function setup_workers(num_procs; save_file_prefix="exp/senate")
             println("Finished on process $(myid()).")
             return (success=true, pid=myid())
         end
-    end)
+    end
+
+    Distributed.remotecall_eval(Main, procs(), setup_expr)
 end
 
 """
