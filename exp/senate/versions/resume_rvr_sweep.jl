@@ -27,6 +27,13 @@ Usage (from repo root):
     RVR_INCLUDE_125=1 julia --project=. exp/senate/versions/resume_rvr_sweep.jl
 =#
 
+# `ExperimentRunner.jl` uses relative paths (e.g. `./exp/senate/versions/...`)
+# in its @everywhere worker setup that resolve against pwd, so we must run
+# from the repo root regardless of where this script was invoked.
+const _REPO_ROOT = abspath(joinpath(@__DIR__, "..", "..", ".."))
+cd(_REPO_ROOT)
+println("Working directory set to repo root: $_REPO_ROOT")
+
 include(joinpath(@__DIR__, "test_drift_sweep.jl"))
 
 const _CORES = parse(Int, get(ENV, "RVR_CORES", "8"))
