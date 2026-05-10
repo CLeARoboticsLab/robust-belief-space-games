@@ -10,8 +10,11 @@ Base.@kwdef mutable struct PlayerConfig
     type::PlayerType = non_robust
     # For nature configs, the player_idx of the robust player nature is adversary for.
     # Unused (-1) for non-nature configs.
+    # Position 3 in the struct is load-bearing: a custom Serialization.deserialize
+    # method (see bottom of this file) discriminates old (pre-field-add) data from
+    # new data by reading position 3 and checking whether it's an Int.
     nature_target_player_idx::Int = -1
-    
+
     # Player game params
     ellipsoid_centers::Vector{Vector{Float64}} = [[0.0, 0.0]]
     ellipsoid_radii::Vector{Vector{Float64}} = [[1.0, 1.0]]
@@ -65,6 +68,51 @@ Base.@kwdef mutable struct PlayerConfig
 end
 
 Base.isless(a::PlayerConfig, b::PlayerConfig) = isless(a.player_idx, b.player_idx)
+
+# Backward-compatible deserialization for PlayerConfig.
+#
+# History: the field `nature_target_player_idx::Int` was added at struct position 3
+# in commit 733dabb2 ("Allow either player to be robust"). Existing `.dat` archives
+# (notably the R-vs-NR `nature_control_sweep` from March) were serialized before the
+# field existed; loading them with the new struct triggers EOF / type-mismatch errors
+# because Julia's default deserializer reads exactly `nfields(T)` items per struct.
+#
+# This override reads position 3 and dispatches: an Int means new-format data
+# (position 3 IS nature_target_player_idx); anything else means old-format data
+# (position 3 is the OLD position 3, ellipsoid_centers::Vector{Vector{Float64}}).
+# In the old branch, every subsequent stream value is shifted by one position
+# relative to the new struct, so we walk both sides in lockstep.
+import Serialization
+function Serialization.deserialize(s::Serialization.AbstractSerializer, ::Type{PlayerConfig})
+    # Allocate first and register in the serializer's backref table BEFORE reading
+    # fields. Without this, any later BACKREF tag pointing to this object fails
+    # ("Inconsistent Serializer state ... Attempt to access internal table with key X").
+    pc = ccall(:jl_new_struct_uninit, Any, (Any,), PlayerConfig)::PlayerConfig
+    Serialization.deserialize_cycle(s, pc)
+
+    fnames = fieldnames(PlayerConfig)
+    # Positions 1 and 2 are unchanged across schema versions.
+    setfield!(pc, fnames[1], Serialization.deserialize(s))
+    setfield!(pc, fnames[2], Serialization.deserialize(s))
+    v3 = Serialization.deserialize(s)
+    if v3 isa Int
+        # New-format stream: v3 IS nature_target_player_idx.
+        setfield!(pc, :nature_target_player_idx, v3)
+        for i in 4:length(fnames)
+            setfield!(pc, fnames[i], Serialization.deserialize(s))
+        end
+    else
+        # Old-format stream: v3 was the OLD position-3 field (ellipsoid_centers).
+        # Default the missing field, then write each stream value into the field one
+        # past its old position.
+        setfield!(pc, :nature_target_player_idx, -1)
+        setfield!(pc, fnames[4], v3)
+        for i in 5:length(fnames)
+            setfield!(pc, fnames[i], Serialization.deserialize(s))
+        end
+    end
+    return pc
+end
 
 Base.@kwdef mutable struct SenateParams
     # --- Saving Parameters ---

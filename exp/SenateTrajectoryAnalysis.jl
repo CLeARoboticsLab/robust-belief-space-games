@@ -22,7 +22,7 @@ export SenateTrajectoryAnalysisEntry, SenateTrajectoryAnalysisTracker, SENATE_TR
     get_senate_trajectory_summary, create_senate_trajectory_analysis_plots,
     compare_robust_vs_nonrobust_senate_actions, create_senate_yarnball_plot,
     analyze_senate_trajectory_data, plot_senate_spatial_trajectories,
-    analyze_nature_control_sweep, analyze_planning_horizon_sweep,
+    analyze_nature_control_sweep, analyze_rvr_vs_rnr_overlay, analyze_planning_horizon_sweep,
     create_merged_executed_costs_plot, create_sweep_summary_plot,
     compute_senate_significance_report,
     analyze_drift_mismatch_sweep, analyze_robustness_comparison_sweep,
@@ -1309,6 +1309,235 @@ function analyze_nature_control_sweep(;
 end
 
 """
+    analyze_rvr_vs_rnr_overlay(; multipliers, rvr_directory, rnr_directory, output_directory, hide_p1, xscale)
+
+Overlay R-vs-R nature-control sweep against the existing R-vs-NR sweep on the
+same multiplier axis. Three series per player: R-vs-R, R-vs-NR with P2=robust,
+R-vs-NR with P2=non-robust. Demonstrates that any robustness advantage is not
+purely a product of asymmetry between the two players' types.
+"""
+function analyze_rvr_vs_rnr_overlay(;
+    multipliers=[1, 2, 5, 10, 25, 50, 125, 250, 625, 1250, 3125, 6250],
+    rvr_directory="./exp/senate/outputs/merged/rvr_nature_control_sweep",
+    rnr_directory="./exp/senate/outputs/merged/nature_control_sweep",
+    output_directory="./exp/senate/outputs/analysis/rvr_vs_rnr_overlay",
+    hide_p1::Bool=false,
+    xscale=log10,
+)
+    mkpath(output_directory)
+
+    rvr = Dict{Int, Vector{SenateTrajectoryAnalysisEntry}}()
+    rnr_r = Dict{Int, Vector{SenateTrajectoryAnalysisEntry}}()
+    rnr_nr = Dict{Int, Vector{SenateTrajectoryAnalysisEntry}}()
+
+    for m in multipliers
+        println("\n===== Loading entries for nature_multiplier=$m =====")
+
+        load_and_analyze_senate_solution_files(
+            directory=rvr_directory,
+            file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type"))
+        rvr[m] = copy(SENATE_TRAJECTORY_TRACKER.entries)
+
+        load_and_analyze_senate_solution_files(
+            directory=rnr_directory,
+            file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type_robust"))
+        rnr_r[m] = copy(SENATE_TRAJECTORY_TRACKER.entries)
+
+        load_and_analyze_senate_solution_files(
+            directory=rnr_directory,
+            file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type_non_robust"))
+        rnr_nr[m] = copy(SENATE_TRAJECTORY_TRACKER.entries)
+
+        println("  R-vs-R: $(length(rvr[m])), R-vs-NR robust: $(length(rnr_r[m])), R-vs-NR NR: $(length(rnr_nr[m]))")
+    end
+
+    all_player_indices = Set{Int}()
+    for d in (rvr, rnr_r, rnr_nr), entries in values(d), entry in entries
+        if !isempty(entry.incurred_cost_history)
+            union!(all_player_indices, keys(entry.incurred_cost_history))
+        end
+    end
+    player_indices = filter_player_indices(sort(collect(all_player_indices)); hide_p1=hide_p1)
+    if isempty(player_indices)
+        println("No player data available for overlay plot")
+        return
+    end
+
+    series_specs = [
+        ("R-vs-R", rvr, :solid),
+        ("R-vs-NR (P2=Robust)", rnr_r, :dash),
+        ("R-vs-NR (P2=Non-Robust)", rnr_nr, :dot),
+    ]
+    player_colors = Dict(1 => :blue, 2 => :red, 3 => :green)
+
+    fig = Figure(size=(1000, 650))
+    ax = Axis(fig[1, 1],
+        title = "Final Cumulative Cost vs Nature Multiplier — R-vs-R vs R-vs-NR",
+        xlabel = "Nature Multiplier",
+        ylabel = "Mean Final Cumulative Cost",
+        xscale = xscale,
+    )
+
+    for player_idx in player_indices
+        color = get(player_colors, player_idx, :gray)
+        for (label, dict, linestyle) in series_specs
+            xs = Float64[]
+            means = Float64[]
+            stds = Float64[]
+            for m in multipliers
+                entries = get(dict, m, SenateTrajectoryAnalysisEntry[])
+                isempty(entries) && continue
+                trajs = extract_executed_trajectories(entries, player_idx, 2; cumulative=true)
+                final_costs = [t[end] for t in trajs if !isempty(t)]
+                isempty(final_costs) && continue
+                push!(xs, Float64(m))
+                push!(means, mean(final_costs))
+                push!(stds, length(final_costs) > 1 ? std(final_costs) : 0.0)
+            end
+            if !isempty(xs)
+                errorbars!(ax, xs, means, stds, color=(color, 0.3))
+                scatterlines!(ax, xs, means; color=color, linewidth=2, linestyle=linestyle,
+                    markersize=8, label="P$(player_idx) $label")
+            end
+        end
+    end
+
+    axislegend(ax, position=:lt)
+    png_path = joinpath(output_directory, "rvr_vs_rnr_summary.png")
+    save(png_path, fig)
+    save(joinpath(output_directory, "rvr_vs_rnr_summary.pdf"), fig)
+    println("Saved overlay summary plot to $png_path")
+
+    _plot_overlay_violin(rvr, rnr_r, rnr_nr, multipliers;
+        directory=output_directory, player_idx=2)
+end
+
+"""
+    _plot_overlay_violin(rvr, rnr_r, rnr_nr, multipliers; directory, player_idx)
+
+Three-series violin: R-vs-R and R-vs-NR-robust violins side-by-side per multiplier,
+pooled R-vs-NR-non-robust violin on the right as the baseline. P2's final cumulative
+deterministic cost.
+"""
+function _plot_overlay_violin(rvr, rnr_r, rnr_nr, multipliers;
+    directory::String, player_idx::Int=2)
+
+    mkpath(directory)
+    n_sv = length(multipliers)
+
+    function sweep_color(idx, n)
+        t = n <= 1 ? 0.0 : (idx - 1) / (n - 1)
+        stops = [
+            (0.0,  RGBf(0.2, 0.4, 1.0)),
+            (0.25, RGBf(0.2, 0.8, 0.4)),
+            (0.5,  RGBf(0.9, 0.9, 0.2)),
+            (0.75, RGBf(1.0, 0.6, 0.2)),
+            (1.0,  RGBf(0.9, 0.2, 0.2)),
+        ]
+        for i in 1:length(stops)-1
+            t0, c0 = stops[i]; t1, c1 = stops[i+1]
+            if t <= t1
+                s = (t - t0) / (t1 - t0)
+                return RGBf(c0.r + s*(c1.r-c0.r), c0.g + s*(c1.g-c0.g), c0.b + s*(c1.b-c0.b))
+            end
+        end
+        return stops[end][2]
+    end
+    nr_color = RGBf(0.6, 0.6, 0.6)
+
+    function iqr_filter(costs::Vector{Float64})
+        length(costs) < 4 && return costs
+        q1 = quantile(costs, 0.25); q3 = quantile(costs, 0.75); iqr = q3 - q1
+        return filter(c -> q1 - 1.5*iqr <= c <= q3 + 1.5*iqr, costs)
+    end
+    function final_costs(entries)
+        trajs = extract_executed_trajectories(entries, player_idx, 2; cumulative=true)
+        return Float64[t[end] for t in trajs if !isempty(t)]
+    end
+
+    # Per-multiplier: two violins offset by ±0.2 around integer x. Pooled NR at n_sv+1.
+    rvr_offset = -0.22
+    rnr_offset = +0.22
+    violin_width = 0.40
+
+    fig = Figure(size=(max(900, 130 * (n_sv + 1)), 650),
+        backgroundcolor=:transparent, fontsize=22)
+    update_theme!(fonts = (; regular = "Palatino Linotype",
+                              bold = "Palatino Linotype",
+                              italic = "Palatino Linotype"))
+    ax = Axis(fig[1, 1],
+        backgroundcolor=:transparent,
+        xlabel = "Nature's Control Effort Cost (c)",
+        ylabel = "Total Cost (Robust Activist, P$(player_idx))",
+        title  = "R-vs-R vs R-vs-NR — advantage is not only from asymmetry",
+        xlabelsize = 32, ylabelsize = 32, titlesize = 24,
+        xticklabelsize = 26, yticklabelsize = 26,
+        xticks = (collect(1:n_sv+1), vcat(string.(multipliers), ["NR"])),
+        xticklabelrotation = π/12,
+        topspinevisible = false, rightspinevisible = false,
+        xgridvisible = false, ygridvisible = false,
+    )
+    xlims!(ax, 0.4, n_sv + 1.6)
+
+    pooled_nr = Float64[]
+
+    for (idx, m) in enumerate(multipliers)
+        col = sweep_color(idx, n_sv)
+        rvr_costs = iqr_filter(final_costs(get(rvr, m, SenateTrajectoryAnalysisEntry[])))
+        rnr_costs = iqr_filter(final_costs(get(rnr_r, m, SenateTrajectoryAnalysisEntry[])))
+        append!(pooled_nr, final_costs(get(rnr_nr, m, SenateTrajectoryAnalysisEntry[])))
+
+        if !isempty(rvr_costs)
+            x = idx + rvr_offset
+            violin!(ax, fill(x, length(rvr_costs)), rvr_costs;
+                color=(col, 0.65), width=violin_width, strokewidth=2, strokecolor=:black)
+            scatter!(ax, fill(x, length(rvr_costs)) .+ randn(length(rvr_costs)).*0.025, rvr_costs;
+                color=(col, 0.5), markersize=6)
+            mr = mean(rvr_costs)
+            lines!(ax, [x - 0.10, x + 0.10], [mr, mr]; color=:black, linewidth=2)
+        end
+        if !isempty(rnr_costs)
+            x = idx + rnr_offset
+            violin!(ax, fill(x, length(rnr_costs)), rnr_costs;
+                color=(col, 0.30), width=violin_width)
+            scatter!(ax, fill(x, length(rnr_costs)) .+ randn(length(rnr_costs)).*0.025, rnr_costs;
+                color=(col, 0.4), markersize=6)
+            mr = mean(rnr_costs)
+            lines!(ax, [x - 0.10, x + 0.10], [mr, mr]; color=:black, linewidth=2, linestyle=:dash)
+        end
+    end
+
+    pooled_nr = iqr_filter(pooled_nr)
+    nr_x = n_sv + 1
+    nr_mean = isempty(pooled_nr) ? nothing : mean(pooled_nr)
+    if !isempty(pooled_nr)
+        violin!(ax, fill(nr_x, length(pooled_nr)), pooled_nr;
+            color=(nr_color, 0.6), width=0.9)
+        scatter!(ax, fill(nr_x, length(pooled_nr)) .+ randn(length(pooled_nr)).*0.06, pooled_nr;
+            color=(nr_color, 0.5), markersize=7)
+        lines!(ax, [nr_x - 0.15, nr_x + 0.15], [nr_mean, nr_mean]; color=:black, linewidth=2)
+    end
+    if !isnothing(nr_mean)
+        hlines!(ax, [nr_mean]; color=RGBAf(0,0,0,0.4), linewidth=1.5, linestyle=:dash)
+    end
+
+    # Legend swatches (synthetic for the two-series outline-vs-fill convention)
+    legend_box = [
+        PolyElement(color=(:gray, 0.65), strokecolor=:black, strokewidth=2),
+        PolyElement(color=(:gray, 0.30), strokecolor=(:black, 0.0)),
+        PolyElement(color=(nr_color, 0.6), strokecolor=(:black, 0.0)),
+    ]
+    Legend(fig[1, 2], legend_box,
+        ["R-vs-R (solid stroke)", "R-vs-NR P2=Robust (no stroke)", "NR baseline (pooled)"];
+        framevisible=false, labelsize=20)
+
+    filename = joinpath(directory, "rvr_vs_rnr_violin")
+    save(filename * ".png", fig, px_per_unit=3)
+    save(filename * ".pdf", fig)
+    println("Saved overlay violin plot to $(filename).png")
+end
+
+"""
     analyze_planning_horizon_sweep(; horizons, directory, output_base)
 
 Analyze planning horizon sweep results, split by planning horizon value.
@@ -1802,9 +2031,9 @@ function create_sweep_violin_plot(
 
     # Build descriptive axis labels
     x_label = if sweep_name == "nature_multiplier"
-        "Nature's Relative Control Effort Cost"
+        "Nature's Control Effort Cost (c)"
     else
-        sweep_label
+        sweep_label * " (c)"
     end
 
     ax = Axis(fig[1, 1],
