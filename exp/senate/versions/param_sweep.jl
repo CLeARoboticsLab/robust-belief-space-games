@@ -22,12 +22,25 @@ Example:
         cores=4
     )
 """
+# Short keys for the per-task filename prefix. Windows caps a single filename
+# component at 255 chars; the asymmetric-experiment suffix alone is ~185, so
+# long-form param names in the prefix can push grid sweeps over the limit.
+const SWEEP_NAME_ABBREV = Dict(
+    :p1_nature_multiplier => "p1nm",
+    :p2_nature_multiplier => "p2nm",
+    :p1_type => "p1t",
+    :p2_type => "p2t",
+    :p2_believes_p1_drift_sensor_scale => "p2bp1dss",
+    :planning_horizon => "ph",
+)
+
 function run_parallel_sweep(;
     cores=4,
     override=false,
     save_file_prefix="exp/senate",
     num_seeds=100,
     offset=0,
+    abbrev_names=false,  # use SWEEP_NAME_ABBREV in filenames (new sweeps only — changes names, breaking resume of old ones)
     kwargs...
 )
     # Only expand these specific parameters
@@ -70,7 +83,8 @@ function run_parallel_sweep(;
         extra_parts = String[]
         for (k, v) in combo
             if k != :random_seed
-                push!(extra_parts, "$(k)_$(v)")
+                name_k = abbrev_names ? get(SWEEP_NAME_ABBREV, k, string(k)) : string(k)
+                push!(extra_parts, "$(name_k)_$(v)")
             end
         end
         suffix = isempty(extra_parts) ? "" : "_" * join(sort(extra_parts), "_")

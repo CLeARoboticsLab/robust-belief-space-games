@@ -467,3 +467,59 @@ function run_rvr_nature_control_sweep_no_drift(; cores=8, override=false, num_se
     println("COMPLETED R-vs-R NATURE CONTROL SWEEP NO-DRIFT ($(length(multipliers)) multipliers)")
     println("="^60)
 end
+
+# R-vs-R grid over each player's *nature* control-cost multiplier (c1 x c2),
+# with symmetric drift beliefs (each player models its own sensor drift
+# correctly, is blind to the opponent's) and no obstacle (weight 0; obstacle
+# cost templates kept so analysis decomposition stays format-compatible).
+function run_rvr_nature_grid_sweep(; cores=8, override=false, num_seeds=25, offset=1000,
+                                    p1_multipliers=[5, 25, 125, 625],
+                                    p2_multipliers=[5, 25, 125, 625],
+                                    control_cost_weight=2.0,
+                                    obstacle_weight=0.0,
+                                    experiment_name="rvr_nature_grid_sym_noobs")
+    output_dir = joinpath(@__DIR__, "..", "outputs", "runs", experiment_name)
+    isdir(output_dir) || mkpath(output_dir)
+
+    run_parallel_sweep(
+        abbrev_names=true,  # keep filenames under the 255-char Windows component limit
+        p1_type=robust,
+        p2_type=robust,
+        p1_nature_multiplier=collect(p1_multipliers),
+        p2_nature_multiplier=collect(p2_multipliers),
+        p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+        p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+        p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p1_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+        p2_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+        p1_obstacle_weights=[obstacle_weight],
+        p2_obstacle_weights=[obstacle_weight],
+        p1_ellipsoidal_cost_weight=[0.5],
+        p2_ellipsoidal_cost_weight=[0.5],
+        p1_control_cost_weight=[control_cost_weight],
+        p2_control_cost_weight=[control_cost_weight],
+        # Symmetric drift: GT drift on both sensors (as before); each player
+        # believes its own drift, neither believes the opponent's.
+        gt_drift_sensor_scale=[1.0],
+        p1_believes_self_drift_sensor_scale=[1.0],
+        p2_believes_self_drift_sensor_scale=[1.0],
+        p1_believes_p2_drift_sensor_scale=[0.0],
+        p2_believes_p1_drift_sensor_scale=0.0,  # scalar: keeps it out of the filename prefix
+        process_noise_covariance=0.001 * I(6),
+        sensor_noise_covariance=0.001 * I(6),
+        dynamics_model_template=:default,
+        dt=0.75,
+        horizon=10,
+        ground_truth_initial_states=[mortar([[1.0, 1.0], [2.0, 0.5], [0.5, 2.0]])],
+        experiment_name_prefix=experiment_name,
+        num_seeds=num_seeds,
+        offset=offset,
+        cores=cores,
+        override=override,
+    )
+
+    println("\n\n" * "="^60)
+    println("COMPLETED R-vs-R NATURE GRID SWEEP ($(length(p1_multipliers))x$(length(p2_multipliers)) cells x $(num_seeds) seeds)")
+    println("="^60)
+end
