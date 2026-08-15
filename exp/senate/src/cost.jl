@@ -25,6 +25,16 @@ function control_cost(u::Vector, control_effort)
     control_effort * dot(u, u)
 end
 
+# Nature's whole objective is divided by its control weight (the target
+# player's control_cost_weight * nature_multiplier, i.e. proportional to c).
+# A positive rescaling of one player's objective leaves best responses and
+# equilibria unchanged, but keeps nature's Hessian block at 2I for every c:
+# unscaled, that block grows as 4c, which trips the solver's whole-matrix
+# norm clip (clip_norm=100) and pushes the converged nature correction below
+# the digits=5 feedforward rounding, stalling convergence at high c.
+nature_cost_scale(config::PlayerConfig) =
+    config.control_cost_weight > 0 ? 1 / config.control_cost_weight : 1.0
+
 function base_non_terminal_cost_function_generator(config::PlayerConfig)
     pretend_config = config.type == nature ? config.nature_target_player_idx : config.player_idx
     player_belief_indices = (pretend_config-1) * config.num_senators + 1:pretend_config * config.num_senators
@@ -32,7 +42,9 @@ function base_non_terminal_cost_function_generator(config::PlayerConfig)
     function(beliefs::Beliefs, u::BlockVector)
         preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config) for pos in means(beliefs).blocks[player_belief_indices])
         control = config.type == nature ? control_cost(u.blocks[end], config.control_cost_weight) : control_cost(u[player_control_indices], config.control_cost_weight)
-        return (config.type == nature ? -1 : 1) * preference + control
+        return config.type == nature ?
+            (-preference + control) * nature_cost_scale(config) :
+            preference + control
     end
 end
 
@@ -41,7 +53,9 @@ function base_terminal_cost_function_generator(config::PlayerConfig)
     player_belief_indices = (pretend_config-1) * config.num_senators + 1:pretend_config * config.num_senators
     function(beliefs::Beliefs)
         preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config) for pos in means(beliefs).blocks[player_belief_indices])
-        return (config.type == nature ? -1 : 1) * config.terminal_cost_weight * preference
+        return config.type == nature ?
+            -config.terminal_cost_weight * preference * nature_cost_scale(config) :
+            config.terminal_cost_weight * preference
     end
 end
 
@@ -52,8 +66,10 @@ function covariance_non_terminal_cost_function_generator(config::PlayerConfig)
     function(beliefs::Beliefs, u::BlockVector)
         preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config) for pos in means(beliefs).blocks[player_belief_indices])
         control = config.type == nature ? control_cost(u.blocks[end], config.control_cost_weight) : control_cost(u[player_control_indices], config.control_cost_weight)
-        cov_term = (config.type == nature ? -1 : 1) * config.covariance_weight * sum(tr(belief.belief_covariance) for belief in beliefs.beliefs[player_belief_indices])
-        return (config.type == nature ? -1 : 1) * preference + control + cov_term
+        cov_term = config.covariance_weight * sum(tr(belief.belief_covariance) for belief in beliefs.beliefs[player_belief_indices])
+        return config.type == nature ?
+            (-(preference + cov_term) + control) * nature_cost_scale(config) :
+            preference + control + cov_term
     end
 end
 
@@ -62,8 +78,10 @@ function covariance_terminal_cost_function_generator(config::PlayerConfig)
     player_belief_indices = (pretend_config-1) * config.num_senators + 1:pretend_config * config.num_senators
     function(beliefs::Beliefs)
         preference = sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config) for pos in means(beliefs).blocks[player_belief_indices])
-        cov_term = (config.type == nature ? -1 : 1) * config.covariance_weight * sum(tr(belief.belief_covariance) for belief in beliefs.beliefs[player_belief_indices])
-        return (config.type == nature ? -1 : 1) * config.terminal_cost_weight * preference + cov_term
+        cov_term = config.covariance_weight * sum(tr(belief.belief_covariance) for belief in beliefs.beliefs[player_belief_indices])
+        return config.type == nature ?
+            -(config.terminal_cost_weight * preference + cov_term) * nature_cost_scale(config) :
+            config.terminal_cost_weight * preference + cov_term
     end
 end
 
@@ -76,7 +94,9 @@ function obstacle_non_terminal_cost_function_generator(config::PlayerConfig)
         control = config.type == nature ? control_cost(u.blocks[end], config.control_cost_weight) : control_cost(u[player_control_indices], config.control_cost_weight)
         cov_term = config.covariance_weight * sum(tr(belief.belief_covariance) for belief in beliefs.beliefs[player_belief_indices])
         obstacle_term = sum(config.obstacle_cost_function(belief, config) for belief in beliefs.beliefs[player_belief_indices])
-        return (config.type == nature ? -1 : 1) * (preference + cov_term + obstacle_term) + control
+        return config.type == nature ?
+            (-(preference + cov_term + obstacle_term) + control) * nature_cost_scale(config) :
+            preference + cov_term + obstacle_term + control
     end
 end
 
@@ -87,7 +107,9 @@ function obstacle_terminal_cost_function_generator(config::PlayerConfig)
         preference = config.terminal_cost_weight * sum(ellipsoidal_cost(pos, config.ellipsoid_centers, config.ellipsoid_radii; config=config) for pos in means(beliefs).blocks[player_belief_indices])
         cov_term = config.covariance_weight * sum(tr(belief.belief_covariance) for belief in beliefs.beliefs[player_belief_indices])
         obstacle_term = sum(config.obstacle_cost_function(belief, config) for belief in beliefs.beliefs[player_belief_indices])
-        return (config.type == nature ? -1 : 1) * (preference + cov_term + obstacle_term)
+        return config.type == nature ?
+            -(preference + cov_term + obstacle_term) * nature_cost_scale(config) :
+            preference + cov_term + obstacle_term
     end
 end
 
