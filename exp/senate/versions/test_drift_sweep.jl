@@ -539,6 +539,7 @@ function run_rvr_nature_grid_expansion(; cores=8, override=false, num_seeds=25, 
                                         multipliers=[5, 25, 125, 625, 3125, 15625],
                                         control_cost_weight=2.0,
                                         obstacle_weight=0.0,
+                                        parts=[:robust_grid, :nominal],  # which sweep blocks to run
                                         experiment_name="rvr_nature_grid_sym_noobs")
     output_dir = joinpath(@__DIR__, "..", "outputs", "runs", experiment_name)
     isdir(output_dir) || mkpath(output_dir)
@@ -576,25 +577,29 @@ function run_rvr_nature_grid_expansion(; cores=8, override=false, num_seeds=25, 
         override=override,
     )
 
-    # 1) Full 6x6 robust grid — the original 4x4 skips on existing files.
-    run_parallel_sweep(; common...,
-        p1_type=robust, p2_type=robust,
-        p1_nature_multiplier=collect(multipliers),
-        p2_nature_multiplier=collect(multipliers))
+    if :robust_grid in parts
+        # 1) Full robust grid — cells already on disk skip on existing files.
+        run_parallel_sweep(; common...,
+            p1_type=robust, p2_type=robust,
+            p1_nature_multiplier=collect(multipliers),
+            p2_nature_multiplier=collect(multipliers))
+    end
 
-    # 2) Nominal P1 vs robust P2 across all multipliers.
-    run_parallel_sweep(; common...,
-        p1_type=[non_robust], p2_type=robust,
-        p2_nature_multiplier=collect(multipliers))
+    if :nominal in parts
+        # 2) Nominal P1 vs robust P2 across all multipliers.
+        run_parallel_sweep(; common...,
+            p1_type=[non_robust], p2_type=robust,
+            p2_nature_multiplier=collect(multipliers))
 
-    # 3) Robust P1 vs nominal P2 across all multipliers.
-    run_parallel_sweep(; common...,
-        p1_type=robust, p2_type=[non_robust],
-        p1_nature_multiplier=collect(multipliers))
+        # 3) Robust P1 vs nominal P2 across all multipliers.
+        run_parallel_sweep(; common...,
+            p1_type=robust, p2_type=[non_robust],
+            p1_nature_multiplier=collect(multipliers))
 
-    # 4) Nominal vs nominal.
-    run_parallel_sweep(; common...,
-        p1_type=[non_robust], p2_type=[non_robust])
+        # 4) Nominal vs nominal.
+        run_parallel_sweep(; common...,
+            p1_type=[non_robust], p2_type=[non_robust])
+    end
 
     println("\n\n" * "="^60)
     println("COMPLETED R-vs-R GRID EXPANSION ($(length(multipliers))x$(length(multipliers)) robust grid + nominal row/col/corner, $(num_seeds) seeds each)")
