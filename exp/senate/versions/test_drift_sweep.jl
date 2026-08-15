@@ -523,3 +523,80 @@ function run_rvr_nature_grid_sweep(; cores=8, override=false, num_seeds=25, offs
     println("COMPLETED R-vs-R NATURE GRID SWEEP ($(length(p1_multipliers))x$(length(p2_multipliers)) cells x $(num_seeds) seeds)")
     println("="^60)
 end
+
+# Expansion of run_rvr_nature_grid_sweep: adds higher nature-cost multipliers
+# (3125, 15625) and nominal (non_robust, i.e. c -> Inf) players. Writes into the
+# SAME experiment dirs; with override=false, already-completed runs (the
+# original 4x4 robust grid) are skipped on file existence, so this is
+# idempotent/resumable — just rerun it after a crash.
+#
+# Cells per arm: 6x6 robust grid (16 already done, 20 new) + nominal-vs-robust
+# both orientations (2x6) + nominal-vs-nominal (1) = 33 new cells x num_seeds.
+# Nominal cells carry p1t_non_robust / p2t_non_robust markers in filenames
+# (vector-typed p1_type/p2_type); scalar robust types stay out, matching the
+# existing robust-grid filenames.
+function run_rvr_nature_grid_expansion(; cores=8, override=false, num_seeds=25, offset=1000,
+                                        multipliers=[5, 25, 125, 625, 3125, 15625],
+                                        control_cost_weight=2.0,
+                                        obstacle_weight=0.0,
+                                        experiment_name="rvr_nature_grid_sym_noobs")
+    output_dir = joinpath(@__DIR__, "..", "outputs", "runs", experiment_name)
+    isdir(output_dir) || mkpath(output_dir)
+
+    common = (;
+        abbrev_names=true,  # keep filenames under the 255-char Windows component limit
+        p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+        p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+        p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p1_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+        p2_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+        p1_obstacle_weights=[obstacle_weight],
+        p2_obstacle_weights=[obstacle_weight],
+        p1_ellipsoidal_cost_weight=[0.5],
+        p2_ellipsoidal_cost_weight=[0.5],
+        p1_control_cost_weight=[control_cost_weight],
+        p2_control_cost_weight=[control_cost_weight],
+        # Symmetric drift, identical to the base grid.
+        gt_drift_sensor_scale=[1.0],
+        p1_believes_self_drift_sensor_scale=[1.0],
+        p2_believes_self_drift_sensor_scale=[1.0],
+        p1_believes_p2_drift_sensor_scale=[0.0],
+        p2_believes_p1_drift_sensor_scale=0.0,  # scalar: keeps it out of the filename prefix
+        process_noise_covariance=0.001 * I(6),
+        sensor_noise_covariance=0.001 * I(6),
+        dynamics_model_template=:default,
+        dt=0.75,
+        horizon=10,
+        ground_truth_initial_states=[mortar([[1.0, 1.0], [2.0, 0.5], [0.5, 2.0]])],
+        experiment_name_prefix=experiment_name,
+        num_seeds=num_seeds,
+        offset=offset,
+        cores=cores,
+        override=override,
+    )
+
+    # 1) Full 6x6 robust grid — the original 4x4 skips on existing files.
+    run_parallel_sweep(; common...,
+        p1_type=robust, p2_type=robust,
+        p1_nature_multiplier=collect(multipliers),
+        p2_nature_multiplier=collect(multipliers))
+
+    # 2) Nominal P1 vs robust P2 across all multipliers.
+    run_parallel_sweep(; common...,
+        p1_type=[non_robust], p2_type=robust,
+        p2_nature_multiplier=collect(multipliers))
+
+    # 3) Robust P1 vs nominal P2 across all multipliers.
+    run_parallel_sweep(; common...,
+        p1_type=robust, p2_type=[non_robust],
+        p1_nature_multiplier=collect(multipliers))
+
+    # 4) Nominal vs nominal.
+    run_parallel_sweep(; common...,
+        p1_type=[non_robust], p2_type=[non_robust])
+
+    println("\n\n" * "="^60)
+    println("COMPLETED R-vs-R GRID EXPANSION ($(length(multipliers))x$(length(multipliers)) robust grid + nominal row/col/corner, $(num_seeds) seeds each)")
+    println("="^60)
+end
