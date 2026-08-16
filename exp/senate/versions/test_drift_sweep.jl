@@ -749,6 +749,28 @@ function run_rvr_intent_pilot(; cores=8, override=false, num_seeds=5, offset=100
     println("\n\nCOMPLETED INTENT PILOT ($(length(believed)) beliefs x 3 cells x $(num_seeds) seeds)")
 end
 
+# SYMMETRIC intent-mismatch pilot (dose-response): BOTH players hold mirrored
+# wrong beliefs about the opponent's preference target, parameterized by
+# t in [0,1] along the swap path. True centers: P1=[3,1], P2=[1,3].
+#   P1 believes P2 wants (1-t)*[1,3] + t*[3,1] = [1+2t, 3-2t]
+#   P2 believes P1 wants (1-t)*[3,1] + t*[1,3] = [3-2t, 1+2t]   (mirror image)
+# t=0 is the clean game (already run as the calib pilot); t=1 the full swap.
+# Symmetry makes the 2x2 robust/nominal game symmetric — neither player is
+# privileged — and gives a free sanity check (effect A ≈ effect B).
+function run_rvr_symintent_pilot(; cores=8, override=false, num_seeds=5, offset=1000,
+                                  ts=[0.25, 0.5, 1.0], nature_multiplier=5,
+                                  control_cost_weight=2.0, obstacle_weight=0.0,
+                                  experiment_prefix="rvr_symintent_pilot_noobs")
+    for t in ts
+        common = _rvr_pilot_common(; experiment_name="$(experiment_prefix)_t$(t)",
+            obstacle_weight, control_cost_weight, num_seeds, offset, cores, override)
+        _run_rvr_pilot_cells(; nature_multiplier, common...,
+            p1_believes_p2_ellipsoid_centers=[[1.0 + 2t, 3.0 - 2t]],
+            p2_believes_p1_ellipsoid_centers=[[3.0 - 2t, 1.0 + 2t]])
+    end
+    println("\n\nCOMPLETED SYMMETRIC-INTENT PILOT ($(length(ts)) t-values x 3 cells x $(num_seeds) seeds)")
+end
+
 # Asymmetric-noise pilot (option 4): only P2's real sensor is noisy (gain g);
 # P2 knows its own gain (planner + execution filter calibrated via the gt fix),
 # P1 is blind to it (models P2's sensor as clean). Certainty equivalence

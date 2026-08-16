@@ -236,6 +236,16 @@ function build_asymmetric_player_configs(combo, fixed_params)
     if haskey(fixed_params, :p2_believes_p1_sensor_model)
         p2_belief_about_p1.self_sensor_model_template = fixed_params[:p2_believes_p1_sensor_model]
     end
+    # Intent mismatch, mirrored: P2's model of P1's preference cost diverges from
+    # P1's actual config. Applied only to P2's belief copy.
+    p2b_p1_centers = haskey(combo, :p2_believes_p1_ellipsoid_centers) ?
+        combo[:p2_believes_p1_ellipsoid_centers] :
+        get(fixed_params, :p2_believes_p1_ellipsoid_centers, nothing)
+    isnothing(p2b_p1_centers) || (p2_belief_about_p1.ellipsoid_centers = p2b_p1_centers)
+    p2b_p1_ecw = haskey(combo, :p2_believes_p1_ellipsoidal_cost_weight) ?
+        combo[:p2_believes_p1_ellipsoidal_cost_weight] :
+        get(fixed_params, :p2_believes_p1_ellipsoidal_cost_weight, nothing)
+    isnothing(p2b_p1_ecw) || (p2_belief_about_p1.ellipsoidal_cost_weight = p2b_p1_ecw)
     p2_belief_about_p1.type = non_robust
 
     p2_belief_about_self = deepcopy(p2_config)
@@ -465,6 +475,8 @@ function run_asymmetric_experiment(;
     # Intent mismatch: P1's model of P2's preference cost (wrong targets / weight)
     p1_believes_p2_ellipsoid_centers = nothing,   # Vector{Vector{Real}}, single value only
     p1_believes_p2_ellipsoidal_cost_weight = nothing,  # scalar, single value only
+    p2_believes_p1_ellipsoid_centers = nothing,   # mirrored intent mismatch for P2
+    p2_believes_p1_ellipsoidal_cost_weight = nothing,
 
     gt_drift_dynamics_scale = nothing,
     gt_drift_sensor_scale = nothing,
@@ -769,6 +781,14 @@ function run_asymmetric_experiment(;
     if !isnothing(p1_believes_p2_ellipsoidal_cost_weight)
         @assert p1_believes_p2_ellipsoidal_cost_weight isa Real "p1_believes_p2_ellipsoidal_cost_weight must be a scalar"
         fixed_params[:p1_believes_p2_ellipsoidal_cost_weight] = p1_believes_p2_ellipsoidal_cost_weight
+    end
+    if !isnothing(p2_believes_p1_ellipsoid_centers)
+        @assert p2_believes_p1_ellipsoid_centers isa Vector{<:Vector{<:Real}} "p2_believes_p1_ellipsoid_centers must be Vector{Vector{Real}}"
+        fixed_params[:p2_believes_p1_ellipsoid_centers] = p2_believes_p1_ellipsoid_centers
+    end
+    if !isnothing(p2_believes_p1_ellipsoidal_cost_weight)
+        @assert p2_believes_p1_ellipsoidal_cost_weight isa Real "p2_believes_p1_ellipsoidal_cost_weight must be a scalar"
+        fixed_params[:p2_believes_p1_ellipsoidal_cost_weight] = p2_believes_p1_ellipsoidal_cost_weight
     end
     for (key, val) in ((:gt_p1_drift_sensor_scale, gt_p1_drift_sensor_scale),
                        (:gt_p2_drift_sensor_scale, gt_p2_drift_sensor_scale),
