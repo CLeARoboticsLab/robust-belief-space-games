@@ -34,7 +34,14 @@ const CONDITIONS = [
     ("intent mid [2,2]", "rvr_intent_pilot_noobs_mid"),
     ("intent swap [3,1]", "rvr_intent_pilot_noobs_swap"),
     ("asym noise g=4",  "rvr_asymnoise_pilot_noobs_g4.0"),
+    ("symintent t=0.25", "rvr_symintent_pilot_noobs_t0.25"),
+    ("symintent t=0.5",  "rvr_symintent_pilot_noobs_t0.5"),
+    ("symintent t=1.0",  "rvr_symintent_pilot_noobs_t1.0"),
 ]
+
+# Optional ARGS filter: run only conditions whose label contains any argument.
+filtered_conditions = isempty(ARGS) ? CONDITIONS :
+    [c for c in CONDITIONS if any(occursin(a, c[1]) for a in ARGS)]
 
 const CELLS = Dict(
     :RR  => Regex("p1nm_5_p2nm_5_"),
@@ -81,7 +88,7 @@ end
 
 cellstats(c::Dict, f) = (v = [f(x) for x in values(c)]; (mean(v), std(v)))
 
-for (label, dirname) in CONDITIONS
+for (label, dirname) in filtered_conditions
     dir = joinpath(RUN_ROOT, dirname)
     isdir(dir) || (println("SKIP $label ($dir missing)"); continue)
     cells = Dict(k => load_cell(dir, pat) for (k, pat) in CELLS)
