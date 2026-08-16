@@ -186,6 +186,17 @@ function build_asymmetric_player_configs(combo, fixed_params)
             p1_belief_about_p2.self_sensor_model_template = covariance_drift_sensor_model
         end
     end
+    # Intent mismatch: P1's model of P2's preference cost (targets and/or weight)
+    # diverges from P2's actual config. Applied only to P1's belief copy — P2's
+    # own planning and the executed cost keep the true preference.
+    p1b_p2_centers = haskey(combo, :p1_believes_p2_ellipsoid_centers) ?
+        combo[:p1_believes_p2_ellipsoid_centers] :
+        get(fixed_params, :p1_believes_p2_ellipsoid_centers, nothing)
+    isnothing(p1b_p2_centers) || (p1_belief_about_p2.ellipsoid_centers = p1b_p2_centers)
+    p1b_p2_ecw = haskey(combo, :p1_believes_p2_ellipsoidal_cost_weight) ?
+        combo[:p1_believes_p2_ellipsoidal_cost_weight] :
+        get(fixed_params, :p1_believes_p2_ellipsoidal_cost_weight, nothing)
+    isnothing(p1b_p2_ecw) || (p1_belief_about_p2.ellipsoidal_cost_weight = p1b_p2_ecw)
     p1_belief_about_p2.type = non_robust
 
     p1_belief_about_self = deepcopy(p1_config)
@@ -295,7 +306,9 @@ function build_senate_params(combo, fixed_params, player_configs)
     # Add experiment parameters
     for (key, value) in combo
         if !startswith(String(key), "p1_") && !startswith(String(key), "p2_") && !startswith(String(key), "p1_believes") && !startswith(String(key), "p2_believes")
-            if key in [:dynamics_model_template, :gt_drift_sensor_scale, :gt_drift_dynamics_scale]
+            if key in [:dynamics_model_template, :gt_drift_sensor_scale, :gt_drift_dynamics_scale,
+                       :gt_p1_drift_sensor_scale, :gt_p2_drift_sensor_scale,
+                       :gt_p1_sensor_bias, :gt_p2_sensor_bias]
                 continue
             end
             senate_kwargs[key] = value
@@ -305,7 +318,9 @@ function build_senate_params(combo, fixed_params, player_configs)
     # Add fixed parameters (excluding player-specific ones)
     for (key, value) in fixed_params
         if !startswith(String(key), "p1_") && !startswith(String(key), "p2_")
-            if key in [:gt_drift_dynamics_scale, :gt_drift_sensor_scale, :dynamics_model_template, :attraction_matrix]
+            if key in [:gt_drift_dynamics_scale, :gt_drift_sensor_scale, :dynamics_model_template, :attraction_matrix,
+                       :gt_p1_drift_sensor_scale, :gt_p2_drift_sensor_scale,
+                       :gt_p1_sensor_bias, :gt_p2_sensor_bias]
                 continue
             end
             senate_kwargs[key] = value
@@ -344,29 +359,48 @@ function build_senate_params(combo, fixed_params, player_configs)
         senate_kwargs[:ground_truth_dynamics_configs] = gt_dynamics_configs
     end
     # Check combo first (for variations), then fixed_params
-    gt_sensor_drift_val = haskey(combo, :gt_drift_sensor_scale) ? combo[:gt_drift_sensor_scale] : get(fixed_params, :gt_drift_sensor_scale, nothing)
-    if !isnothing(gt_sensor_drift_val)
+    getparam(key) = haskey(combo, key) ? combo[key] : get(fixed_params, key, nothing)
+    gt_sensor_drift_val = getparam(:gt_drift_sensor_scale)
+    # Per-player gt sensor settings: gt_p{i}_drift_sensor_scale overrides the
+    # symmetric gain; gt_p{i}_sensor_bias injects a constant observation offset.
+    gt_gain = Dict{Int, Any}()
+    gt_bias = Dict{Int, Any}()
+    for i in (1, 2)
+        pg = getparam(Symbol("gt_p$(i)_drift_sensor_scale"))
+        gt_gain[i] = isnothing(pg) ? gt_sensor_drift_val : pg
+        gt_bias[i] = getparam(Symbol("gt_p$(i)_sensor_bias"))
+    end
+    if any(!isnothing, values(gt_gain)) || any(!isnothing, values(gt_bias))
         gt_sensor_configs = Dict(
             1 => DefaultPlayerConfig(player_idx=1, type=ground_truth_config),
             2 => DefaultPlayerConfig(player_idx=2, type=ground_truth_config),
         )
-        for (_, config) in gt_sensor_configs
-            config.drift_sensor_scale = gt_sensor_drift_val
-            # Must set sensor model template to one that uses drift_sensor_scale
-            config.self_sensor_model_template = covariance_drift_sensor_model
+        for (i, config) in gt_sensor_configs
+            if !isnothing(gt_bias[i])
+                @assert isnothing(gt_gain[i]) || gt_gain[i] == 0.0 "sensor bias + noise-gain drift on the same player is not supported"
+                # drift_sensor_scale doubles as the bias magnitude under drift_sensor_model
+                config.drift_sensor_scale = gt_bias[i]
+                config.self_sensor_model_template = drift_sensor_model
+            elseif !isnothing(gt_gain[i])
+                # Must set sensor model template to one that uses drift_sensor_scale
+                config.drift_sensor_scale = gt_gain[i]
+                config.self_sensor_model_template = covariance_drift_sensor_model
+            end
             Senate._populate_configs!(config, force=true)
         end
         senate_kwargs[:ground_truth_sensor_configs] = gt_sensor_configs
 
-        # Calibrate each player's EXECUTION filter to the true sensor. The
+        # Calibrate each player's EXECUTION filter to the true NOISE GAIN. The
         # execution EKF is built from params.player_configs[i].self_sensor_model
         # (SenateExperiment.jl), which otherwise keeps drift_sensor_scale = 0 and
         # over-trusts observations whenever gt drift > 0. An explicit
         # p{i}_drift_sensor_scale kwarg still wins (deliberate miscalibration).
+        # A sensor BIAS is never calibrated in — it is meant to be invisible to
+        # the victim's filter.
         for (i, config) in player_configs
             explicit_key = Symbol("p$(i)_drift_sensor_scale")
-            if !haskey(combo, explicit_key) && !haskey(fixed_params, explicit_key)
-                config.drift_sensor_scale = gt_sensor_drift_val
+            if !isnothing(gt_gain[i]) && !haskey(combo, explicit_key) && !haskey(fixed_params, explicit_key)
+                config.drift_sensor_scale = gt_gain[i]
                 config.self_sensor_model_template = covariance_drift_sensor_model
                 Senate._populate_configs!(config, force=true)
             end
@@ -428,9 +462,17 @@ function run_asymmetric_experiment(;
     p2_believes_self_drift_sensor_scale = nothing,
     p2_believes_p1_drift_sensor_scale = nothing,
     p2_believes_p1_sensor_model = nothing,
+    # Intent mismatch: P1's model of P2's preference cost (wrong targets / weight)
+    p1_believes_p2_ellipsoid_centers = nothing,   # Vector{Vector{Real}}, single value only
+    p1_believes_p2_ellipsoidal_cost_weight = nothing,  # scalar, single value only
 
     gt_drift_dynamics_scale = nothing,
     gt_drift_sensor_scale = nothing,
+    # Per-player ground-truth sensor overrides (scalars, single value only)
+    gt_p1_drift_sensor_scale = nothing,  # noise-gain drift, overrides gt_drift_sensor_scale for P1's sensor
+    gt_p2_drift_sensor_scale = nothing,
+    gt_p1_sensor_bias = nothing,         # additive observation bias on P1's sensor (unfilterable)
+    gt_p2_sensor_bias = nothing,
     ground_truth_initial_states = nothing,
     # Experiment parameters
     planning_horizon = nothing,
@@ -719,6 +761,23 @@ function run_asymmetric_experiment(;
     end
     if !isnothing(p2_believes_p1_sensor_model)
         fixed_params[:p2_believes_p1_sensor_model] = p2_believes_p1_sensor_model
+    end
+    if !isnothing(p1_believes_p2_ellipsoid_centers)
+        @assert p1_believes_p2_ellipsoid_centers isa Vector{<:Vector{<:Real}} "p1_believes_p2_ellipsoid_centers must be Vector{Vector{Real}}"
+        fixed_params[:p1_believes_p2_ellipsoid_centers] = p1_believes_p2_ellipsoid_centers
+    end
+    if !isnothing(p1_believes_p2_ellipsoidal_cost_weight)
+        @assert p1_believes_p2_ellipsoidal_cost_weight isa Real "p1_believes_p2_ellipsoidal_cost_weight must be a scalar"
+        fixed_params[:p1_believes_p2_ellipsoidal_cost_weight] = p1_believes_p2_ellipsoidal_cost_weight
+    end
+    for (key, val) in ((:gt_p1_drift_sensor_scale, gt_p1_drift_sensor_scale),
+                       (:gt_p2_drift_sensor_scale, gt_p2_drift_sensor_scale),
+                       (:gt_p1_sensor_bias, gt_p1_sensor_bias),
+                       (:gt_p2_sensor_bias, gt_p2_sensor_bias))
+        if !isnothing(val)
+            @assert val isa Real "$key must be a scalar"
+            fixed_params[key] = val
+        end
     end
 
     # Process experiment parameters

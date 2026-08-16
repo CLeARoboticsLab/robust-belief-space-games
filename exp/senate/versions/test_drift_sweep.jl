@@ -671,3 +671,97 @@ function run_rvr_calibnoise_pilot(; cores=8, override=false, num_seeds=5, offset
     println("COMPLETED CALIBRATED-NOISE PILOT ($(length(gains)) gains x 3 cells x $(num_seeds) seeds)")
     println("="^60)
 end
+
+# Shared base config for the structured-error pilots below: grid geometry/costs,
+# base white noise only (no drift kwargs — each pilot injects its own error).
+function _rvr_pilot_common(; experiment_name, obstacle_weight, control_cost_weight,
+                            num_seeds, offset, cores, override)
+    output_dir = joinpath(@__DIR__, "..", "outputs", "runs", experiment_name)
+    isdir(output_dir) || mkpath(output_dir)
+    return (;
+        abbrev_names=true,  # keep filenames under the 255-char Windows component limit
+        p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+        p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+        p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+        p1_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+        p2_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+        p1_obstacle_weights=[obstacle_weight],
+        p2_obstacle_weights=[obstacle_weight],
+        p1_ellipsoidal_cost_weight=[0.5],
+        p2_ellipsoidal_cost_weight=[0.5],
+        p1_control_cost_weight=[control_cost_weight],
+        p2_control_cost_weight=[control_cost_weight],
+        process_noise_covariance=0.001 * I(6),
+        sensor_noise_covariance=0.001 * I(6),
+        dynamics_model_template=:default,
+        dt=0.75,
+        horizon=10,
+        ground_truth_initial_states=[mortar([[1.0, 1.0], [2.0, 0.5], [0.5, 2.0]])],
+        experiment_name_prefix=experiment_name,
+        num_seeds=num_seeds,
+        offset=offset,
+        cores=cores,
+        override=override,
+    )
+end
+
+# Shared 3-cell pattern: (c,c) mutual robust, (NR,c) with P2 robust, (NR,NR).
+function _run_rvr_pilot_cells(; nature_multiplier=5, common...)
+    run_parallel_sweep(; common..., p1_type=robust, p2_type=robust,
+        p1_nature_multiplier=[nature_multiplier], p2_nature_multiplier=[nature_multiplier])
+    run_parallel_sweep(; common..., p1_type=[non_robust], p2_type=robust,
+        p2_nature_multiplier=[nature_multiplier])
+    run_parallel_sweep(; common..., p1_type=[non_robust], p2_type=[non_robust])
+end
+
+# One-sided sensor BIAS pilot (option 5): P2's REAL sensor reads every dimension
+# offset by +b, constant and unfilterable; nobody models it (P2's planner and
+# execution filter and P1's model of P2 all assume a clean sensor). No noise-gain
+# drift anywhere. Tests whether robustness pays when the true error is a
+# persistent bias — the shape nature's hedge actually takes.
+function run_rvr_bias_pilot(; cores=8, override=false, num_seeds=5, offset=1000,
+                             biases=[0.1, 0.3], nature_multiplier=5,
+                             control_cost_weight=2.0, obstacle_weight=0.0,
+                             experiment_prefix="rvr_bias_pilot_noobs")
+    for b in biases
+        common = _rvr_pilot_common(; experiment_name="$(experiment_prefix)_b$(b)",
+            obstacle_weight, control_cost_weight, num_seeds, offset, cores, override)
+        _run_rvr_pilot_cells(; nature_multiplier, common..., gt_p2_sensor_bias=b)
+    end
+    println("\n\nCOMPLETED BIAS PILOT ($(length(biases)) biases x 3 cells x $(num_seeds) seeds)")
+end
+
+# Intent-mismatch pilot (option 7): P1's model of P2's preference target is
+# wrong — P2 truly wants senators at [[1,3]], but P1 plans as if P2 wants
+# `centers`. Sensors clean everywhere. Tests whether robustness protects the
+# player whose model of the OPPONENT'S INTENT is wrong.
+function run_rvr_intent_pilot(; cores=8, override=false, num_seeds=5, offset=1000,
+                               believed=[("mid", [[2.0, 2.0]]), ("swap", [[3.0, 1.0]])],
+                               nature_multiplier=5, control_cost_weight=2.0, obstacle_weight=0.0,
+                               experiment_prefix="rvr_intent_pilot_noobs")
+    for (tag, centers) in believed
+        common = _rvr_pilot_common(; experiment_name="$(experiment_prefix)_$(tag)",
+            obstacle_weight, control_cost_weight, num_seeds, offset, cores, override)
+        _run_rvr_pilot_cells(; nature_multiplier, common...,
+            p1_believes_p2_ellipsoid_centers=centers)
+    end
+    println("\n\nCOMPLETED INTENT PILOT ($(length(believed)) beliefs x 3 cells x $(num_seeds) seeds)")
+end
+
+# Asymmetric-noise pilot (option 4): only P2's real sensor is noisy (gain g);
+# P2 knows its own gain (planner + execution filter calibrated via the gt fix),
+# P1 is blind to it (models P2's sensor as clean). Certainty equivalence
+# predicts a near-null in the no-obstacle arm — this is the cheap check.
+function run_rvr_asymnoise_pilot(; cores=8, override=false, num_seeds=5, offset=1000,
+                                  gain=4.0, nature_multiplier=5,
+                                  control_cost_weight=2.0, obstacle_weight=0.0,
+                                  experiment_prefix="rvr_asymnoise_pilot_noobs")
+    common = _rvr_pilot_common(; experiment_name="$(experiment_prefix)_g$(gain)",
+        obstacle_weight, control_cost_weight, num_seeds, offset, cores, override)
+    _run_rvr_pilot_cells(; nature_multiplier, common...,
+        gt_p2_drift_sensor_scale=gain,
+        p2_believes_self_drift_sensor_scale=[gain],
+        p1_believes_p2_drift_sensor_scale=[0.0])
+    println("\n\nCOMPLETED ASYM-NOISE PILOT (1 gain x 3 cells x $(num_seeds) seeds)")
+end
