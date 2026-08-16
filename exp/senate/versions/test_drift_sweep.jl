@@ -539,6 +539,7 @@ function run_rvr_nature_grid_expansion(; cores=8, override=false, num_seeds=25, 
                                         multipliers=[5, 25, 125, 625, 3125, 15625],
                                         control_cost_weight=2.0,
                                         obstacle_weight=0.0,
+                                        believes_opponent_drift=0.0,  # 0.0 = blind to opponent's gain (mismatch); gt value = no mismatch (true control)
                                         parts=[:robust_grid, :nominal],  # which sweep blocks to run
                                         experiment_name="rvr_nature_grid_sym_noobs")
     output_dir = joinpath(@__DIR__, "..", "outputs", "runs", experiment_name)
@@ -558,12 +559,12 @@ function run_rvr_nature_grid_expansion(; cores=8, override=false, num_seeds=25, 
         p2_ellipsoidal_cost_weight=[0.5],
         p1_control_cost_weight=[control_cost_weight],
         p2_control_cost_weight=[control_cost_weight],
-        # Symmetric drift, identical to the base grid.
+        # Symmetric drift, identical to the base grid (opponent-belief gain configurable).
         gt_drift_sensor_scale=[1.0],
         p1_believes_self_drift_sensor_scale=[1.0],
         p2_believes_self_drift_sensor_scale=[1.0],
-        p1_believes_p2_drift_sensor_scale=[0.0],
-        p2_believes_p1_drift_sensor_scale=0.0,  # scalar: keeps it out of the filename prefix
+        p1_believes_p2_drift_sensor_scale=[believes_opponent_drift],
+        p2_believes_p1_drift_sensor_scale=believes_opponent_drift,  # scalar: keeps it out of the filename prefix
         process_noise_covariance=0.001 * I(6),
         sensor_noise_covariance=0.001 * I(6),
         dynamics_model_template=:default,
