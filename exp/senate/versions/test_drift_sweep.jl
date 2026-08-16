@@ -707,11 +707,14 @@ function _rvr_pilot_common(; experiment_name, obstacle_weight, control_cost_weig
 end
 
 # Shared 3-cell pattern: (c,c) mutual robust, (NR,c) with P2 robust, (NR,NR).
-function _run_rvr_pilot_cells(; nature_multiplier=5, common...)
+# include_mirror=true adds the (c,NR) cell (P1 robust) for symmetric designs.
+function _run_rvr_pilot_cells(; nature_multiplier=5, include_mirror=false, common...)
     run_parallel_sweep(; common..., p1_type=robust, p2_type=robust,
         p1_nature_multiplier=[nature_multiplier], p2_nature_multiplier=[nature_multiplier])
     run_parallel_sweep(; common..., p1_type=[non_robust], p2_type=robust,
         p2_nature_multiplier=[nature_multiplier])
+    include_mirror && run_parallel_sweep(; common..., p1_type=robust, p2_type=[non_robust],
+        p1_nature_multiplier=[nature_multiplier])
     run_parallel_sweep(; common..., p1_type=[non_robust], p2_type=[non_robust])
 end
 
@@ -769,6 +772,25 @@ function run_rvr_symintent_pilot(; cores=8, override=false, num_seeds=5, offset=
             p2_believes_p1_ellipsoid_centers=[[3.0 - 2t, 1.0 + 2t]])
     end
     println("\n\nCOMPLETED SYMMETRIC-INTENT PILOT ($(length(ts)) t-values x 3 cells x $(num_seeds) seeds)")
+end
+
+# FULL symmetric intent-mismatch sweep: dose-response t x robustness budget c,
+# 4 cells (both mixed orientations), 25 seeds. t=0 is the built-in clean control
+# (believed centers equal the truth). Same geometry/beliefs as the symintent
+# pilot; run once with obstacle_weight=0.0 (noobs) and once with 8.0 (obs).
+function run_rvr_symintent_full(; cores=25, override=false, num_seeds=25, offset=1000,
+                                 ts=[0.0, 0.25, 0.5, 0.75, 1.0],
+                                 nature_multipliers=[5, 625],
+                                 control_cost_weight=2.0, obstacle_weight=0.0,
+                                 experiment_prefix="rvr_symintent_full_noobs")
+    for c in nature_multipliers, t in ts
+        common = _rvr_pilot_common(; experiment_name="$(experiment_prefix)_c$(c)_t$(t)",
+            obstacle_weight, control_cost_weight, num_seeds, offset, cores, override)
+        _run_rvr_pilot_cells(; nature_multiplier=c, include_mirror=true, common...,
+            p1_believes_p2_ellipsoid_centers=[[1.0 + 2t, 3.0 - 2t]],
+            p2_believes_p1_ellipsoid_centers=[[3.0 - 2t, 1.0 + 2t]])
+    end
+    println("\n\nCOMPLETED FULL SYMMETRIC-INTENT SWEEP ($(length(nature_multipliers)) budgets x $(length(ts)) t x 4 cells x $(num_seeds) seeds)")
 end
 
 # Asymmetric-noise pilot (option 4): only P2's real sensor is noisy (gain g);
