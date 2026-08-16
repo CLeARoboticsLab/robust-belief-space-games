@@ -605,3 +605,68 @@ function run_rvr_nature_grid_expansion(; cores=8, override=false, num_seeds=25, 
     println("COMPLETED R-vs-R GRID EXPANSION ($(length(multipliers))x$(length(multipliers)) robust grid + nominal row/col/corner, $(num_seeds) seeds each)")
     println("="^60)
 end
+
+# Calibrated-noise PILOT (few seeds): with the execution-EKF calibration fix in
+# build_senate_params (execution filter now matches the gt sensor gain unless
+# p{i}_drift_sensor_scale is passed explicitly), sweep the REAL sensor-noise
+# gain g = gt_drift_sensor_scale. Planner self-beliefs track g; each player
+# stays blind to the opponent's gain (believes 0) — the belief mismatch
+# robustness is meant to cover. Per gain: 3 cells x num_seeds —
+# (c,c), (NR,c), (NR,NR), with P2 the robust player in the mixed cell.
+# One experiment dir per gain so gain never has to live in the filename.
+# g=1.0 doubles as a mini-rerun of the v2 grid corners under the EKF fix.
+function run_rvr_calibnoise_pilot(; cores=8, override=false, num_seeds=5, offset=1000,
+                                   gains=[1.0, 2.0, 4.0],
+                                   nature_multiplier=5,
+                                   control_cost_weight=2.0,
+                                   obstacle_weight=0.0,
+                                   experiment_prefix="rvr_calib_pilot_noobs")
+    for g in gains
+        experiment_name = "$(experiment_prefix)_g$(g)"
+        output_dir = joinpath(@__DIR__, "..", "outputs", "runs", experiment_name)
+        isdir(output_dir) || mkpath(output_dir)
+
+        common = (;
+            abbrev_names=true,  # keep filenames under the 255-char Windows component limit
+            p1_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+            p1_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+            p2_non_terminal_cost_model_template=obstacle_non_terminal_cost_function_generator,
+            p2_terminal_cost_model_template=obstacle_terminal_cost_function_generator,
+            p1_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+            p2_obstacle_centers=[mortar([[[1.5, 1.5]]])],
+            p1_obstacle_weights=[obstacle_weight],
+            p2_obstacle_weights=[obstacle_weight],
+            p1_ellipsoidal_cost_weight=[0.5],
+            p2_ellipsoidal_cost_weight=[0.5],
+            p1_control_cost_weight=[control_cost_weight],
+            p2_control_cost_weight=[control_cost_weight],
+            gt_drift_sensor_scale=[g],
+            p1_believes_self_drift_sensor_scale=[g],
+            p2_believes_self_drift_sensor_scale=[g],
+            p1_believes_p2_drift_sensor_scale=[0.0],
+            p2_believes_p1_drift_sensor_scale=0.0,  # scalar: keeps it out of the filename prefix
+            process_noise_covariance=0.001 * I(6),
+            sensor_noise_covariance=0.001 * I(6),
+            dynamics_model_template=:default,
+            dt=0.75,
+            horizon=10,
+            ground_truth_initial_states=[mortar([[1.0, 1.0], [2.0, 0.5], [0.5, 2.0]])],
+            experiment_name_prefix=experiment_name,
+            num_seeds=num_seeds,
+            offset=offset,
+            cores=cores,
+            override=override,
+        )
+
+        # Mutual-robust, nominal-vs-robust (P2 robust), mutual-nominal.
+        run_parallel_sweep(; common..., p1_type=robust, p2_type=robust,
+            p1_nature_multiplier=[nature_multiplier], p2_nature_multiplier=[nature_multiplier])
+        run_parallel_sweep(; common..., p1_type=[non_robust], p2_type=robust,
+            p2_nature_multiplier=[nature_multiplier])
+        run_parallel_sweep(; common..., p1_type=[non_robust], p2_type=[non_robust])
+    end
+
+    println("\n\n" * "="^60)
+    println("COMPLETED CALIBRATED-NOISE PILOT ($(length(gains)) gains x 3 cells x $(num_seeds) seeds)")
+    println("="^60)
+end

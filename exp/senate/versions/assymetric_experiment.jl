@@ -357,6 +357,20 @@ function build_senate_params(combo, fixed_params, player_configs)
             Senate._populate_configs!(config, force=true)
         end
         senate_kwargs[:ground_truth_sensor_configs] = gt_sensor_configs
+
+        # Calibrate each player's EXECUTION filter to the true sensor. The
+        # execution EKF is built from params.player_configs[i].self_sensor_model
+        # (SenateExperiment.jl), which otherwise keeps drift_sensor_scale = 0 and
+        # over-trusts observations whenever gt drift > 0. An explicit
+        # p{i}_drift_sensor_scale kwarg still wins (deliberate miscalibration).
+        for (i, config) in player_configs
+            explicit_key = Symbol("p$(i)_drift_sensor_scale")
+            if !haskey(combo, explicit_key) && !haskey(fixed_params, explicit_key)
+                config.drift_sensor_scale = gt_sensor_drift_val
+                config.self_sensor_model_template = covariance_drift_sensor_model
+                Senate._populate_configs!(config, force=true)
+            end
+        end
     end
 
 
