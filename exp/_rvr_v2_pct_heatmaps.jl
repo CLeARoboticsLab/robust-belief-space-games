@@ -19,7 +19,10 @@ using CairoMakie
 const LEVELS = ["5", "25", "125", "625", "3125", "15625", "NR"]
 const OUT_DIR = "./exp/senate/outputs/analysis/rvr_symintent"
 const CACHE = "./exp/senate/outputs/analysis/rvr_nomm/nomm_totals_cache.dat"
-const BASE = ("5", "5")
+# Baseline cell: pass e.g. `NR` as first ARG to use (NR,NR); default (5,5).
+const BASE_LVL = isempty(ARGS) ? "5" : ARGS[1]
+const BASE = (BASE_LVL, BASE_LVL)
+const TAG = BASE_LVL == "5" ? "" : "_base$(BASE_LVL)$(BASE_LVL)"
 mkpath(OUT_DIR)
 
 data = deserialize(CACHE)
@@ -69,15 +72,16 @@ for arm in ["noobs", "obs"]
                maximum(abs, filter(isfinite, vec(p2_m))))
     vmax = vmax == 0 ? 1.0 : vmax
 
+    bname = "($(BASE[1]),$(BASE[2]))"
     fig = Figure(size=(1500, 620))
-    pct_panel!(fig, (1, 1), p1_m, p1_s, "P1 cost, Δ% vs (5,5)", vmax)
-    hm = pct_panel!(fig, (1, 2), p2_m, p2_s, "P2 cost, Δ% vs (5,5)", vmax)
-    Colorbar(fig[1, 3], hm; label="Δ% vs mutual-robust (5,5)  (red = costlier)")
+    pct_panel!(fig, (1, 1), p1_m, p1_s, "P1 cost, Δ% vs $bname", vmax)
+    hm = pct_panel!(fig, (1, 2), p2_m, p2_s, "P2 cost, Δ% vs $bname", vmax)
+    Colorbar(fig[1, 3], hm; label="Δ% vs $bname  (red = costlier)")
     Label(fig[0, :],
-        "v2 mismatch grid ($arm): seed-paired % cost vs (5,5) baseline  ('*' = 95% CI excludes 0)",
+        "v2 mismatch grid ($arm): seed-paired % cost vs $bname baseline  ('*' = 95% CI excludes 0)",
         fontsize=17)
-    save(joinpath(OUT_DIR, "pct_heatmap_v2_$(arm).png"), fig)
-    println("Saved pct_heatmap_v2_$(arm).png")
+    save(joinpath(OUT_DIR, "pct_heatmap_v2_$(arm)$(TAG).png"), fig)
+    println("Saved pct_heatmap_v2_$(arm)$(TAG).png")
 end
 
 println("Done.")
