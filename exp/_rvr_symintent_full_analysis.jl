@@ -35,7 +35,7 @@ using .SenateTrajectoryAnalysis: SENATE_TRAJECTORY_TRACKER,
                                   load_and_analyze_senate_solution_files
 const STA = SenateTrajectoryAnalysis
 
-const TS = [0.0, 0.25, 0.5, 0.75, 1.0]
+const TS = [-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]  # t<0: believed goal pushed AWAY (adversarial misread)
 const BUDGETS = [5, 625]
 const ARMS = [("noobs", "rvr_symintent_full_noobs"), ("obs", "rvr_symintent_full_obs")]
 const RUN_ROOT = "./exp/senate/outputs/runs"

@@ -11,7 +11,7 @@ Run from repo root (after _rvr_symintent_full_analysis.jl):
 
 using Statistics, Printf, Serialization, CairoMakie
 
-const TS = [0.0, 0.25, 0.5, 0.75, 1.0]
+const TS = [-1.0, -0.75, -0.5, -0.25, 0.0, 0.25, 0.5, 0.75, 1.0]
 const BUDGETS = [5, 625]
 const ARMS = ["noobs", "obs"]
 const OUT_DIR = "./exp/senate/outputs/analysis/rvr_symintent"
