@@ -675,7 +675,7 @@ end
 # Shared base config for the structured-error pilots below: grid geometry/costs,
 # base white noise only (no drift kwargs — each pilot injects its own error).
 function _rvr_pilot_common(; experiment_name, obstacle_weight, control_cost_weight,
-                            num_seeds, offset, cores, override)
+                            num_seeds, offset, cores, override, horizon=10)
     output_dir = joinpath(@__DIR__, "..", "outputs", "runs", experiment_name)
     isdir(output_dir) || mkpath(output_dir)
     return (;
@@ -696,7 +696,7 @@ function _rvr_pilot_common(; experiment_name, obstacle_weight, control_cost_weig
         sensor_noise_covariance=0.001 * I(6),
         dynamics_model_template=:default,
         dt=0.75,
-        horizon=10,
+        horizon=horizon,
         ground_truth_initial_states=[mortar([[1.0, 1.0], [2.0, 0.5], [0.5, 2.0]])],
         experiment_name_prefix=experiment_name,
         num_seeds=num_seeds,
@@ -791,6 +791,47 @@ function run_rvr_symintent_full(; cores=25, override=false, num_seeds=25, offset
             p2_believes_p1_ellipsoid_centers=[[3.0 - 2t, 1.0 + 2t]])
     end
     println("\n\nCOMPLETED FULL SYMMETRIC-INTENT SWEEP ($(length(nature_multipliers)) budgets x $(length(ts)) t x 4 cells x $(num_seeds) seeds)")
+end
+
+# Symmetric sensor-BIAS sweep. Every observed dimension of a player's real
+# sensor is offset by a constant nobody models (planner, execution filter, and
+# the opponent's model all assume clean sensors). Two structures:
+#   :common — both sensors offset +b (shared map error; world models stay
+#             mutually coherent, just translated)
+#   :diff   — P1 offset +b, P2 offset -b (players DISAGREE about where everyone
+#             is; inter-player model divergence, the bias analog of intent
+#             mismatch). Own mirror image under b -> -b, so symmetric/fair.
+# Magnitude anchors: 0.1 ~ 3x sensor-noise sigma, 0.3 ~ obstacle-clearance
+# scale, 1.0 ~ 35% of the goal separation.
+function run_rvr_symbias_full(; cores=25, override=false, num_seeds=25, offset=1000,
+                               bs=[0.1, 0.3, 1.0], modes=[:common, :diff],
+                               nature_multiplier=5,
+                               control_cost_weight=2.0, obstacle_weight=0.0,
+                               experiment_prefix="rvr_symbias_full_noobs")
+    for mode in modes, b in bs
+        common = _rvr_pilot_common(; experiment_name="$(experiment_prefix)_$(mode)_b$(b)",
+            obstacle_weight, control_cost_weight, num_seeds, offset, cores, override)
+        _run_rvr_pilot_cells(; nature_multiplier, include_mirror=true, common...,
+            gt_p1_sensor_bias=b,
+            gt_p2_sensor_bias=(mode == :common ? b : -b))
+    end
+    println("\n\nCOMPLETED SYMMETRIC-BIAS SWEEP ($(length(modes)) modes x $(length(bs)) biases x 4 cells x $(num_seeds) seeds)")
+end
+
+# Horizon sensitivity spot-check for the symmetric-intent results: same cells
+# as run_rvr_symintent_full but at a longer horizon, endpoints of t only.
+function run_rvr_horizon_check(; cores=25, override=false, num_seeds=25, offset=1000,
+                                horizon=20, ts=[0.0, 1.0], nature_multiplier=5,
+                                control_cost_weight=2.0, obstacle_weight=0.0,
+                                experiment_prefix="rvr_horizoncheck_noobs")
+    for t in ts
+        common = _rvr_pilot_common(; experiment_name="$(experiment_prefix)_h$(horizon)_t$(t)",
+            obstacle_weight, control_cost_weight, num_seeds, offset, cores, override, horizon)
+        _run_rvr_pilot_cells(; nature_multiplier=nature_multiplier, include_mirror=true, common...,
+            p1_believes_p2_ellipsoid_centers=[[1.0 + 2t, 3.0 - 2t]],
+            p2_believes_p1_ellipsoid_centers=[[3.0 - 2t, 1.0 + 2t]])
+    end
+    println("\n\nCOMPLETED HORIZON CHECK (h=$(horizon), $(length(ts)) t x 4 cells x $(num_seeds) seeds)")
 end
 
 # Asymmetric-noise pilot (option 4): only P2's real sensor is noisy (gain g);
