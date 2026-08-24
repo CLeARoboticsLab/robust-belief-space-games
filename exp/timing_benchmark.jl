@@ -103,45 +103,77 @@ function bench_senate_config(label, make_params_fn; n_trials)
     )
 end
 
-function run_senate_benchmark(; n_trials::Int = N_TRIALS)
-    println("\n" * "="^60)
-    println("  SENATE BENCHMARK")
-    println("="^60)
-
-    results = Dict{String, NamedTuple}()
-
-    # Baseline (non-robust)
-    results["Baseline"] = bench_senate_config("Baseline (non-robust)",
-        seed -> make_senate_params(; p2_robust=false, seed); n_trials)
-
-    # Each nature multiplier
-    for λ in SENATE_NATURE_MULTIPLIERS
-        results["λ=$λ"] = bench_senate_config("Robust (λ=$λ)",
-            seed -> make_senate_params(; p2_robust=true, seed, nature_multiplier=λ); n_trials)
-    end
-
-    # Table
-    b = results["Baseline"]
-    w = 97
-    println("\n\n")
-    println("="^w)
-    println("  SENATE: SOLVER OVERHEAD vs NATURE MULTIPLIER (λ)")
-    println("  $(n_trials) trials · P2 solve() calls only")
+function print_senate_table(nr_timings, nr_iters, r_timings, r_iters, trial, n_trials, λ)
+    w = 105
+    println("\n" * "="^w)
+    @printf("  SENATE: Non-Robust vs Robust (λ=%d) · %d/%d trials done\n", λ, trial, n_trials)
     println("="^w)
     println()
     @printf("%-22s  %11s  %9s  %11s  %9s  %11s  %6s\n",
         "Configuration", "Time (s)", "± Std", "Iterations", "± Std", "Overhead", "N")
     println("-"^w)
+    nr_mt = mean(nr_timings); nr_st = length(nr_timings) > 1 ? std(nr_timings) : 0.0
+    nr_mi = mean(Float64.(nr_iters)); nr_si = length(nr_iters) > 1 ? std(Float64.(nr_iters)) : 0.0
     @printf("%-22s  %11.4f  %9.4f  %11.1f  %9.1f  %11s  %6d\n",
-        "Baseline", b.mean_time, b.std_time, b.mean_iter, b.std_iter, "—", b.n)
-    for λ in SENATE_NATURE_MULTIPLIERS
-        r = results["λ=$λ"]
-        overhead = (r.mean_time - b.mean_time) / b.mean_time * 100.0
+        "Non-Robust", nr_mt, nr_st, nr_mi, nr_si, "—", length(nr_timings))
+    if !isempty(r_timings)
+        r_mt = mean(r_timings); r_st = length(r_timings) > 1 ? std(r_timings) : 0.0
+        r_mi = mean(Float64.(r_iters)); r_si = length(r_iters) > 1 ? std(Float64.(r_iters)) : 0.0
+        overhead = (r_mt - nr_mt) / nr_mt * 100.0
         @printf("%-22s  %11.4f  %9.4f  %11.1f  %9.1f  %+10.1f%%  %6d\n",
-            "Robust (λ=$λ)", r.mean_time, r.std_time, r.mean_iter, r.std_iter, overhead, r.n)
+            "Robust (λ=$λ)", r_mt, r_st, r_mi, r_si, overhead, length(r_timings))
     end
     println("="^w)
-    return results
+end
+
+function run_senate_benchmark(; n_trials::Int = N_TRIALS, λ::Int = 50)
+    println("\n" * "="^60)
+    println("  SENATE BENCHMARK  (λ=$λ, $n_trials trials)")
+    println("="^60)
+
+    # Warmup both configs
+    print("\n  Warmup (non-robust)...")
+    redirect_stdout(devnull) do
+        run_receding_horizon_trial(make_senate_params(; p2_robust=false, seed=9999); override=true)
+    end
+    println(" done.")
+    print("  Warmup (robust λ=$λ)...")
+    redirect_stdout(devnull) do
+        run_receding_horizon_trial(make_senate_params(; p2_robust=true, seed=9999, nature_multiplier=λ); override=true)
+    end
+    println(" done.")
+
+    nr_timings = Float64[]; nr_iters = Int[]
+    r_timings  = Float64[]; r_iters  = Int[]
+
+    for trial in 1:n_trials
+        seed = 1000 + trial
+
+        # --- Non-robust ---
+        p_nr = make_senate_params(; p2_robust=false, seed)
+        sol_nr, _ = redirect_stdout(devnull) do
+            run_receding_horizon_trial(p_nr; override=true)
+        end
+        t_nr, i_nr = extract_p2_timing(sol_nr)
+        append!(nr_timings, t_nr)
+        append!(nr_iters, i_nr)
+        @printf("  Trial %2d/%d  NR  mean=%.4fs  iters/step=%s\n", trial, n_trials, mean(t_nr), join(i_nr, ","))
+
+        # --- Robust ---
+        p_r = make_senate_params(; p2_robust=true, seed, nature_multiplier=λ)
+        sol_r, _ = redirect_stdout(devnull) do
+            run_receding_horizon_trial(p_r; override=true)
+        end
+        t_r, i_r = extract_p2_timing(sol_r)
+        append!(r_timings, t_r)
+        append!(r_iters, i_r)
+        @printf("  Trial %2d/%d  R   mean=%.4fs  iters/step=%s\n", trial, n_trials, mean(t_r), join(i_r, ","))
+
+        # --- Running summary after each pair ---
+        print_senate_table(nr_timings, nr_iters, r_timings, r_iters, trial, n_trials, λ)
+    end
+
+    return (nr_timings=nr_timings, nr_iters=nr_iters, r_timings=r_timings, r_iters=r_iters)
 end
 
 # ═════════════════════════════════════════════════════════════

@@ -24,5 +24,9 @@ include("./SenateParamUtils.jl")
 export _populate_configs!, _sync_params_to_configs_dims!, _sync_params_to_configs_other_configs!, DefaultPlayerConfig, DefaultSenateParams, DefaultNaturePlayerConfig
 include("./SenateExperiment.jl")
 export run_receding_horizon_trials, run_receding_horizon_trial, init_checks
+# Must stay LAST (append-only): serialized archives depend on the lowering
+# counter of everything included above — see comment in drift_extensions.jl.
+include("./drift_extensions.jl")
+export goalline_drift_dynamics_model
 
 end # module Senate

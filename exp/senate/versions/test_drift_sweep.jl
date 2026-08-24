@@ -793,6 +793,56 @@ function run_rvr_symintent_full(; cores=25, override=false, num_seeds=25, offset
     println("\n\nCOMPLETED FULL SYMMETRIC-INTENT SWEEP ($(length(nature_multipliers)) budgets x $(length(ts)) t x 4 cells x $(num_seeds) seeds)")
 end
 
+# ONE-SIDED belief-drift sweep: in P1's planning model ONLY, P2's belief of the
+# senators drifts by d per step along the goal-line direction [-1,1]/sqrt(2)
+# (goalline_drift_dynamics_model on P1's belief-copy of P2). Reality is clean:
+# P2's own planner, both execution filters, and P2's model of P1 are unchanged,
+# so the only error in the whole system is P1's model of how P2's belief evolves.
+# Sign convention: d > 0 -> P1 predicts P2's believed senators sliding up-left,
+# i.e. P2's effective push target moves TOWARD P1's goal (perceived-cooperative);
+# d < 0 -> perceived-aggressive. d = 0 is the existing clean control
+# (rvr_symintent_full_noobs_c{c}_t0.0). Within each 10-step lookahead the offset
+# accumulates to 10d and resets at every replan (persistent forecast error).
+# 4 cells per (c, d): RR, (NR,c), (c,NR), NN — (c,NR) vs NN is "does robustness
+# help the mismatched ego"; RR vs (NR,c) is the same against a robust opponent.
+function run_rvr_p1drift_full(; cores=25, override=false, num_seeds=25, offset=1000,
+                               ds=[-0.2, -0.1, -0.05, 0.05, 0.1, 0.2],
+                               nature_multipliers=[5],
+                               control_cost_weight=2.0, obstacle_weight=0.0,
+                               experiment_prefix="rvr_p1drift_noobs")
+    for c in nature_multipliers, d in ds
+        common = _rvr_pilot_common(; experiment_name="$(experiment_prefix)_c$(c)_d$(d)",
+            obstacle_weight, control_cost_weight, num_seeds, offset, cores, override)
+        _run_rvr_pilot_cells(; nature_multiplier=c, include_mirror=true, common...,
+            p1_believes_p2_drift_dynamics_scale=d)
+    end
+    println("\n\nCOMPLETED P1-BELIEF-DRIFT SWEEP ($(length(nature_multipliers)) budgets x $(length(ds)) drifts x 4 cells x $(num_seeds) seeds)")
+end
+
+# ONE-SIDED (asymmetric) intent-mismatch sweep: full dose-response version of
+# run_rvr_intent_pilot. Only P1's model of P2's preference target is wrong;
+# P2's model of P1 stays correct (unlike run_rvr_symintent_full, where both
+# players are mirrored-wrong). Same t path as symintent:
+#   P1 believes P2 wants (1-t)*[1,3] + t*[3,1] = [1+2t, 3-2t]
+# t=0 is the clean control (rvr_symintent_full_noobs_c{c}_t0.0); the old pilot's
+# "mid"/"swap" points are t=0.5 and t=1.0. t<0 = P1 misreads P2 as MORE opposed
+# than reality. Static counterpart of run_rvr_p1drift_full (same "only P1's
+# model of P2 is wrong" structure, expressed as a fixed target shift instead of
+# accumulating belief drift).
+function run_rvr_asymintent_full(; cores=25, override=false, num_seeds=25, offset=1000,
+                                  ts=[-1.0, -0.75, -0.5, -0.25, 0.25, 0.5, 0.75, 1.0],
+                                  nature_multipliers=[5],
+                                  control_cost_weight=2.0, obstacle_weight=0.0,
+                                  experiment_prefix="rvr_asymintent_full_noobs")
+    for c in nature_multipliers, t in ts
+        common = _rvr_pilot_common(; experiment_name="$(experiment_prefix)_c$(c)_t$(t)",
+            obstacle_weight, control_cost_weight, num_seeds, offset, cores, override)
+        _run_rvr_pilot_cells(; nature_multiplier=c, include_mirror=true, common...,
+            p1_believes_p2_ellipsoid_centers=[[1.0 + 2t, 3.0 - 2t]])
+    end
+    println("\n\nCOMPLETED ONE-SIDED INTENT SWEEP ($(length(nature_multipliers)) budgets x $(length(ts)) t x 4 cells x $(num_seeds) seeds)")
+end
+
 # Symmetric sensor-BIAS sweep. Every observed dimension of a player's real
 # sensor is offset by a constant nobody models (planner, execution filter, and
 # the opponent's model all assume clean sensors). Two structures:
@@ -849,4 +899,26 @@ function run_rvr_asymnoise_pilot(; cores=8, override=false, num_seeds=5, offset=
         p2_believes_self_drift_sensor_scale=[gain],
         p1_believes_p2_drift_sensor_scale=[0.0])
     println("\n\nCOMPLETED ASYM-NOISE PILOT (1 gain x 3 cells x $(num_seeds) seeds)")
+end
+
+# Sweep #3 of the one-sided belief-drift design: P1 (the mismatched ego, drift d
+# in its model of P2's belief evolution) against DIFFERENT P2 TYPES — robust P2
+# with a budget c2 different from P1's c1. Only the mixed-budget RR cells are
+# new; the matched-budget RR cells and the P1-nominal baselines (NRc2) already
+# exist in rvr_p1drift_noobs_c{c}_d{d} for every c in the main grid, so this
+# runs only c1 != c2 pairs. Same seeds so paired diffs work across directories.
+function run_rvr_p1drift_p2types(; cores=25, override=false, num_seeds=25, offset=1000,
+                                  ds=[-0.1, 0.1],
+                                  p1_cs=[5, 125], p2_cs=[5, 25, 125, 625],
+                                  control_cost_weight=2.0, obstacle_weight=0.0,
+                                  experiment_prefix="rvr_p1drift_p2types_noobs")
+    for d in ds, c1 in p1_cs, c2 in p2_cs
+        c1 == c2 && continue
+        common = _rvr_pilot_common(; experiment_name="$(experiment_prefix)_d$(d)_p1c$(c1)_p2c$(c2)",
+            obstacle_weight, control_cost_weight, num_seeds, offset, cores, override)
+        run_parallel_sweep(; common..., p1_type=robust, p2_type=robust,
+            p1_nature_multiplier=[c1], p2_nature_multiplier=[c2],
+            p1_believes_p2_drift_dynamics_scale=d)
+    end
+    println("\n\nCOMPLETED P1-DRIFT P2-TYPES SWEEP (c1 x c2 off-diagonal x $(length(ds)) drifts x $(num_seeds) seeds)")
 end

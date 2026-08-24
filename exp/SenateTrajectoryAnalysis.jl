@@ -23,12 +23,14 @@ export SenateTrajectoryAnalysisEntry, SenateTrajectoryAnalysisTracker, SENATE_TR
     compare_robust_vs_nonrobust_senate_actions, create_senate_yarnball_plot,
     analyze_senate_trajectory_data, plot_senate_spatial_trajectories,
     analyze_nature_control_sweep, analyze_rvr_vs_rnr_overlay, analyze_planning_horizon_sweep,
+    analyze_rvr_vs_rnr_cost_components,
     create_merged_executed_costs_plot, create_sweep_summary_plot,
     compute_senate_significance_report,
     analyze_drift_mismatch_sweep, analyze_robustness_comparison_sweep,
     analyze_control_planning_sweep,
     create_sweep_violin_plot,
     create_sweep_mean_trajectory_plot,
+    create_sweep_p2_control_cost_plot,
     extract_nature_diagnostics_for_sweep, plot_nature_diagnostics_sweep,
     build_seed_matched_pairs, compute_trajectory_divergence, compute_divergence_statistics,
     compute_paired_cost_decomposition,
@@ -1299,6 +1301,8 @@ function analyze_nature_control_sweep(;
             directory=merged_dir, sweep_name="nature_multiplier")),
         ("mean trajectories", () -> create_sweep_mean_trajectory_plot(sweep_collected, "Nature Multiplier";
             directory=merged_dir, sweep_name="nature_multiplier")),
+        ("p2 control cost", () -> create_sweep_p2_control_cost_plot(sweep_collected, "Nature Multiplier";
+            directory=merged_dir, sweep_name="nature_multiplier")),
     ]
         try
             plot_fn()
@@ -1323,32 +1327,15 @@ function analyze_rvr_vs_rnr_overlay(;
     output_directory="./exp/senate/outputs/analysis/rvr_vs_rnr_overlay",
     hide_p1::Bool=false,
     xscale=log10,
+    preloaded=nothing,
 )
     mkpath(output_directory)
 
-    rvr = Dict{Int, Vector{SenateTrajectoryAnalysisEntry}}()
-    rnr_r = Dict{Int, Vector{SenateTrajectoryAnalysisEntry}}()
-    rnr_nr = Dict{Int, Vector{SenateTrajectoryAnalysisEntry}}()
-
-    for m in multipliers
-        println("\n===== Loading entries for nature_multiplier=$m =====")
-
-        load_and_analyze_senate_solution_files(
-            directory=rvr_directory,
-            file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type"))
-        rvr[m] = copy(SENATE_TRAJECTORY_TRACKER.entries)
-
-        load_and_analyze_senate_solution_files(
-            directory=rnr_directory,
-            file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type_robust"))
-        rnr_r[m] = copy(SENATE_TRAJECTORY_TRACKER.entries)
-
-        load_and_analyze_senate_solution_files(
-            directory=rnr_directory,
-            file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type_non_robust"))
-        rnr_nr[m] = copy(SENATE_TRAJECTORY_TRACKER.entries)
-
-        println("  R-vs-R: $(length(rvr[m])), R-vs-NR robust: $(length(rnr_r[m])), R-vs-NR NR: $(length(rnr_nr[m]))")
+    if isnothing(preloaded)
+        rvr, rnr_r, rnr_nr = _load_rvr_rnr_series(multipliers;
+            rvr_directory=rvr_directory, rnr_directory=rnr_directory)
+    else
+        rvr, rnr_r, rnr_nr = preloaded
     end
 
     all_player_indices = Set{Int}()
@@ -2291,6 +2278,406 @@ function create_sweep_mean_trajectory_plot(
     save(filename * ".png", fig, px_per_unit=3)
     save(filename * ".pdf", fig)
     println("Saved mean trajectory plot to $(filename).png")
+end
+
+# ========================================================================================
+# P2 CONTROL COST SWEEP PLOT
+# ========================================================================================
+
+"""
+    create_sweep_p2_control_cost_plot(sweep_collected, sweep_label; directory, sweep_name, player_idx)
+
+Plot P2's per-step control cost (config.control_cost_weight * ‖u_t‖²) over time,
+with one mean line per sweep value (e.g. nature multiplier) using the same color
+ramp as `create_sweep_mean_trajectory_plot`. Two panels: per-step (left) and
+cumulative (right). NR baseline is pooled across sweep values and drawn as a
+dashed gray line.
+"""
+function create_sweep_p2_control_cost_plot(
+    sweep_collected::Dict,
+    sweep_label::String;
+    directory::String="./exp/senate/outputs/analysis",
+    sweep_name::String="sweep",
+    player_idx::Int=2,
+)
+    if isempty(sweep_collected)
+        println("No sweep data for P$(player_idx) control cost plot")
+        return
+    end
+
+    mkpath(directory)
+    sweep_values = sort(collect(keys(sweep_collected)))
+    n_sv = length(sweep_values)
+
+    # --- Color ramp (same as mean trajectory / violin plots) ---
+    function sweep_color(idx, n)
+        t = n <= 1 ? 0.0 : (idx - 1) / (n - 1)
+        stops = [
+            (0.0,  RGBf(0.2, 0.4, 1.0)),
+            (0.25, RGBf(0.2, 0.8, 0.4)),
+            (0.5,  RGBf(0.9, 0.9, 0.2)),
+            (0.75, RGBf(1.0, 0.6, 0.2)),
+            (1.0,  RGBf(0.9, 0.2, 0.2)),
+        ]
+        for i in 1:length(stops)-1
+            t0, c0 = stops[i]
+            t1, c1 = stops[i+1]
+            if t <= t1
+                s = (t - t0) / (t1 - t0)
+                return RGBf(
+                    c0.r + s * (c1.r - c0.r),
+                    c0.g + s * (c1.g - c0.g),
+                    c0.b + s * (c1.b - c0.b))
+            end
+        end
+        return stops[end][2]
+    end
+
+    function compute_control_cost_trajs(entries)
+        trajs = Vector{Vector{Float64}}()
+        for e in entries
+            ctrls = extract_senate_executed_controls(e)
+            if !haskey(ctrls, player_idx) || isempty(ctrls[player_idx])
+                continue
+            end
+            w = (!isnothing(e.params) && haskey(e.params.player_configs, player_idx)) ?
+                e.params.player_configs[player_idx].control_cost_weight : 1.0
+            traj = Float64[w * dot(u, u) for u in ctrls[player_idx]]
+            push!(trajs, traj)
+        end
+        return trajs
+    end
+
+    function mean_curve(trajs; cumulative=false)
+        isempty(trajs) && return Float64[], Float64[]
+        min_T = minimum(length(t) for t in trajs)
+        min_T == 0 && return Float64[], Float64[]
+        series = cumulative ? [cumsum(t[1:min_T]) for t in trajs] : [t[1:min_T] for t in trajs]
+        means = [mean(s[i] for s in series) for i in 1:min_T]
+        return collect(1:min_T), means
+    end
+
+    all_nr_entries = SenateTrajectoryAnalysisEntry[]
+    for sv in sweep_values
+        append!(all_nr_entries, sweep_collected[sv].non_robust_entries)
+    end
+    nr_trajs = compute_control_cost_trajs(all_nr_entries)
+
+    update_theme!(fonts = (; regular = "Palatino Linotype",
+                             bold = "Palatino Linotype",
+                             italic = "Palatino Linotype"))
+    fig = Figure(size=(1500, 650), backgroundcolor=:transparent, fontsize=28)
+
+    ax_step = Axis(fig[1, 1],
+        backgroundcolor=:transparent,
+        xlabel = "Execution Step",
+        ylabel = "P$(player_idx) Control Cost",
+        title = "Per-Step",
+        topspinevisible = false, rightspinevisible = false,
+        xgridvisible = false, ygridvisible = false,
+    )
+    ax_cum = Axis(fig[1, 2],
+        backgroundcolor=:transparent,
+        xlabel = "Execution Step",
+        ylabel = "P$(player_idx) Cumulative Control Cost",
+        title = "Cumulative",
+        topspinevisible = false, rightspinevisible = false,
+        xgridvisible = false, ygridvisible = false,
+    )
+
+    if !isempty(nr_trajs)
+        ts, ms = mean_curve(nr_trajs; cumulative=false)
+        if !isempty(ts)
+            lines!(ax_step, ts, ms, color=RGBAf(0.4, 0.4, 0.4, 0.85),
+                linewidth=4, linestyle=:dash, label="NR")
+        end
+        ts, ms = mean_curve(nr_trajs; cumulative=true)
+        if !isempty(ts)
+            lines!(ax_cum, ts, ms, color=RGBAf(0.4, 0.4, 0.4, 0.85),
+                linewidth=4, linestyle=:dash, label="NR")
+        end
+    end
+
+    for (idx, sv) in enumerate(sweep_values)
+        r_trajs = compute_control_cost_trajs(sweep_collected[sv].robust_entries)
+        isempty(r_trajs) && continue
+        col = sweep_color(idx, n_sv)
+        ts, ms = mean_curve(r_trajs; cumulative=false)
+        if !isempty(ts)
+            lines!(ax_step, ts, ms, color=(col, 0.9), linewidth=4, label=string(sv))
+        end
+        ts, ms = mean_curve(r_trajs; cumulative=true)
+        if !isempty(ts)
+            lines!(ax_cum, ts, ms, color=(col, 0.9), linewidth=4, label=string(sv))
+        end
+    end
+
+    Legend(fig[2, :], ax_step, sweep_label, orientation=:horizontal,
+        nbanks=2, framevisible=false)
+
+    filename = joinpath(directory, "p$(player_idx)_control_cost_$(sweep_name)")
+    save(filename * ".png", fig, px_per_unit=3)
+    save(filename * ".pdf", fig)
+    println("Saved P$(player_idx) control cost plot to $(filename).png")
+end
+
+# ========================================================================================
+# R-vs-R vs R-vs-NR COST COMPONENT OVERLAY
+# ========================================================================================
+
+"""
+    _load_rvr_rnr_series(multipliers; rvr_directory, rnr_directory)
+
+Load the three overlay series (R-vs-R, R-vs-NR P2=Robust, R-vs-NR P2=Non-Robust)
+per nature multiplier. Same loading scheme as `analyze_rvr_vs_rnr_overlay`.
+"""
+function _load_rvr_rnr_series(multipliers; rvr_directory, rnr_directory)
+    rvr = Dict{Int, Vector{SenateTrajectoryAnalysisEntry}}()
+    rnr_r = Dict{Int, Vector{SenateTrajectoryAnalysisEntry}}()
+    rnr_nr = Dict{Int, Vector{SenateTrajectoryAnalysisEntry}}()
+
+    for m in multipliers
+        println("\n===== Loading entries for nature_multiplier=$m =====")
+
+        load_and_analyze_senate_solution_files(
+            directory=rvr_directory,
+            file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type"))
+        rvr[m] = copy(SENATE_TRAJECTORY_TRACKER.entries)
+
+        load_and_analyze_senate_solution_files(
+            directory=rnr_directory,
+            file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type_robust"))
+        rnr_r[m] = copy(SENATE_TRAJECTORY_TRACKER.entries)
+
+        load_and_analyze_senate_solution_files(
+            directory=rnr_directory,
+            file_pattern=Regex("p2_nature_multiplier_$(m)_p2_type_non_robust"))
+        rnr_nr[m] = copy(SENATE_TRAJECTORY_TRACKER.entries)
+
+        println("  R-vs-R: $(length(rvr[m])), R-vs-NR robust: $(length(rnr_r[m])), R-vs-NR NR: $(length(rnr_nr[m]))")
+    end
+    return rvr, rnr_r, rnr_nr
+end
+
+"""
+    _entry_cost_component_timeseries(entry, player_idx)
+
+Per-execution-step deterministic cost components for one entry, evaluated on the
+ground-truth state with zero-covariance beliefs (same convention as
+`_decompose_entry_costs`, which reports the cumulative totals of this series).
+Returns a Vector of `(preference, control, obstacle)` NamedTuples, or `nothing`.
+The final step carries the terminal-weighted preference cost and no control cost.
+"""
+function _entry_cost_component_timeseries(entry::SenateTrajectoryAnalysisEntry, player_idx::Int)
+    if isnothing(entry.params) || isempty(entry.gt_state_history)
+        return nothing
+    end
+
+    config = get(entry.params.player_configs, player_idx, nothing)
+    if isnothing(config)
+        return nothing
+    end
+
+    executed_controls = extract_senate_executed_controls(entry)
+    player_controls = get(executed_controls, player_idx, nothing)
+
+    out = NamedTuple[]
+    T = length(entry.gt_state_history)
+    for t in 1:T
+        gt_state = entry.gt_state_history[t]
+        is_terminal = (t == T) || isnothing(player_controls) || t > length(player_controls)
+
+        beliefs = Beliefs([
+            Belief(block, zeros(length(block), length(block)))
+            for _ in sort(collect(keys(entry.params.player_configs)))
+            for block in gt_state.blocks
+        ])
+
+        if is_terminal
+            c = compute_senate_cost_components(beliefs, nothing, config; is_terminal=true)
+            push!(out, (preference=c.preference, control=0.0, obstacle=c.obstacle))
+        else
+            merged_ctrl_vec = Float64[]
+            ctrl_block_sizes = Int[]
+            for pidx in sort(collect(keys(executed_controls)))
+                if t <= length(executed_controls[pidx])
+                    append!(merged_ctrl_vec, executed_controls[pidx][t])
+                    push!(ctrl_block_sizes, length(executed_controls[pidx][t]))
+                end
+            end
+            if isempty(merged_ctrl_vec)
+                continue
+            end
+            merged_controls = BlockVector(merged_ctrl_vec, ctrl_block_sizes)
+
+            c = compute_senate_cost_components(beliefs, merged_controls, config; is_terminal=false)
+            push!(out, (preference=c.preference, control=c.control, obstacle=c.obstacle))
+        end
+    end
+    return out
+end
+
+"""
+    create_rvr_vs_rnr_cost_component_plot(rvr, rnr_r, rnr_nr, multipliers;
+        directory, player_idx=2, cumulative=false)
+
+Grid of P`player_idx` cost components over execution time: rows = components
+(preference, control, obstacle, total), columns = R-vs-R and R-vs-NR (P2=Robust).
+One mean line per nature multiplier (sweep color ramp); pooled R-vs-NR
+non-robust baseline as dashed gray in every panel.
+"""
+function create_rvr_vs_rnr_cost_component_plot(rvr, rnr_r, rnr_nr, multipliers;
+    directory::String, player_idx::Int=2, cumulative::Bool=false)
+
+    mkpath(directory)
+    n_sv = length(multipliers)
+
+    function sweep_color(idx, n)
+        t = n <= 1 ? 0.0 : (idx - 1) / (n - 1)
+        stops = [
+            (0.0,  RGBf(0.2, 0.4, 1.0)),
+            (0.25, RGBf(0.2, 0.8, 0.4)),
+            (0.5,  RGBf(0.9, 0.9, 0.2)),
+            (0.75, RGBf(1.0, 0.6, 0.2)),
+            (1.0,  RGBf(0.9, 0.2, 0.2)),
+        ]
+        for i in 1:length(stops)-1
+            t0, c0 = stops[i]; t1, c1 = stops[i+1]
+            if t <= t1
+                s = (t - t0) / (t1 - t0)
+                return RGBf(c0.r + s*(c1.r-c0.r), c0.g + s*(c1.g-c0.g), c0.b + s*(c1.b-c0.b))
+            end
+        end
+        return stops[end][2]
+    end
+    nr_color = RGBAf(0.4, 0.4, 0.4, 0.85)
+
+    components = [:preference, :control, :obstacle, :total]
+    comp_titles = Dict(
+        :preference => "Preference (ellipsoidal)",
+        :control    => "Control",
+        :obstacle   => "Obstacle",
+        :total      => "Total (sum of components)",
+    )
+
+    function decompose_entries(entries)
+        out = Vector{Vector{NamedTuple}}()
+        for e in entries
+            series = _entry_cost_component_timeseries(e, player_idx)
+            (isnothing(series) || isempty(series)) && continue
+            push!(out, series)
+        end
+        return out
+    end
+
+    function comp_trajs(decomposed, comp)
+        return [comp === :total ?
+                    Float64[s.preference + s.control + s.obstacle for s in series] :
+                    Float64[getfield(s, comp) for s in series]
+                for series in decomposed]
+    end
+
+    function mean_curve(trajs)
+        isempty(trajs) && return Float64[], Float64[]
+        min_T = minimum(length(t) for t in trajs)
+        min_T == 0 && return Float64[], Float64[]
+        series = cumulative ? [cumsum(t[1:min_T]) for t in trajs] : [t[1:min_T] for t in trajs]
+        return collect(1:min_T), [mean(s[i] for s in series) for i in 1:min_T]
+    end
+
+    series_specs = [("R-vs-R", rvr), ("R-vs-NR (P2=Robust)", rnr_r)]
+    all_nr_entries = SenateTrajectoryAnalysisEntry[]
+    for m in multipliers
+        append!(all_nr_entries, get(rnr_nr, m, SenateTrajectoryAnalysisEntry[]))
+    end
+
+    update_theme!(fonts = (; regular = "Palatino Linotype",
+                             bold = "Palatino Linotype",
+                             italic = "Palatino Linotype"))
+    mode = cumulative ? "Cumulative" : "Per-Step"
+    fig = Figure(size=(1500, 380 * length(components) + 140),
+        backgroundcolor=:transparent, fontsize=24)
+
+    axes = Dict{Tuple{Int, Int}, Axis}()
+    for (row, comp) in enumerate(components)
+        for (colidx, (label, _)) in enumerate(series_specs)
+            ax = Axis(fig[row, colidx],
+                backgroundcolor=:transparent,
+                xlabel = row == length(components) ? "Execution Step" : "",
+                ylabel = colidx == 1 ? "$(comp_titles[comp])" : "",
+                title = row == 1 ? label : "",
+                topspinevisible = false, rightspinevisible = false,
+                xgridvisible = false, ygridvisible = false,
+            )
+            axes[(row, colidx)] = ax
+        end
+    end
+
+    nr_decomposed = decompose_entries(all_nr_entries)
+    for (colidx, (_, dict)) in enumerate(series_specs)
+        for (idx, m) in enumerate(multipliers)
+            decomposed = decompose_entries(get(dict, m, SenateTrajectoryAnalysisEntry[]))
+            isempty(decomposed) && continue
+            col = sweep_color(idx, n_sv)
+            for (row, comp) in enumerate(components)
+                ts, ms = mean_curve(comp_trajs(decomposed, comp))
+                isempty(ts) && continue
+                lines!(axes[(row, colidx)], ts, ms, color=(col, 0.9),
+                    linewidth=3, label=string(m))
+            end
+        end
+        # Pooled NR baseline in every panel
+        for (row, comp) in enumerate(components)
+            ts, ms = mean_curve(comp_trajs(nr_decomposed, comp))
+            isempty(ts) && continue
+            lines!(axes[(row, colidx)], ts, ms, color=nr_color,
+                linewidth=3, linestyle=:dash, label="NR")
+        end
+    end
+
+    # Link y-axes across the two columns per row for direct comparison
+    for row in 1:length(components)
+        linkyaxes!(axes[(row, 1)], axes[(row, 2)])
+    end
+
+    Legend(fig[length(components) + 1, :], axes[(1, 1)],
+        "Nature's Control Effort Cost (c)",
+        orientation=:horizontal, nbanks=2, framevisible=false)
+
+    suffix = cumulative ? "cumulative" : "perstep"
+    filename = joinpath(directory, "rvr_vs_rnr_components_$(suffix)")
+    save(filename * ".png", fig, px_per_unit=2)
+    save(filename * ".pdf", fig)
+    println("Saved $(mode) cost component overlay to $(filename).png")
+end
+
+"""
+    analyze_rvr_vs_rnr_cost_components(; multipliers, rvr_directory, rnr_directory,
+        output_directory, player_idx=2)
+
+Load the R-vs-R and R-vs-NR sweeps and render P2's cost components (preference,
+control, obstacle, total) over execution time, one line per nature multiplier,
+in both per-step and cumulative form.
+"""
+function analyze_rvr_vs_rnr_cost_components(;
+    multipliers=[1, 2, 5, 10, 25, 50, 125, 250, 625],
+    rvr_directory="./exp/senate/outputs/merged/rvr_nature_control_sweep",
+    rnr_directory="./exp/senate/outputs/merged/nature_control_sweep",
+    output_directory="./exp/senate/outputs/analysis/rvr_vs_rnr_overlay",
+    player_idx::Int=2,
+    preloaded=nothing,
+)
+    if isnothing(preloaded)
+        rvr, rnr_r, rnr_nr = _load_rvr_rnr_series(multipliers;
+            rvr_directory=rvr_directory, rnr_directory=rnr_directory)
+    else
+        rvr, rnr_r, rnr_nr = preloaded
+    end
+
+    create_rvr_vs_rnr_cost_component_plot(rvr, rnr_r, rnr_nr, multipliers;
+        directory=output_directory, player_idx=player_idx, cumulative=false)
+    create_rvr_vs_rnr_cost_component_plot(rvr, rnr_r, rnr_nr, multipliers;
+        directory=output_directory, player_idx=player_idx, cumulative=true)
 end
 
 # ========================================================================================

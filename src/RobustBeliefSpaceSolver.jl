@@ -409,10 +409,17 @@ function joint_feedback_strategy(Qh_uu, Qh_ub, Qh_u, nominal_control, nominal_be
 end
 
 function build_strategy(game::BeliefGame, nominal_beliefs, nominal_controls, feedback_terms, α)
+    # Diagnostic flag: pin the nature player's control to exactly zero while
+    # keeping the nature block in the backward pass (structure vs hedging test).
+    force_zero_nature = get(ENV, "RBSG_FORCE_ZERO_NATURE", "0") == "1"
     map(1:game.horizon-1) do t
         function (belief::Beliefs)
             block_sizes = length(game.robust_players) > 0 ? vcat(game.dims.total_controls_dim, game.dims.nature_controls_dim) : game.dims.total_controls_dim
-            return BlockVector(nominal_controls[t] + α * feedback_terms[t][1] + feedback_terms[t][2] * (belief - nominal_beliefs[t]), block_sizes)
+            u = BlockVector(nominal_controls[t] + α * feedback_terms[t][1] + feedback_terms[t][2] * (belief - nominal_beliefs[t]), block_sizes)
+            if force_zero_nature && length(game.robust_players) > 0
+                u[sum(game.dims.total_controls_dim)+1:end] .= 0.0
+            end
+            return u
         end
     end
 end

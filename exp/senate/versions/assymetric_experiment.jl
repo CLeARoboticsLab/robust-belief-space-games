@@ -186,6 +186,18 @@ function build_asymmetric_player_configs(combo, fixed_params)
             p1_belief_about_p2.self_sensor_model_template = covariance_drift_sensor_model
         end
     end
+    # Belief-drift mismatch: P1 models P2's belief of the senators as drifting
+    # along the goal-separation axis (goalline_drift_dynamics_model), i.e. P1
+    # thinks P2 is directionally wrong about where the senators are/will be.
+    # Planning-only: P2's actual planner and the shared execution EKF stay clean.
+    p1b_p2_dds = haskey(combo, :p1_believes_p2_drift_dynamics_scale) ?
+        combo[:p1_believes_p2_drift_dynamics_scale] :
+        get(fixed_params, :p1_believes_p2_drift_dynamics_scale, nothing)
+    if !isnothing(p1b_p2_dds)
+        p1_belief_about_p2.drift_dynamics_scale = p1b_p2_dds
+        p1_belief_about_p2.self_dynamics_model_template =
+            p1b_p2_dds == 0.0 ? base_dynamics : goalline_drift_dynamics_model
+    end
     # Intent mismatch: P1's model of P2's preference cost (targets and/or weight)
     # diverges from P2's actual config. Applied only to P1's belief copy — P2's
     # own planning and the executed cost keep the true preference.
@@ -235,6 +247,16 @@ function build_asymmetric_player_configs(combo, fixed_params)
     end
     if haskey(fixed_params, :p2_believes_p1_sensor_model)
         p2_belief_about_p1.self_sensor_model_template = fixed_params[:p2_believes_p1_sensor_model]
+    end
+    # Belief-drift mismatch, mirrored: P2 models P1's belief of the senators as
+    # drifting. Same goal-line direction convention as the P1 variant.
+    p2b_p1_dds = haskey(combo, :p2_believes_p1_drift_dynamics_scale) ?
+        combo[:p2_believes_p1_drift_dynamics_scale] :
+        get(fixed_params, :p2_believes_p1_drift_dynamics_scale, nothing)
+    if !isnothing(p2b_p1_dds)
+        p2_belief_about_p1.drift_dynamics_scale = p2b_p1_dds
+        p2_belief_about_p1.self_dynamics_model_template =
+            p2b_p1_dds == 0.0 ? base_dynamics : goalline_drift_dynamics_model
     end
     # Intent mismatch, mirrored: P2's model of P1's preference cost diverges from
     # P1's actual config. Applied only to P2's belief copy.
@@ -472,6 +494,11 @@ function run_asymmetric_experiment(;
     p2_believes_self_drift_sensor_scale = nothing,
     p2_believes_p1_drift_sensor_scale = nothing,
     p2_believes_p1_sensor_model = nothing,
+    # Belief-drift mismatch: P{i} models the opponent's belief of the senators as
+    # drifting along the goal-line direction (scalar, single value only; signed:
+    # + = opponent's effective target perceived sliding toward P{i}'s own goal)
+    p1_believes_p2_drift_dynamics_scale = nothing,
+    p2_believes_p1_drift_dynamics_scale = nothing,
     # Intent mismatch: P1's model of P2's preference cost (wrong targets / weight)
     p1_believes_p2_ellipsoid_centers = nothing,   # Vector{Vector{Real}}, single value only
     p1_believes_p2_ellipsoidal_cost_weight = nothing,  # scalar, single value only
@@ -773,6 +800,14 @@ function run_asymmetric_experiment(;
     end
     if !isnothing(p2_believes_p1_sensor_model)
         fixed_params[:p2_believes_p1_sensor_model] = p2_believes_p1_sensor_model
+    end
+    if !isnothing(p1_believes_p2_drift_dynamics_scale)
+        @assert p1_believes_p2_drift_dynamics_scale isa Real "p1_believes_p2_drift_dynamics_scale must be a scalar"
+        fixed_params[:p1_believes_p2_drift_dynamics_scale] = p1_believes_p2_drift_dynamics_scale
+    end
+    if !isnothing(p2_believes_p1_drift_dynamics_scale)
+        @assert p2_believes_p1_drift_dynamics_scale isa Real "p2_believes_p1_drift_dynamics_scale must be a scalar"
+        fixed_params[:p2_believes_p1_drift_dynamics_scale] = p2_believes_p1_drift_dynamics_scale
     end
     if !isnothing(p1_believes_p2_ellipsoid_centers)
         @assert p1_believes_p2_ellipsoid_centers isa Vector{<:Vector{<:Real}} "p1_believes_p2_ellipsoid_centers must be Vector{Vector{Real}}"
