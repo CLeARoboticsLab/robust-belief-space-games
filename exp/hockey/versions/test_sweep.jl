@@ -564,11 +564,11 @@ function visualize_sweep_rank(rank::Int;
     analysis_dir = joinpath(dirname(sweep_dir), "..", "analysis", entry.robust_dir)
     generate_comparison_plots(solutions, rank, analysis_dir)
 
-    println("visualize? (y): ")
-    viz = readline()
-    if viz == "y"
-        visualize_receding_horizon_solutions_multi_figure(solutions, [[-1.5, 0.25], [-1.5, -0.25]])
-    end
+    # println("visualize? (y): ")
+    # viz = readline()
+    # if viz == "y"
+    #     visualize_receding_horizon_solutions_multi_figure(solutions, [[-1.5, 0.25], [-1.5, -0.25]])
+    # end
 end
 
 """
@@ -830,7 +830,8 @@ Run robust trials for the same base config across multiple nature_control_cost_w
 All values are batched into a single `run_experiment_batch` call so trials run in parallel.
 Only runs robust trials since the non-robust baseline (matched via extract_base_config) is unchanged.
 """
-function run_nccw_variant_trials(entry, nccw_values::Vector{Float64}, num_trials::Int, sweep_dir::String)
+function run_nccw_variant_trials(entry, nccw_values::Vector{Float64}, num_trials::Int, sweep_dir::String;
+                                  max_cores::Int=typemax(Int))
     robust_path = joinpath(sweep_dir, entry.robust_dir)
 
     # Load existing robust params as template
@@ -911,10 +912,89 @@ function run_nccw_variant_trials(entry, nccw_values::Vector{Float64}, num_trials
 
     for (off, group) in offset_groups
         group_trials = num_trials * length(group)
-        run_experiment_batch(group; cores=min(40, group_trials), trial_offset=off)
+        run_experiment_batch(group; cores=min(max_cores, group_trials), trial_offset=off)
     end
 
     println("All nccw variant trials completed.")
+end
+
+"""
+    run_nccw_variant_trials_to_target(entry, nccw_values, target, sweep_dir; max_cores)
+
+Top each nccw variant up to `target` total trials in a single combined batch.
+Existing trial counts are detected per-directory; only the missing trials are
+queued, each with its own trial_offset so noise seeds don't collide with
+existing files. Variants already at or above `target` are skipped.
+
+Unlike calling `run_nccw_variant_trials` per-nccw, this issues one
+`run_experiment_batch` covering all variants at once, so a single worker pool
+of size `min(max_cores, total_tasks)` processes tasks across all nccws
+concurrently.
+"""
+function run_nccw_variant_trials_to_target(entry, nccw_values::Vector{Float64},
+                                           target::Int, sweep_dir::String;
+                                           max_cores::Int=typemax(Int))
+    function format_val(v)
+        rounded = round(v, sigdigits=10)
+        rounded == floor(rounded) ? string(Int(rounded)) : string(rounded)
+    end
+
+    # Load template params from the entry's robust dir
+    robust_path = joinpath(sweep_dir, entry.robust_dir)
+    base_params = nothing
+    if isdir(robust_path)
+        for f in readdir(robust_path)
+            endswith(f, ".jld2") || continue
+            try
+                data = load(joinpath(robust_path, f))
+                if haskey(data, "params")
+                    base_params = deepcopy(data["params"])
+                    break
+                end
+            catch e
+                println("Warning: Failed to load $f: $e")
+            end
+        end
+    end
+    if isnothing(base_params)
+        println("Error: Could not load template params from $robust_path")
+        return
+    end
+
+    # Build per-nccw params + offsets
+    params_list = HockeyParams[]
+    offsets = Int[]
+    for nccw in nccw_values
+        new_dir = replace(entry.robust_dir, r"p2_ncc[\d.]+" => "p2_ncc$(format_val(nccw))")
+        path = joinpath(sweep_dir, new_dir)
+        existing = isdir(path) ? count(f -> endswith(f, ".jld2"), readdir(path)) : 0
+        needed = target - existing
+        if needed <= 0
+            println("  nccw=$nccw: $existing ≥ $target, skipping")
+            continue
+        end
+        isdir(path) || mkpath(path)
+
+        p = deepcopy(base_params)
+        p.player_configs[2].nature_control_cost_weight = nccw
+        p.trials = needed
+        p.output_dir = path
+
+        push!(params_list, p)
+        push!(offsets, existing)
+        println("  nccw=$nccw: $existing existing → running $needed more (offset=$existing)")
+    end
+
+    if isempty(params_list)
+        println("All variants already at target. Nothing to do.")
+        return
+    end
+
+    total_tasks = sum(p.trials for p in params_list)
+    workers = min(max_cores, total_tasks)
+    println("Total: $total_tasks trials across $(length(params_list)) nccw values → $workers workers")
+
+    run_experiment_batch(params_list; cores=workers, trial_offsets=offsets)
 end
 
 function generate_comparison_plots(solutions, rank, output_dir)

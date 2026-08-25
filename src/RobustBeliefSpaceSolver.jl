@@ -105,7 +105,7 @@ function solve(game::BeliefGame; debug=false, ϵ_converge=1e-2, debug_file=DEBUG
             # end
 
         else
-            if regularizations.control_reg > 1000
+            if regularizations.control_reg > 1e6
                 break
             end
             regularizations.control_reg *= 1.3 #TODO: Convert to global variable
@@ -414,7 +414,7 @@ function line_search(game::BeliefGame, nominal_beliefs, nominal_controls, feedba
     alpha_limit_hit = false
     while candidate_kkt_error > current_kkt_error + c * α * directional_derivative && !alpha_limit_hit
         α = ρ * α
-        if α < 1e-3
+        if α < 1e-6
             alpha_limit_hit = true
         end
         candidate_beliefs, candidate_controls = rollout_strategy(game, build_strategy(game, nominal_beliefs, nominal_controls, feedback_terms, α))

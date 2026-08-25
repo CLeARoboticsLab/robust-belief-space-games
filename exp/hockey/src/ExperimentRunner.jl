@@ -75,15 +75,22 @@ the number of workers.
 `trial_offset` is added to each trial index, allowing extra trials to start from 
 existing_count + 1 instead of 1 (to avoid overwriting existing trial files).
 """
-function run_experiment_batch(params_list::Vector{HockeyParams}; cores=4, auto_recycle=true, trial_offset=0)
+function run_experiment_batch(params_list::Vector{HockeyParams}; cores=4, auto_recycle=true,
+                               trial_offset::Int=0,
+                               trial_offsets::Union{Nothing, Vector{Int}}=nothing)
+    if !isnothing(trial_offsets) && length(trial_offsets) != length(params_list)
+        error("trial_offsets length ($(length(trial_offsets))) must match params_list length ($(length(params_list)))")
+    end
     tasks = []
-    for params in params_list
+    for (i, params) in enumerate(params_list)
+        off = isnothing(trial_offsets) ? trial_offset : trial_offsets[i]
         for t in 1:params.trials
-            push!(tasks, (params, t + trial_offset))
+            push!(tasks, (params, t + off))
         end
     end
     
     num_tasks = length(tasks)
+
     effective_cores = min(cores, num_tasks)
     
     if auto_recycle && num_tasks > effective_cores

@@ -1,4 +1,5 @@
 **/outputs/
+/doc
 /test
 **.png
 **.jld2
@@ -6,3 +7,5 @@
 .vscode
 exp/senate/LocalPreferences.toml
 exp/senate/Manifest.toml
+exp/hockey/analysis/
+.claude/

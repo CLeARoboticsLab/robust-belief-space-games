@@ -1613,8 +1613,111 @@ function create_defender_yarnball_comparison(r_entries, nr_entries; output_dir="
     rank = r_entries_list[1].trial_number
     file_path = joinpath(output_dir, "rank_$(rank)_defender_yarnball.png")
     save(file_path, fig)
-    save("$(directory)/rank_$(rank)_defender_yarnball.pdf", fig)
+    save("$(output_dir)/rank_$(rank)_defender_yarnball.pdf", fig)
     println("Saved Defender Yarnball to $file_path")
+
+    # ── Executed-only plots (line+band and yarnball) ──
+
+    # Extract executed cost component trajectories per trial
+    function _extract_exec_components(entries_list)
+        # Returns Dict{Symbol, Vector{Vector{Float64}}} keyed by component (+ :Total)
+        comp_trajs = Dict{Symbol, Vector{Vector{Float64}}}()
+        for entry in entries_list
+            exec_costs = compute_executed_trajectory_costs(entry, false)
+            trial_comps = Dict{Symbol, Vector{Float64}}()
+            total_series = Float64[]
+            for step_costs in exec_costs
+                if haskey(step_costs, :defender)
+                    step_total = 0.0
+                    for (comp, val) in pairs(step_costs[:defender])
+                        series = get!(trial_comps, comp, Float64[])
+                        push!(series, val)
+                        step_total += val
+                    end
+                    push!(total_series, step_total)
+                end
+            end
+            for (comp, series) in trial_comps
+                trajs = get!(comp_trajs, comp, Vector{Float64}[])
+                push!(trajs, series)
+            end
+            if !isempty(total_series)
+                trajs = get!(comp_trajs, :Total, Vector{Float64}[])
+                push!(trajs, total_series)
+            end
+        end
+        return comp_trajs
+    end
+
+    r_exec = _extract_exec_components(r_entries_list)
+    nr_exec = _extract_exec_components(nr_entries_list)
+    exec_comps = sort(collect(union(keys(r_exec), keys(nr_exec))), by=string)
+    # Move :Total to end
+    if :Total in exec_comps
+        filter!(c -> c != :Total, exec_comps)
+        push!(exec_comps, :Total)
+    end
+
+    if !isempty(exec_comps)
+        n_ec = length(exec_comps)
+
+        # --- Line + band version ---
+        fig_exec = Figure(size=(400 * n_ec, 400), fontsize=16)
+        for (ci, comp) in enumerate(exec_comps)
+            ax_e = Axis(fig_exec[1, ci],
+                title=string(comp), xlabel="Time Step", ylabel="Cost")
+
+            r_trajs = get(r_exec, comp, Vector{Float64}[])
+            if !isempty(r_trajs)
+                ts, means, stds = compute_stats(r_trajs)
+                if !isempty(ts)
+                    band!(ax_e, collect(ts), means .- stds, means .+ stds, color=(:blue, 0.2))
+                    lines!(ax_e, collect(ts), means, color=:blue, label="Robust", linewidth=2)
+                end
+            end
+
+            nr_trajs = get(nr_exec, comp, Vector{Float64}[])
+            if !isempty(nr_trajs)
+                ts, means, stds = compute_stats(nr_trajs)
+                if !isempty(ts)
+                    band!(ax_e, collect(ts), means .- stds, means .+ stds, color=(:red, 0.2))
+                    lines!(ax_e, collect(ts), means, color=:red, label="Non-Robust", linewidth=2)
+                end
+            end
+
+            ci == n_ec && axislegend(ax_e)
+        end
+        save(joinpath(output_dir, "defender_executed_components.png"), fig_exec)
+        save(joinpath(output_dir, "defender_executed_components.pdf"), fig_exec)
+        println("Saved defender executed components (line+band) to $output_dir")
+
+        # --- Yarnball version (individual trial lines) ---
+        fig_yarn = Figure(size=(400 * n_ec, 400), fontsize=16)
+        for (ci, comp) in enumerate(exec_comps)
+            ax_y = Axis(fig_yarn[1, ci],
+                title=string(comp), xlabel="Time Step", ylabel="Cost")
+
+            r_trajs = get(r_exec, comp, Vector{Float64}[])
+            for traj in r_trajs
+                lines!(ax_y, 1:length(traj), traj, color=(:blue, 0.15), linewidth=0.8)
+            end
+
+            nr_trajs = get(nr_exec, comp, Vector{Float64}[])
+            for traj in nr_trajs
+                lines!(ax_y, 1:length(traj), traj, color=(:red, 0.15), linewidth=0.8)
+            end
+
+            # Add legend entries via invisible thick lines
+            if ci == n_ec
+                lines!(ax_y, [0], [0], color=(:blue, 0.8), linewidth=2, label="Robust")
+                lines!(ax_y, [0], [0], color=(:red, 0.8), linewidth=2, label="Non-Robust")
+                axislegend(ax_y)
+            end
+        end
+        save(joinpath(output_dir, "defender_executed_yarnball.png"), fig_yarn)
+        save(joinpath(output_dir, "defender_executed_yarnball.pdf"), fig_yarn)
+        println("Saved defender executed components (yarnball) to $output_dir")
+    end
 end
 
 """
